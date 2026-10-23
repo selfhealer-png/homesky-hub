@@ -3,6 +3,7 @@ import { CLOCK_LABELS, clockPreview } from '../clockPreview';
 import {
   CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, MOTION_LEVELS, PHOTO_STYLES, RADIUS_CHOICES, WARMTH_LEVELS,
   type DisplaySettings, type MotionLevel,
+  googleGranted, type GooglePart, type GoogleWants,
   type AdminState, type PhotoInfo, type PickStatus, type Place, type SkySettings, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../../shared/settings';
 
@@ -187,12 +188,16 @@ function calendarsCard() {
 
   const choose = (panel: typeof openPanel, label: string, hint: string) => {
     const b = h('button', { type: 'button', class: `choice${openPanel === panel ? ' on' : ''}`, 'aria-expanded': String(openPanel === panel) }, h('b', {}, label), h('small', {}, hint));
-    b.addEventListener('click', () => { openPanel = openPanel === panel ? null : panel; render(); });
+    b.addEventListener('click', () => {
+      if (panel === 'google' && openPanel !== 'google') googleDraft = null;
+      openPanel = openPanel === panel ? null : panel;
+      render();
+    });
     return b;
   };
   card.append(h('h3', {}, 'Add a calendar'), h('div', { class: 'choices' },
     choose('ics', 'Calendar link', 'Google, iCloud, Outlook (iCal)'),
-    google ? null : choose('google', 'Google account', 'Calendars and Google Tasks'),
+    google ? null : choose('google', 'Google account', 'Google Calendar and Tasks'),
     choose('feed', 'Agenda feed', 'Your own server (JSON)'),
   ));
   if (openPanel === 'ics') card.append(icsForm());
@@ -366,32 +371,78 @@ function feedForm() {
 
 // ── Google ──────────────────────────────────────────────────────────────────
 
+const PART_NAMES: Record<GooglePart, string> = { calendar: 'Calendars', tasks: 'Tasks', photos: 'Photos' };
+const grantedParts = (conn: GoogleConnection) => (Object.keys(PART_NAMES) as GooglePart[]).filter(p => googleGranted(conn, p));
+
 function googleRow(conn: GoogleConnection) {
-  const shown = conn.calendars.filter(c => c.enabled).length + conn.taskLists.filter(l => l.enabled).length;
-  const { row, actions, remove } = rowShell(null, 'Google', conn.account ? `${conn.account} · ${shown} shown` : 'Not connected yet', conn);
+  const sub = conn.account ? `${conn.account} · ${grantedParts(conn).map(p => PART_NAMES[p]).join(', ')}` : 'Not connected yet';
+  const { row, actions, remove } = rowShell(null, 'Google', sub, conn);
   actions.append(remove);
   return row;
 }
 
+/** The person's choice of what to use Google for, while they're setting it up. */
+let googleDraft: GoogleWants | null = null;
+
+function googleWantsNow(conn: GoogleConnection | undefined): GoogleWants {
+  return googleDraft ?? conn?.wants ?? { calendar: true, tasks: true, photos: false };
+}
+
+/** "What would you like to use from Google?" Three independent choices. */
+function googleQuestion(conn: GoogleConnection | undefined, onChange: () => void) {
+  const wants = googleWantsNow(conn);
+  const options: Array<[GooglePart, string, string]> = [
+    ['calendar', 'Calendars', 'Your Google calendars on the Home screen.'],
+    ['tasks', 'Tasks', 'Google Tasks that are due, on the Home screen.'],
+    ['photos', 'Photos', 'Pick photos for the photo frame.'],
+  ];
+  const box = h('div', { class: 'gparts', role: 'group', 'aria-label': 'What to use Google for' });
+  for (const [part, title, sub] of options) {
+    const check = h('input', { type: 'checkbox', checked: wants[part] });
+    check.addEventListener('change', () => { googleDraft = { ...googleWantsNow(conn), [part]: check.checked }; onChange(); });
+    box.append(h('label', { class: 'gpart' }, check, h('span', {}, h('b', {}, title), h('small', {}, sub))));
+  }
+  return h('div', {}, h('h4', {}, 'What would you like to use from Google?'), box);
+}
+
+async function connectGoogle(btn: HTMLButtonElement, wants: GoogleWants) {
+  await busy(btn, async () => {
+    const { url } = await api<{ url: string }>('/api/admin/google/start', { wants });
+    googleDraft = null;
+    location.href = url;
+  });
+}
+
 function googlePanel(conn: GoogleConnection | undefined) {
-  const panel = h('div', { class: 'panel', id: 'google' }, h('h3', {}, 'Google Calendar and Tasks'));
+  const panel = h('div', { class: 'panel', id: 'google' }, h('h3', {}, 'Google'));
   if (conn?.account) {
     panel.append(h('p', { class: 'lede' }, 'Connected as ', h('b', {}, conn.account), '. Choose what the display shows.'));
     panel.append(googleSelection(conn));
+    // Change which parts Google is used for: reconnects, asking only for what's ticked.
+    const change = h('details', { class: 'guide' }, h('summary', {}, 'Change what Google is used for'));
+    const update = h('button', { type: 'button', class: 'ghost' }, 'Reconnect with these');
+    update.addEventListener('click', () => connectGoogle(update, googleWantsNow(conn)));
+    change.append(googleQuestion(conn, () => { /* the box keeps its own state */ }), h('div', { class: 'buttons' }, update));
+    panel.append(change);
     return panel;
   }
+  panel.append(googleQuestion(conn, render));
+  const wants = googleWantsNow(conn);
 
   const redirect = state.status.googleRedirectUri;
+  const link = (href: string, text: string) => h('a', { href, target: '_blank', rel: 'noopener' }, text);
   panel.append(
-    h('p', { class: 'lede' }, 'Google needs a one-off “OAuth client” in your own Google Cloud project. It takes about ten minutes and is free. The hub only asks for read-only access, and for photos it only ever sees the ones you pick.'),
+    h('p', { class: 'lede' }, 'Google only lets a hub read your account through a sign-in “client” that you create in your own free Google Cloud project. It takes about ten minutes, once. The hub only ever gets read-only access, and for photos it only sees the ones you pick.'),
     h('ol', { class: 'steps' },
-      h('li', {}, 'Open ', h('a', { href: 'https://console.cloud.google.com/projectcreate', target: '_blank', rel: 'noopener' }, 'Google Cloud console'), ' and create a project (any name, e.g. “Home and Sky Hub”).'),
-      h('li', {}, 'In APIs & Services → Library, enable ', h('b', {}, 'Google Calendar API'), ', ', h('b', {}, 'Google Tasks API'), ' and ', h('b', {}, 'Photos Picker API'), ' (for the photo frame).'),
-      h('li', {}, 'In Google Auth Platform (OAuth consent screen): choose ', h('b', {}, 'External'), ', give it a name and your email. Under Audience, add your own Google address as a test user.'),
-      h('li', {}, 'Still under Audience, click ', h('b', {}, 'Publish app'), ' so it is “In production”. Otherwise Google stops the connection after 7 days. Google will warn that the app is unverified when you connect; that is expected for an app only you use.'),
-      h('li', {}, 'Under Clients → Create client → ', h('b', {}, 'Web application'), '. Add this as an authorised redirect URI:', copyRow(redirect)),
-      h('li', {}, 'Copy the Client ID and Client secret into the boxes below, save, then press Connect.'),
+      h('li', {}, h('b', {}, 'Create a project. '), link('https://console.cloud.google.com/projectcreate', 'Open Google Cloud'), ', give it any name (e.g. “Home and Sky Hub”) and press Create. Make sure it’s the project selected at the top of the page for the next steps.'),
+      serviceStep(wants, link),
+      h('li', {}, h('b', {}, 'Set up the sign-in screen. '), link('https://console.cloud.google.com/auth/overview', 'Open Google Auth Platform'), ' and press Get started. App name: anything. Support email: yours. Audience: ', h('b', {}, 'External'), '. Contact email: yours. Then Create.'),
+      h('li', {}, h('b', {}, 'Fill in Branding. '), link('https://console.cloud.google.com/auth/branding', 'Open Branding'), '. Google won’t publish until the required fields are filled in: app name, user support email and developer contact email. The logo and website links are optional; leave them empty. Press Save.'),
+      h('li', {}, h('b', {}, 'Publish it. '), link('https://console.cloud.google.com/auth/audience', 'Open Audience'), ', press ', h('b', {}, 'Publish app'), ' and confirm, so it says “In production”. Skip this and Google blocks the sign-in (“Access blocked … has not completed the Google verification process”), or disconnects the hub after 7 days. If Google says to complete Branding first, go back to step 4.'),
+      h('li', {}, h('b', {}, 'Create the client. '), link('https://console.cloud.google.com/auth/clients', 'Open Clients'), ', press Create client, choose ', h('b', {}, 'Web application'), '. Under “Authorised redirect URIs” press Add URI and paste exactly:', copyRow(redirect), 'Then press Create.'),
+      h('li', {}, h('b', {}, 'Paste the two codes below. '), 'Google shows a Client ID and a Client secret. Copy both into the boxes below, press Save client, then Connect Google.'),
     ),
+    googleTroubleshooting(redirect),
   );
   const clientId = input({ type: 'text', placeholder: '…apps.googleusercontent.com', value: conn?.clientId ?? '' });
   const secret = input({ type: 'password', placeholder: conn ? 'Saved. Leave empty to keep it.' : 'GOCSPX-…' });
@@ -410,13 +461,42 @@ function googlePanel(conn: GoogleConnection | undefined) {
 
   if (conn) {
     const connect = h('button', { type: 'button', class: 'primary' }, 'Connect Google');
-    connect.addEventListener('click', () => busy(connect, async () => {
-      const { url } = await api<{ url: string }>('/api/admin/google/start', {});
-      location.href = url;
-    }));
+    const nothing = !wants.calendar && !wants.tasks && !wants.photos;
+    if (nothing) connect.setAttribute('disabled', '');
+    connect.addEventListener('click', () => connectGoogle(connect, wants));
     panel.append(h('div', { class: 'buttons' }, connect));
+    if (nothing) panel.append(h('p', { class: 'hint' }, 'Tick at least one thing to use Google for.'));
   }
   return panel;
+}
+
+/** Step 2: only the Google services for what was chosen. */
+function serviceStep(wants: GoogleWants, link: (href: string, text: string) => HTMLElement) {
+  const services: Array<[GooglePart, string, string]> = [
+    ['calendar', 'https://console.cloud.google.com/apis/library/calendar-json.googleapis.com', 'Calendar'],
+    ['tasks', 'https://console.cloud.google.com/apis/library/tasks.googleapis.com', 'Tasks'],
+    ['photos', 'https://console.cloud.google.com/apis/library/photospicker.googleapis.com', 'Photos Picker'],
+  ];
+  const chosen = services.filter(([part]) => wants[part]);
+  if (!chosen.length) return h('li', {}, h('b', {}, 'Turn on services. '), 'Tick at least one option above first.');
+  const words = ['', 'one service', 'two services', 'three services'];
+  const parts: Array<Node | string> = [];
+  chosen.forEach(([, href, name], i) => { if (i) parts.push(', '); parts.push(link(href, name)); });
+  return h('li', {}, h('b', {}, `Turn on ${words[chosen.length]}. `), 'Open each and press Enable: ', ...parts, '.');
+}
+
+/** What Google shows during Connect, and what to do about each screen. */
+function googleTroubleshooting(redirect: string) {
+  return h('details', { class: 'guide' },
+    h('summary', {}, 'What you’ll see when you press Connect Google'),
+    h('ol', {},
+      h('li', {}, h('b', {}, '“Google hasn’t verified this app”. '), 'Expected: the app is yours and only you use it. Press ', h('b', {}, 'Advanced'), ', then ', h('b', {}, 'Go to … (unsafe)'), ', then Continue.'),
+      h('li', {}, h('b', {}, 'A list of permissions. '), 'Tick them all (calendars, tasks and photos you pick) and press Continue. It’s read-only.'),
+      h('li', {}, h('b', {}, '“Access blocked: … has not completed the Google verification process”. '), 'The app is still in Testing. Do steps 4 and 5 (Branding, then Publish app), then press Connect Google again.'),
+      h('li', {}, h('b', {}, '“Error 400: redirect_uri_mismatch”. '), 'The redirect URI in step 6 doesn’t match exactly. It must be:', copyRow(redirect)),
+      h('li', {}, h('b', {}, '“Google refused photo access”. '), 'The Photos Picker service isn’t turned on (step 2). Enable it, then press Reconnect Google.'),
+    ),
+  );
 }
 
 function googleSelection(conn: GoogleConnection) {
@@ -449,10 +529,11 @@ function googleSelection(conn: GoogleConnection) {
   });
 
   wrap.append(
-    h('h4', {}, 'Calendars'),
-    ...(conn.calendars.length ? rows(conn.calendars, 'cal') : [h('p', { class: 'empty' }, 'No calendars found.')]),
-    h('h4', {}, 'Task lists'),
-    ...(conn.taskLists.length ? rows(conn.taskLists, 'list') : [h('p', { class: 'empty' }, 'No task lists found (or the Tasks API is not enabled).')]),
+    ...(googleGranted(conn, 'calendar') ? [h('h4', {}, 'Calendars'),
+      ...(conn.calendars.length ? rows(conn.calendars, 'cal') : [h('p', { class: 'empty' }, 'No calendars found.')])] : []),
+    ...(googleGranted(conn, 'tasks') ? [h('h4', {}, 'Task lists'),
+      ...(conn.taskLists.length ? rows(conn.taskLists, 'list') : [h('p', { class: 'empty' }, 'No task lists found (or the Tasks API is not enabled).')])] : []),
+    ...(!googleGranted(conn, 'calendar') && !googleGranted(conn, 'tasks') ? [h('p', { class: 'empty' }, 'Google is used for photos only. To show Google calendars or tasks too, open “Change what Google is used for” below.')] : []),
     h('div', { class: 'buttons' }, save, refresh, disconnect),
   );
   return wrap;
@@ -463,13 +544,6 @@ function googleSelection(conn: GoogleConnection) {
 const PHOTOS_SCOPE = 'https://www.googleapis.com/auth/photospicker.mediaitems.readonly';
 let photoLibrary: PhotoInfo[] | null = null;
 let picking: { sessionId: string; pickerUri: string; status: PickStatus | null } | null = null;
-
-async function reconnectGoogle(btn: HTMLButtonElement) {
-  await busy(btn, async () => {
-    const { url } = await api<{ url: string }>('/api/admin/google/start', {});
-    location.href = url;
-  });
-}
 
 function photosCard() {
   const card = h('section', { class: 'card', id: 'photos' },
@@ -485,13 +559,23 @@ function photosCard() {
   // Adding photos needs Google; the library below doesn't, so it can always be tidied.
   card.append(h('h3', {}, 'Add photos'));
   if (!google?.account) {
-    const go = h('button', { type: 'button', class: 'ghost' }, 'Set up Google');
-    go.addEventListener('click', () => { openPanel = 'google'; render(); document.getElementById('google')?.scrollIntoView({ behavior: 'smooth' }); });
-    card.append(h('p', { class: 'note' }, 'Photos use the same Google connection as calendars. Connect Google first; calendars are optional.'), h('div', { class: 'buttons' }, go));
+    const go = h('button', { type: 'button', class: 'primary' }, 'Set up Google for photos');
+    go.addEventListener('click', () => {
+      // Photos only, unless they tick more; calendars and tasks are separate choices.
+      googleDraft = { ...(google?.wants ?? { calendar: false, tasks: false, photos: false }), photos: true };
+      openPanel = 'google';
+      render();
+      document.getElementById('google')?.scrollIntoView({ behavior: 'smooth' });
+    });
+    card.append(h('p', { class: 'note' }, 'Photos come from your Google account. Setting it up takes about ten minutes, once; calendars and tasks are optional.'), h('div', { class: 'buttons' }, go));
   } else if (google.scopes && !google.scopes.includes(PHOTOS_SCOPE)) {
-    const again = h('button', { type: 'button', class: 'primary' }, 'Reconnect Google');
-    again.addEventListener('click', () => reconnectGoogle(again));
-    card.append(h('p', { class: 'note' }, 'Google is connected without photo access. Enable the Photos Picker API in your Google Cloud project, then reconnect.'), h('div', { class: 'buttons' }, again));
+    const add = h('button', { type: 'button', class: 'primary' }, 'Add photos to Google');
+    add.addEventListener('click', () => connectGoogle(add, { ...(google.wants ?? { calendar: googleGranted(google, 'calendar'), tasks: googleGranted(google, 'tasks'), photos: false }), photos: true }));
+    card.append(
+      h('p', { class: 'note' }, 'Google is connected without photos. First turn on the ',
+        h('a', { href: 'https://console.cloud.google.com/apis/library/photospicker.googleapis.com', target: '_blank', rel: 'noopener' }, 'Photos Picker service'),
+        ' in your Google Cloud project, then press below. Google will ask you to allow photo access.'),
+      h('div', { class: 'buttons' }, add));
   } else {
     card.append(picking ? pickingPanel() : pickForm());
   }
@@ -782,7 +866,7 @@ if (googleResult) {
     connected: ['Google connected. Choose which calendars to show.', 'ok'],
     expired: ['That Google sign-in took too long. Press Connect Google again.', 'error'],
     failed: ['Google sign-in did not finish. Check the client ID, secret and redirect URI.', 'error'],
-    access_denied: ['Google access was not granted.', 'error'],
+    access_denied: ['Google didn’t allow the connection. If it said “Access blocked”, fill in Branding and publish the app (steps 4 and 5), then try again.', 'error'],
   };
   const [msg, kind] = messages[googleResult] ?? [`Google sign-in failed (${googleResult}).`, 'error'];
   setTimeout(() => toast(msg, kind), 300);

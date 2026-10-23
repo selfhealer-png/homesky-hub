@@ -188,3 +188,11 @@ progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--sam);
 
 .topnav { display: flex; gap: 14px; align-items: baseline; }
 .topnav a.link { text-decoration: none; font-weight: 600; }
+
+/* Google: what to use it for */
+.gparts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.gpart { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--border2); background: var(--input-bg); cursor: pointer; min-height: 44px; }
+.gpart:has(input:checked) { border-color: var(--sam); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sam) 20%, transparent); }
+.gpart input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--sam); flex: 0 0 auto; }
+.gpart span { display: flex; flex-direction: column; }
+.gpart small { color: var(--muted); font-size: 13px; }

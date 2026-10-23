@@ -1,6 +1,6 @@
 import {
   CALENDAR_COLORS, CLOCK_STYLES, MOTION_LEVELS, PHOTO_STYLES, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
-  type ClockStyle, type MotionLevel,
+  type ClockStyle, type GoogleWants, type MotionLevel,
   type AdminState, type Place, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
 import { handleLogin, handleLogout, hmac, isAdmin, passesCsrfCheck, safeEqual } from './adminAuth';
@@ -58,7 +58,7 @@ export async function handleAdmin(request: Request, env: Env, url: URL): Promise
       case '/api/admin/connections/delete': return json(await deleteConnection(env, body));
       case '/api/admin/connections/test': return json(await testConnection(env, body));
       case '/api/admin/google/client': return json(await saveGoogleClient(env, body));
-      case '/api/admin/google/start': return json(await googleStart(env, url));
+      case '/api/admin/google/start': return json(await googleStart(env, url, body));
       case '/api/admin/google/choices': return json(await googleChoices(env));
       case '/api/admin/google/selection': return json(await googleSelection(env, body));
       case '/api/admin/google/disconnect': return json(await googleDisconnect(env));
@@ -210,11 +210,18 @@ async function saveGoogleClient(env: Env, b: Record<string, unknown>) {
 
 // OAuth state: "<expiry>.<nonce>.<hmac>". The callback is a cross-site navigation from Google,
 // so the SameSite=Strict admin cookie isn't sent with it; the signed state stands in for it.
-async function googleStart(env: Env, url: URL) {
+async function googleStart(env: Env, url: URL, b: Record<string, unknown>) {
   const conn = googleConn(await loadSettings(env));
   if (!conn) throw new BadRequest('Save the Google Client ID and secret first.');
+  // What to use Google for: chosen on the setup page, remembered for next time.
+  const asked = b.wants as Partial<GoogleWants> | undefined;
+  const wants: GoogleWants = asked
+    ? { calendar: !!asked.calendar, tasks: !!asked.tasks, photos: !!asked.photos }
+    : conn.wants ?? { calendar: true, tasks: true, photos: true };
+  if (!wants.calendar && !wants.tasks && !wants.photos) throw new BadRequest('Choose at least one thing to use Google for.');
+  if (asked) await mutate(env, s => { googleConn(s)!.wants = wants; return s; });
   const payload = `${Date.now() + 10 * 60_000}.${newId()}`;
-  return { url: googleAuthUrl(conn.clientId, `${url.origin}${GOOGLE_CALLBACK}`, `${payload}.${await hmac(env, `google-state:${payload}`)}`) };
+  return { url: googleAuthUrl(conn.clientId, `${url.origin}${GOOGLE_CALLBACK}`, `${payload}.${await hmac(env, `google-state:${payload}`)}`, wants) };
 }
 
 async function googleCallback(env: Env, url: URL): Promise<Response> {
@@ -233,7 +240,7 @@ async function googleCallback(env: Env, url: URL): Promise<Response> {
   try {
     const { refreshToken, account, scopes } = await exchangeCode(conn.clientId, clientSecret, url.searchParams.get('code') ?? '', `${url.origin}${GOOGLE_CALLBACK}`);
     await updateSecrets(env, { [secretKey.googleRefreshToken]: refreshToken });
-    const choices = await listGoogleChoices({ clientId: conn.clientId, clientSecret, refreshToken });
+    const choices = await listGoogleChoices({ clientId: conn.clientId, clientSecret, refreshToken }, { scopes });
     await mutate(env, s => {
       const g = googleConn(s)!;
       g.account = account;
@@ -262,7 +269,7 @@ async function googleChoices(env: Env) {
   const conn = googleConn(settings);
   const secrets = await loadSecrets(env);
   if (!conn?.account || !secrets[secretKey.googleRefreshToken]) throw new BadRequest('Google is not connected.');
-  const choices = await listGoogleChoices({ clientId: conn.clientId, clientSecret: secrets[secretKey.googleClientSecret], refreshToken: secrets[secretKey.googleRefreshToken] });
+  const choices = await listGoogleChoices({ clientId: conn.clientId, clientSecret: secrets[secretKey.googleClientSecret], refreshToken: secrets[secretKey.googleRefreshToken] }, conn);
   return mutate(env, s => {
     const g = googleConn(s)!;
     g.calendars = mergeChoices(g.calendars, choices.calendars);

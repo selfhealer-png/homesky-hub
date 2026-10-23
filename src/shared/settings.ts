@@ -19,9 +19,25 @@ export interface FeedConnection {
 
 export interface GoogleItem { id: string; name: string; color: string; enabled: boolean }
 
+/** Which parts of Google the hub is used for. Each is asked for, and granted, separately. */
+export interface GoogleWants { calendar: boolean; tasks: boolean; photos: boolean }
+export type GooglePart = keyof GoogleWants;
+
+export const GOOGLE_SCOPE: Record<GooglePart, string> = {
+  calendar: 'https://www.googleapis.com/auth/calendar.readonly',
+  tasks: 'https://www.googleapis.com/auth/tasks.readonly',
+  // Photos Picker: only ever sees photos the person picks themselves.
+  photos: 'https://www.googleapis.com/auth/photospicker.mediaitems.readonly',
+};
+
+/** Whether Google actually granted a part (connections made before parts existed had all three). */
+export const googleGranted = (conn: { scopes?: string[] }, part: GooglePart) => !conn.scopes || conn.scopes.includes(GOOGLE_SCOPE[part]);
+
 export interface GoogleConnection {
   id: 'google'; kind: 'google'; enabled: boolean;
   clientId: string;
+  /** What the person chose to use Google for; asked for when connecting. */
+  wants?: GoogleWants;
   /** Set once OAuth has completed and a refresh token is stored. */
   account: string | null;
   /** Scopes Google actually granted; photos need the Picker scope. */

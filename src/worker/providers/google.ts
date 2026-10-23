@@ -1,27 +1,21 @@
 import type { AgendaEvent, AgendaTask } from '../../shared/types';
-import type { GoogleConnection, GoogleItem } from '../../shared/settings';
+import { GOOGLE_SCOPE, googleGranted, type GoogleConnection, type GoogleItem, type GoogleWants } from '../../shared/settings';
 import { agendaWindow, ProviderError, type ProviderResult } from './common';
 
 // Google Calendar and Google Tasks, read-only, through the deployer's own OAuth client.
 // Scopes are read-only by construction: nothing here can change a calendar or a task.
 
-export const GOOGLE_SCOPES = [
-  'openid', 'email',
-  'https://www.googleapis.com/auth/calendar.readonly',
-  'https://www.googleapis.com/auth/tasks.readonly',
-  // Photos Picker: only ever sees photos the person picks themselves.
-  'https://www.googleapis.com/auth/photospicker.mediaitems.readonly',
-];
+export const PHOTOS_SCOPE = GOOGLE_SCOPE.photos;
 
-export const PHOTOS_SCOPE = 'https://www.googleapis.com/auth/photospicker.mediaitems.readonly';
-
-export function googleAuthUrl(clientId: string, redirectUri: string, state: string): string {
+/** Asks only for the parts chosen (plus the email address, to show who's connected). */
+export function googleAuthUrl(clientId: string, redirectUri: string, state: string, wants: GoogleWants): string {
+  const scopes = ['openid', 'email', ...(Object.keys(GOOGLE_SCOPE) as Array<keyof GoogleWants>).filter(p => wants[p]).map(p => GOOGLE_SCOPE[p])];
   const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   u.search = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: GOOGLE_SCOPES.join(' '),
+    scope: scopes.join(' '),
     access_type: 'offline',
     prompt: 'consent', // always return a refresh token, even on reconnect
     include_granted_scopes: 'true',
@@ -77,11 +71,16 @@ async function api<T>(token: string, url: string): Promise<T> {
 export interface GoogleCreds { clientId: string; clientSecret: string; refreshToken: string }
 
 /** Everything the account can see, to choose from in /setup. */
-export async function listGoogleChoices(creds: GoogleCreds): Promise<{ calendars: GoogleItem[]; taskLists: GoogleItem[] }> {
+export async function listGoogleChoices(creds: GoogleCreds, granted: { scopes?: string[] } = {}): Promise<{ calendars: GoogleItem[]; taskLists: GoogleItem[] }> {
   const token = await accessToken(creds.clientId, creds.clientSecret, creds.refreshToken);
+  // Only ask Google about the parts it granted; the others would just be refused.
   const [cals, lists] = await Promise.all([
-    api<{ items?: Array<{ id: string; summary: string; summaryOverride?: string; backgroundColor?: string; primary?: boolean }> }>(token, 'https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader'),
-    api<{ items?: Array<{ id: string; title: string }> }>(token, 'https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=100').catch(() => ({ items: [] })),
+    googleGranted(granted, 'calendar')
+      ? api<{ items?: Array<{ id: string; summary: string; summaryOverride?: string; backgroundColor?: string; primary?: boolean }> }>(token, 'https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader')
+      : { items: [] },
+    googleGranted(granted, 'tasks')
+      ? api<{ items?: Array<{ id: string; title: string }> }>(token, 'https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=100').catch(() => ({ items: [] }))
+      : { items: [] },
   ]);
   return {
     calendars: (cals.items ?? []).map(c => ({ id: c.id, name: c.summaryOverride ?? c.summary, color: c.backgroundColor ?? '#2563FF', enabled: !!c.primary })),
@@ -95,8 +94,8 @@ interface GTask { id: string; title?: string; due?: string; status?: string }
 export async function readGoogle(conn: GoogleConnection, creds: GoogleCreds): Promise<ProviderResult> {
   const token = await accessToken(creds.clientId, creds.clientSecret, creds.refreshToken);
   const { start, end } = agendaWindow();
-  const cals = conn.calendars.filter(c => c.enabled);
-  const lists = conn.taskLists.filter(l => l.enabled);
+  const cals = googleGranted(conn, 'calendar') ? conn.calendars.filter(c => c.enabled) : [];
+  const lists = googleGranted(conn, 'tasks') ? conn.taskLists.filter(l => l.enabled) : [];
   const sid = (kind: 'cal' | 'tasks', id: string) => `google/${kind}/${id}`;
 
   const eventLists = await Promise.all(cals.map(async c => {

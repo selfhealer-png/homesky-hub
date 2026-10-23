@@ -106,19 +106,25 @@ Everything is read-only: the hub can show your calendars but never change them. 
 
 ### Google
 
-Google requires you to create your own free "OAuth client". It's the key that lets *your* hub, and no one else's, read *your* account. The setup page walks you through it with the exact address to paste. In short:
+Google requires you to create your own free "OAuth client". It's the key that lets *your* hub, and no one else's, read *your* account. The setup page walks you through it with direct links and the exact address to paste.
+
+First, the setup page asks **what you want to use Google for**: calendars, tasks, photos, or any mix. Only the services and permissions for what you tick are needed, and you can add the others later. Then:
 
 1. In the [Google Cloud console](https://console.cloud.google.com/projectcreate), create a project with any name.
-2. In **APIs & Services → Library**, enable **Google Calendar API**, **Google Tasks API** and **Photos Picker API**.
-3. In **Google Auth Platform** (the OAuth consent screen), choose **External**, and add your name and email. Under **Audience**, add your own Google address as a test user.
-4. Still under **Audience**, press **Publish app** so it's "In production". **Don't skip this:** otherwise Google disconnects the hub after 7 days. When you connect, Google will warn that the app is unverified. That's expected for an app only you use, so continue.
-5. Under **Clients → Create client**, choose **Web application**, and paste the redirect address the setup page shows you.
-6. Copy the **Client ID** and **Client secret** into the setup page, press **Save client**, then **Connect Google**.
-7. Tick which calendars and task lists to show, and give them colours.
+2. Turn on only the services you chose: **Google Calendar API**, **Google Tasks API**, **Photos Picker API**. The setup page links straight to each one.
+3. In **Google Auth Platform**, press **Get started**: app name (anything), your email as support email, audience **External**, your email as contact. Then **Create**.
+4. Open **Branding** and make sure the required fields are filled in: app name, user support email, developer contact email. Leave the logo and website links empty, then **Save**. **Google won't let you publish until this is done.**
+5. Open **Audience** and press **Publish app**, so it's "In production". **Don't skip this:** otherwise Google blocks the sign-in ("Access blocked … has not completed the Google verification process") or disconnects the hub after 7 days.
+6. Under **Clients → Create client**, choose **Web application**, and paste the redirect address the setup page shows you.
+7. Copy the **Client ID** and **Client secret** into the setup page, press **Save client**, then **Connect Google**.
+8. Google shows **"Google hasn't verified this app"**. That's expected for an app only you use: press **Advanced → Go to … (unsafe) → Continue**, and allow the permissions.
+9. Tick which calendars and task lists to show, and give them colours.
+
+To add photos later to a Google connection made for calendars (or the other way round), use **Add photos to Google** on the Photos card, or **Change what Google is used for** in the Google section.
 
 ### Photos
 
-Needs the Google connection and the photo store.
+Needs Google (with **Photos** ticked) and the photo store. Calendars and tasks are not required.
 
 1. Type a collection name (for example "Summer 2026"), then press **Pick photos**.
 2. Google Photos opens. Choose photos, or open an album and select everything in it, then press **Done**.
@@ -162,6 +168,10 @@ If you downloaded the ZIP instead, download the new one, copy your `wrangler.tom
 | **"This display is not paired yet"** | Open the pairing link on the tablet again. If you've lost it, run `npm run setup` and say **yes** to new secrets. That unpairs every tablet, so pair each one again. |
 | **"Cannot reach the hub"** | The tablet is offline, or the address changed. Check Wi-Fi, then reopen the hub from its Home Screen icon. |
 | **Forgot the admin password** | Run `npm run setup` and generate new secrets. Saved calendar links and Google details are encrypted with the old password, so you'll need to enter them again in the setup page. |
+| **Google says "Access blocked: … has not completed the Google verification process"** | Your Google Cloud app is still in Testing. Fill in Google Auth Platform → **Branding** (required before publishing), then **Audience** → **Publish app**, then press **Connect Google** again. |
+| **"Publish app" asks you to complete Branding** | Open Google Auth Platform → **Branding**, fill in app name, user support email and developer contact email, then **Save** and publish again. |
+| **Google says "Google hasn't verified this app"** | Expected for an app only you use. Press **Advanced** → **Go to … (unsafe)** → **Continue**. |
+| **"Error 400: redirect_uri_mismatch"** | The redirect address in your Google client must match the one shown on the setup page exactly. |
 | **Google stops working after a week** | The app was still in "Testing". In Google Cloud → Google Auth Platform → Audience, press **Publish app**, then **Connect Google** again. |
 | **A calendar link fails its test** | The link may have been reset in your calendar app. Copy a fresh one and use **Edit → Replace link**. |
 | **"Google refused photo access"** | Enable **Photos Picker API** in your Google Cloud project, then press **Reconnect Google** on the setup page. |
