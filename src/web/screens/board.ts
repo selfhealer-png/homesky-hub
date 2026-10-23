@@ -2,15 +2,15 @@ import type { Aircraft, BoardTheme, HubConfig, OverheadResponse, RouteInfo } fro
 import { getJson } from '../api';
 import { FlapRow, setFlapMotion, type FlapMotion } from '../flap';
 import { skyHome, skyQuery } from '../location';
+import { ageLabel, recall, Refresher, remember, type Outcome } from '../skyCache';
 import { h, type Screen } from '../screen';
 
-const POLL_MS = 10_000;
 const MIN_HOLD_MS = 30000; // stay on one aircraft at least this long
 const THEMES: BoardTheme[] = ['splitflap', 'led', 'minimal'];
 const MOTION: Record<BoardTheme, FlapMotion> = { splitflap: 'flip', led: 'scramble', minimal: 'fade' };
 const THEME_KEY = 'hub.boardTheme';
 
-let pollTimer: number | undefined;
+let refresher: Refresher | undefined;
 let root: HTMLElement | undefined;
 let theme: BoardTheme = 'splitflap';
 
@@ -151,26 +151,47 @@ export const boardScreen: Screen = {
 
     let held: string | null = null;
     let heldSince = 0;
-    const poll = async () => {
+    let shown: OverheadResponse | null = null;
+    const show = (data: OverheadResponse) => {
+      shown = data;
+      render(ui, data);
+      const age = ageLabel(data.fetchedAt);
+      if (age) ui.footer.textContent = [ui.footer.textContent, age].filter(Boolean).join(' · ');
+    };
+
+    const poll = async (): Promise<Outcome> => {
+      const home = await skyHome(config);
       const hold = held && Date.now() - heldSince < MIN_HOLD_MS ? `&hold=${encodeURIComponent(held)}` : '';
       try {
-        const data = await getJson<OverheadResponse>(`/api/overhead?${skyQuery(await skyHome(config))}${hold}`);
+        const data = await getJson<OverheadResponse>(`/api/overhead?${skyQuery(home)}${hold}`);
+        // Keep what's on the board if this answer is older, or found nothing while we have a plane.
+        if (shown && (data.fetchedAt < shown.fetchedAt || (!data.aircraft && shown.aircraft && Date.now() - shown.fetchedAt < 120_000))) return 'failed';
         const hex = data.aircraft?.hex ?? null;
         if (hex !== held) { held = hex; heldSince = Date.now(); }
-        render(ui, data);
+        show(data);
+        if (data.aircraft) remember('overhead', home, data);
+        return data.aircraft ? 'found' : 'empty';
       } catch {
-        // Keep the last board on screen; a single refused update isn't worth mentioning.
-        if (!held) ui.footer.textContent = 'Looking for aircraft…';
+        // Keep the last board on screen; a refused update isn't worth mentioning.
+        if (!shown) ui.footer.textContent = 'Looking for aircraft…';
+        return 'failed';
       }
     };
-    poll();
-    pollTimer = window.setInterval(poll, POLL_MS);
+
+    // The last plane seen here goes up straight away, while a fresh one loads.
+    skyHome(config).then(home => {
+      const cached = recall<OverheadResponse>('overhead', home);
+      if (cached && !shown) { held = cached.aircraft?.hex ?? null; heldSince = Date.now(); show(cached); }
+    });
+    refresher = new Refresher(poll);
+    refresher.now();
   },
   onCenterTap() {
     applyTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]);
   },
   unmount() {
-    clearInterval(pollTimer);
+    refresher?.stop();
+    refresher = undefined;
     root = undefined;
   },
 };

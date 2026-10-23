@@ -2,6 +2,7 @@ import type { Aircraft, AircraftResponse, HubConfig, RouteSummary } from '../../
 import { getJson } from '../api';
 import { nextPlace, skyHome, skyQuery, type SkyHome } from '../location';
 import { motionLevel } from '../motion';
+import { ageLabel, recall, Refresher, remember, type Outcome } from '../skyCache';
 import { h, type Screen } from '../screen';
 
 // An ambient radar for a room: calm at a glance, detailed on a closer look.
@@ -9,7 +10,6 @@ import { h, type Screen } from '../screen';
 // coloured by altitude. The one animation that carries meaning is the ping that ripples
 // out from home each time fresh positions arrive.
 
-const POLL_MS = 10_000;
 const FEATURED = 5;
 const TRAIL_POINTS = 8;
 const FRAME_MS = 1000 / 30; // 30 fps is plenty for planes and kinder to an always-on tablet
@@ -51,7 +51,7 @@ interface State {
   error: string | null;
 }
 
-let pollTimer: number | undefined;
+let refresher: Refresher | undefined;
 let frame: number | undefined;
 let retarget: (() => void) | undefined;
 let currentConfig: HubConfig | undefined;
@@ -175,6 +175,8 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
   const data = state.data;
   if (data) {
     const feature = featured(data);
+    // Positions remembered from a while ago are drawn faded: the planes will have moved on.
+    ctx.globalAlpha = Date.now() - data.fetchedAt > 180_000 ? 0.45 : 1;
     // From when the positions were measured, which can be earlier than when they arrived.
     const elapsed = (Date.now() - data.fetchedAt) / 1000;
     const visible = data.aircraft.filter(a => a.altFt !== null);
@@ -256,6 +258,7 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
     }
   }
 
+  ctx.globalAlpha = 1;
   drawHome(ctx, cx, cy, r, performance.now() - state.pingAt);
 }
 
@@ -264,7 +267,10 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
   const head = h('header', 'radar-head');
   head.append(h('h2', undefined, 'Overhead'));
   const airborne = data ? data.aircraft.filter(a => a.altFt !== null) : [];
-  head.append(h('p', 'radar-sub', data ? `${airborne.length} aircraft within ${config.radarRadiusNm} nm of ${state.home.name}` : `Looking for aircraft near ${state.home.name}…`));
+  const age = data ? ageLabel(data.fetchedAt) : null;
+  head.append(h('p', 'radar-sub', data
+    ? `${airborne.length} aircraft within ${config.radarRadiusNm} nm of ${state.home.name}${age ? ` · ${age}` : ''}`
+    : `Looking for aircraft near ${state.home.name}…`));
   const list = h('ol', 'radar-list');
 
   if (data) {
@@ -314,9 +320,14 @@ export const radarScreen: Screen = {
 
     const state: State = { home: config.home, data: null, receivedAt: 0, trails: new Map(), placement: new Map(), pingAt: -1e9, error: null };
 
-    const poll = async () => {
+    const poll = async (): Promise<Outcome> => {
       try {
         const data = await getJson<AircraftResponse>(`/api/aircraft?routes=${FEATURED}&${skyQuery(state.home)}`);
+        // Never swap newer positions for older ones (a stale answer can be older than what we show).
+        if (state.data && data.fetchedAt <= state.data.fetchedAt) {
+          renderPanel(panel, config, state);
+          return 'failed';
+        }
         const seen = new Set<string>();
         for (const a of data.aircraft) {
           seen.add(a.hex);
@@ -326,12 +337,15 @@ export const radarScreen: Screen = {
         }
         for (const hex of [...state.trails.keys()]) if (!seen.has(hex)) { state.trails.delete(hex); state.placement.delete(hex); }
         Object.assign(state, { data, receivedAt: Date.now(), error: null, pingAt: performance.now() });
+        if (!data.stale) remember('aircraft', state.home, data);
+        renderPanel(panel, config, state);
+        return data.stale ? 'failed' : data.aircraft.length ? 'found' : 'empty';
       } catch {
-        // The free sources often refuse a request; the planes keep gliding on their last tracks.
-        // Only say so once nothing new has arrived for over a minute.
-        state.error = !state.data || Date.now() - state.data.fetchedAt > 60_000 ? 'Live positions are delayed. Retrying.' : null;
+        // The free sources often refuse a request; what's on screen stays, and we try again soon.
+        state.error = state.data ? null : 'Live positions are delayed. Retrying.';
+        renderPanel(panel, config, state);
+        return 'failed';
       }
-      renderPanel(panel, config, state);
     };
 
     let last = 0;
@@ -343,23 +357,26 @@ export const radarScreen: Screen = {
     // Re-centre: on mount, and when the middle of the screen is tapped to change place.
     retarget = () => {
       skyHome(config).then(home => {
-        Object.assign(state, { home, data: null, error: null });
+        // Show the last planes seen here straight away, while fresh positions load.
+        Object.assign(state, { home, data: recall<AircraftResponse>('aircraft', home), error: null });
         state.trails.clear();
         state.placement.clear();
         renderPanel(panel, config, state);
-        poll();
+        refresher?.stop();
+        refresher = new Refresher(poll);
+        refresher.now();
       });
     };
     renderPanel(panel, config, state);
     retarget();
-    pollTimer = window.setInterval(poll, POLL_MS);
     frame = requestAnimationFrame(loop);
   },
   onCenterTap() {
     if (retarget && nextPlace(currentConfig!)) retarget();
   },
   unmount() {
-    clearInterval(pollTimer);
+    refresher?.stop();
+    refresher = undefined;
     if (frame) cancelAnimationFrame(frame);
     retarget = undefined;
   },
