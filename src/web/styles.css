@@ -146,6 +146,29 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
 .pf-empty { position: absolute; inset: 0; display: grid; place-items: center; color: #94A3B8; font-size: 20px; background: #0F172A; }
 @media (prefers-reduced-motion: reduce) { .pf-layer.in .pf-img { animation: none; } }
 
+/* Two portraits side by side, edge to edge with a hairline between them. */
+.pf-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #000; }
+.pf-half { position: relative; overflow: hidden; }
+.pf-pair.in .pf-img { animation: pf-drift-soft var(--dur) linear both; }
+
+/* Framed: prints in a dark frame with a cream mount, on a dim wall washed with the photo's colours. */
+.pf-style-framed { container-type: size; background: #141210; }
+.pf-style-framed::after { display: none; }
+.pf-wall { display: flex; align-items: center; justify-content: center; gap: 6cqw; background: radial-gradient(ellipse 80% 70% at 50% 42%, #2a2622 0%, #141210 75%); }
+.pf-wash { position: absolute; inset: -10%; width: 120%; height: 120%; object-fit: cover; filter: blur(60px) brightness(0.28) saturate(0.9); }
+.pf-print { position: relative; z-index: 1; margin: 0; display: flex; flex-direction: column; align-items: center; gap: 2.4cqh; }
+.pf-mount {
+  background: #f4f0e8;
+  padding: min(3.4cqw, 4.4cqh);
+  border: min(1cqw, 1.3cqh) solid #1b1714;
+  box-shadow: 0 2.6cqh 5cqh -1.6cqh rgba(0, 0, 0, 0.75), 0 0.4cqh 1cqh rgba(0, 0, 0, 0.45);
+}
+.pf-photo { display: block; max-width: 62cqw; max-height: 60cqh; outline: 1px solid rgba(0, 0, 0, 0.14); }
+.pf-wall.two .pf-photo { max-width: 32cqw; max-height: 60cqh; }
+.pf-label { max-width: 36cqw; font: 500 max(13px, 1.9cqh)/1.35 -apple-system, "Segoe UI", sans-serif; letter-spacing: 0.02em; color: rgba(244, 240, 232, 0.8); text-align: center; }
+.pf-style-framed .pf-caption { top: 22px; bottom: auto; left: 30px; text-shadow: none; }
+.pf-style-framed .pf-time { font-size: 34px; color: rgba(244, 240, 232, 0.75); }
+
 /* ── Overhead board ─────────────────────────────────────────────────────────
    One layout, three themes. Each theme only redefines the tokens below. */
 .screen-board, .screen-clock.clock-flip {

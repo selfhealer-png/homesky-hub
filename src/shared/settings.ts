@@ -50,9 +50,14 @@ export interface DisplaySettings {
   motion: MotionLevel;
   /** For clothing advice: someone who runs cold is told to dress for colder weather. */
   warmth?: Warmth;
+  /** fill: edge to edge. framed: prints in a mounted frame, with a small label. */
+  photoStyle?: PhotoStyle;
 }
 
-export const DEFAULT_DISPLAY: DisplaySettings = { clock: 'word', motion: 'full', warmth: 'normal' };
+export type PhotoStyle = 'fill' | 'framed';
+export const PHOTO_STYLES: PhotoStyle[] = ['fill', 'framed'];
+
+export const DEFAULT_DISPLAY: DisplaySettings = { clock: 'word', motion: 'full', warmth: 'normal', photoStyle: 'fill' };
 export const WARMTH_LEVELS: Warmth[] = ['cold', 'normal', 'warm'];
 export const CLOCK_STYLES: ClockStyle[] = ['word', 'digital', 'analogue', 'flip'];
 export const MOTION_LEVELS: MotionLevel[] = ['full', 'gentle', 'still'];
@@ -103,6 +108,8 @@ export interface PhotoInfo {
   /** When the photo was taken (from Google Photos), ISO 8601. */
   taken: string | null;
   collection: string;
+  /** A place or note added in /setup. Google's picker never shares location, so this is typed in. */
+  caption: string | null;
 }
 
 export type PickStatus =

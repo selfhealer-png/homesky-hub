@@ -130,16 +130,23 @@ export async function pollPicking(env: Env, sessionId: string): Promise<PickStat
 
 let libraryCache: { photos: PhotoInfo[]; at: number } | null = null;
 
+// Captions live in KV rather than in R2 metadata: R2 can't change an object's metadata without
+// rewriting the whole photo.
+const CAPTIONS_KEY = 'photos:captions:v1';
+const loadCaptions = async (env: Env) => ((await env.HUB_KV?.get(CAPTIONS_KEY, 'json')) as Record<string, string> | null) ?? {};
+
 export async function listPhotos(env: Env): Promise<PhotoInfo[]> {
   if (!env.PHOTOS) return [];
   if (libraryCache && Date.now() - libraryCache.at < 5 * 60_000) return libraryCache.photos;
+  const captions = await loadCaptions(env);
   const photos: PhotoInfo[] = [];
   let cursor: string | undefined;
   do {
     const page = await env.PHOTOS.list({ prefix: 'photos/', cursor, include: ['customMetadata'] });
     for (const o of page.objects) {
       const m = o.customMetadata ?? {};
-      photos.push({ id: o.key.slice('photos/'.length), width: Number(m.width) || 0, height: Number(m.height) || 0, taken: m.taken || null, collection: m.collection || 'Photos' });
+      const id = o.key.slice('photos/'.length);
+      photos.push({ id, width: Number(m.width) || 0, height: Number(m.height) || 0, taken: m.taken || null, collection: m.collection || 'Photos', caption: captions[id] ?? null });
     }
     cursor = page.truncated ? page.cursor : undefined;
   } while (cursor);
@@ -153,6 +160,29 @@ export async function deletePhotos(env: Env, which: { ids?: unknown; collection?
   const doomed = all.filter(p => (ids ? ids.has(p.id) : typeof which.collection === 'string' && p.collection === which.collection));
   const keys = doomed.flatMap(p => [`photos/${p.id}`, `thumbs/${p.id}`]);
   for (let i = 0; i < keys.length; i += 1000) await bucket(env).delete(keys.slice(i, i + 1000));
+  // Forget the captions of deleted photos too.
+  if (env.HUB_KV && doomed.length) {
+    const captions = await loadCaptions(env);
+    doomed.forEach(p => delete captions[p.id]);
+    await env.HUB_KV.put(CAPTIONS_KEY, JSON.stringify(captions));
+  }
+  libraryCache = null;
+  return listPhotos(env);
+}
+
+/** Sets (or clears, with an empty caption) the caption of some photos, or of a whole collection. */
+export async function setCaptions(env: Env, b: { ids?: unknown; collection?: unknown; caption?: unknown }): Promise<PhotoInfo[]> {
+  if (!env.HUB_KV) throw new PhotosUnavailable('Settings storage (KV) is needed for captions.');
+  const caption = typeof b.caption === 'string' ? b.caption.trim().slice(0, 60) : '';
+  const all = await listPhotos(env);
+  const ids = Array.isArray(b.ids) ? new Set(b.ids.filter((x): x is string => typeof x === 'string')) : null;
+  const targets = all.filter(p => (ids ? ids.has(p.id) : typeof b.collection === 'string' && p.collection === b.collection));
+  const captions = await loadCaptions(env);
+  for (const p of targets) {
+    if (caption) captions[p.id] = caption;
+    else delete captions[p.id];
+  }
+  await env.HUB_KV.put(CAPTIONS_KEY, JSON.stringify(captions));
   libraryCache = null;
   return listPhotos(env);
 }

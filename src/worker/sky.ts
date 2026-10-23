@@ -44,6 +44,7 @@ export async function hubConfig(env: Env): Promise<HubConfig> {
     clock: settings.display?.clock ?? DEFAULT_DISPLAY.clock,
     motion: settings.display?.motion ?? DEFAULT_DISPLAY.motion,
     warmth: settings.display?.warmth ?? 'normal',
+    photoStyle: settings.display?.photoStyle ?? 'fill',
     features: { agenda: !!env.AGENDA_FEED_URL || settings.connections.some(c => c.enabled), photos: !!env.PHOTOS, trending: false },
   };
 }

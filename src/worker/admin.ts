@@ -1,5 +1,5 @@
 import {
-  CALENDAR_COLORS, CLOCK_STYLES, MOTION_LEVELS, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
+  CALENDAR_COLORS, CLOCK_STYLES, MOTION_LEVELS, PHOTO_STYLES, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
   type ClockStyle, type MotionLevel,
   type AdminState, type Place, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
@@ -8,7 +8,7 @@ import { readConnection } from './agenda';
 import { json, type Env } from './env';
 import { agendaWindow, ProviderError } from './providers/common';
 import { exchangeCode, googleAuthUrl, listGoogleChoices } from './providers/google';
-import { deletePhotos, listPhotos, pollPicking, servePhoto, startPicking } from './photos';
+import { deletePhotos, listPhotos, pollPicking, servePhoto, setCaptions, startPicking } from './photos';
 import { loadSecrets, loadSettings, saveSettings, SettingsUnavailable, updateSecrets } from './settings';
 
 // The /setup page's API. Every route except login needs an admin session, and every POST also
@@ -68,6 +68,7 @@ export async function handleAdmin(request: Request, env: Env, url: URL): Promise
       case '/api/admin/photos/pick': return json(await startPicking(env, str(body.collection ?? 'Photos', 'Collection', 40)));
       case '/api/admin/photos/poll': return json(await pollPicking(env, str(body.sessionId, 'Session', 200)));
       case '/api/admin/photos/delete': return json(await deletePhotos(env, body));
+      case '/api/admin/photos/caption': return json(await setCaptions(env, body));
       default: return json({ error: 'Not found' }, { status: 404 });
     }
   } catch (err) {
@@ -325,5 +326,6 @@ async function saveDisplay(env: Env, b: Record<string, unknown>) {
   const motion = MOTION_LEVELS.includes(b.motion as MotionLevel) ? (b.motion as MotionLevel) : null;
   if (!clock || !motion) throw new BadRequest('Unknown clock style or motion level.');
   const warmth = WARMTH_LEVELS.find(w => w === b.warmth) ?? 'normal';
-  return mutate(env, s => ({ ...s, display: { clock, motion, warmth } }));
+  const photoStyle = PHOTO_STYLES.find(p => p === b.photoStyle) ?? 'fill';
+  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle } }));
 }

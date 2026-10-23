@@ -1,6 +1,6 @@
 import './setup.css';
 import {
-  CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, MOTION_LEVELS, RADIUS_CHOICES, WARMTH_LEVELS,
+  CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, MOTION_LEVELS, PHOTO_STYLES, RADIUS_CHOICES, WARMTH_LEVELS,
   type ClockStyle, type DisplaySettings, type MotionLevel,
   type AdminState, type PhotoInfo, type PickStatus, type Place, type SkySettings, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../../shared/settings';
@@ -481,20 +481,25 @@ function photosCard() {
     card.append(h('p', { class: 'note' }, 'Photo storage isn’t set up. Run npm run setup again and choose to create the photo bucket (Cloudflare R2, free up to 10 GB).'));
     return card;
   }
+  // Adding photos needs Google; the library below doesn't, so it can always be tidied.
+  card.append(h('h3', {}, 'Add photos'));
   if (!google?.account) {
     const go = h('button', { type: 'button', class: 'ghost' }, 'Set up Google');
     go.addEventListener('click', () => { openPanel = 'google'; render(); document.getElementById('google')?.scrollIntoView({ behavior: 'smooth' }); });
     card.append(h('p', { class: 'note' }, 'Photos use the same Google connection as calendars. Connect Google first; calendars are optional.'), h('div', { class: 'buttons' }, go));
-    return card;
-  }
-  if (google.scopes && !google.scopes.includes(PHOTOS_SCOPE)) {
+  } else if (google.scopes && !google.scopes.includes(PHOTOS_SCOPE)) {
     const again = h('button', { type: 'button', class: 'primary' }, 'Reconnect Google');
     again.addEventListener('click', () => reconnectGoogle(again));
     card.append(h('p', { class: 'note' }, 'Google is connected without photo access. Enable the Photos Picker API in your Google Cloud project, then reconnect.'), h('div', { class: 'buttons' }, again));
-    return card;
+  } else {
+    card.append(picking ? pickingPanel() : pickForm());
   }
 
-  // Pick
+  libraryInto(card);
+  return card;
+}
+
+function pickForm() {
   const collections = [...new Set((photoLibrary ?? []).map(p => p.collection))];
   const collection = input({ type: 'text', value: collections[0] ?? 'Family', maxlength: '40', list: 'collections' });
   const datalist = h('datalist', { id: 'collections' }, ...collections.map(c => h('option', { value: c })));
@@ -510,19 +515,19 @@ function photosCard() {
       pollPick();
     });
   });
-  card.append(h('h3', {}, 'Add photos'));
-  card.append(picking ? pickingPanel() : form);
+  return form;
+}
 
-  // Library
+function libraryInto(card: HTMLElement) {
   card.append(h('h3', {}, 'Library'));
   if (!photoLibrary) {
     card.append(h('p', { class: 'empty' }, 'Loading…'));
     api<PhotoInfo[]>('/api/admin/photos').then(list => { photoLibrary = list; render(); }).catch(err => toast((err as Error).message, 'error'));
-    return card;
+    return;
   }
   if (!photoLibrary.length) {
     card.append(h('p', { class: 'empty' }, 'No photos yet.'));
-    return card;
+    return;
   }
   const groups = new Map<string, PhotoInfo[]>();
   for (const p of photoLibrary) groups.set(p.collection, [...(groups.get(p.collection) ?? []), p]);
@@ -532,20 +537,46 @@ function photosCard() {
       if (!confirm(`Remove all ${photos.length} photos in “${name}” from the frame? They stay in Google Photos.`)) return;
       busy(removeAll, async () => { photoLibrary = await api<PhotoInfo[]>('/api/admin/photos/delete', { collection: name }); render(); toast('Removed.'); });
     });
+    // A place for the whole collection. Google's picker never shares where a photo was taken,
+    // so the frame's label is whatever is typed here (or per photo, by tapping it).
+    const shared = photos.every(p => p.caption === photos[0].caption) ? photos[0].caption ?? '' : '';
+    const place = input({ type: 'text', value: shared, maxlength: '60', placeholder: 'e.g. St Ives, Cornwall', 'aria-label': `Place for ${name}` });
+    const savePlace = h('button', { type: 'submit', class: 'ghost small' }, 'Label all');
+    const placeForm = h('form', { class: 'searchrow placerow' }, place, savePlace);
+    placeForm.addEventListener('submit', e => {
+      e.preventDefault();
+      busy(savePlace, async () => {
+        photoLibrary = await api<PhotoInfo[]>('/api/admin/photos/caption', { collection: name, caption: place.value });
+        render();
+        toast(place.value.trim() ? `All of “${name}” labelled “${place.value.trim()}”.` : 'Labels cleared.');
+      });
+    });
+
     const grid = h('div', { class: 'thumbs' });
     for (const p of photos.slice(0, 48)) {
       const del = h('button', { type: 'button', class: 'thumb-del', 'aria-label': 'Remove this photo' });
       del.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
       del.addEventListener('click', () => busy(del, async () => { photoLibrary = await api<PhotoInfo[]>('/api/admin/photos/delete', { ids: [p.id] }); render(); }));
-      grid.append(h('figure', { class: 'thumb' }, h('img', { src: `/api/admin/photos/thumb/${p.id}`, alt: '', loading: 'lazy' }), del));
+      const edit = h('button', { type: 'button', class: 'thumb-edit', 'aria-label': p.caption ? `Label: ${p.caption}. Change it` : 'Add a label to this photo' },
+        h('img', { src: `/api/admin/photos/thumb/${p.id}`, alt: '', loading: 'lazy' }));
+      edit.addEventListener('click', async () => {
+        const next = prompt('Label for this photo (a place, or who’s in it). Leave empty to remove.', p.caption ?? '');
+        if (next === null) return;
+        try {
+          photoLibrary = await api<PhotoInfo[]>('/api/admin/photos/caption', { ids: [p.id], caption: next });
+          render();
+        } catch (err) { toast((err as Error).message, 'error'); }
+      });
+      grid.append(h('figure', { class: 'thumb' }, edit, del, p.caption ? h('figcaption', {}, p.caption) : null));
     }
     card.append(h('div', { class: 'collection' },
       h('div', { class: 'collection-head' }, h('b', {}, name), h('small', {}, `${photos.length} photo${photos.length === 1 ? '' : 's'}`), removeAll),
+      placeForm,
       grid,
+      h('p', { class: 'hint' }, 'Tap a photo to label it on its own.'),
       photos.length > 48 ? h('p', { class: 'hint' }, `Showing 48 of ${photos.length}.`) : null,
     ));
   }
-  return card;
 }
 
 function pickingPanel() {
@@ -665,6 +696,16 @@ function displayCard() {
     warmth.append(h('label', {}, r, h('span', {}, WARMTH_LABELS[w])));
   }
   card.append(warmth, h('p', { class: 'hint' }, 'The weather screen’s “What to wear” dresses you for about 3° colder or warmer than it feels.'));
+
+  card.append(h('h3', {}, 'Photo frame'));
+  const photoStyle = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Photo frame style' });
+  const PHOTO_LABELS = { fill: 'Full screen', framed: 'Framed prints' } as const;
+  for (const style of PHOTO_STYLES) {
+    const r = h('input', { type: 'radio', name: 'photo-style', value: style, checked: (d.photoStyle ?? 'fill') === style });
+    r.addEventListener('change', () => saveDisplay({ ...d, photoStyle: style }).catch(err => toast((err as Error).message, 'error')));
+    photoStyle.append(h('label', {}, r, h('span', {}, PHOTO_LABELS[style])));
+  }
+  card.append(photoStyle, h('p', { class: 'hint' }, 'Framed shows each photo as a mounted print with its place and date underneath. Portrait photos are always shown in pairs.'));
   return card;
 }
 

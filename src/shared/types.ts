@@ -1,6 +1,6 @@
 // Shapes shared by the Worker API and the web app.
 
-import type { ClockStyle, MotionLevel, Place } from './settings';
+import type { ClockStyle, MotionLevel, PhotoStyle, Place } from './settings';
 import type { Warmth, WeatherHour, WeatherNow } from './wear';
 
 export interface HubConfig {
@@ -15,6 +15,7 @@ export interface HubConfig {
   clock: ClockStyle;
   motion: MotionLevel;
   warmth: Warmth;
+  photoStyle: PhotoStyle;
   features: { agenda: boolean; photos: boolean; trending: boolean };
 }
 
