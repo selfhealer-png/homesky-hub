@@ -1,0 +1,7 @@
+# Copy to .dev.vars (git-ignored) for `wrangler dev`.
+# ALLOW_OPEN skips display pairing. Local development only; never set it in production.
+ALLOW_OPEN=1
+DISPLAY_TOKEN=change-me-to-a-long-random-string
+ADMIN_PASSWORD=change-me-too
+AGENDA_FEED_URL=demo
+AGENDA_FEED_TOKEN=

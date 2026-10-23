@@ -1,0 +1,27 @@
+{
+  "name": "homesky-hub",
+  "version": "0.1.0",
+  "description": "An always-on tablet display for home and sky: agenda, photo frame and live aircraft radar.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "dev:worker": "wrangler dev",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worker.json",
+    "deploy": "npm run build && wrangler deploy",
+    "setup": "node scripts/setup.mjs",
+    "test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --outdir=.test-build --log-level=warning && node --test .test-build/*.js"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261019.1",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.0",
+    "wrangler": "^4.0.0",
+    "esbuild": "^0.25.0"
+  },
+  "dependencies": {
+    "ical.js": "^2.2.1"
+  }
+}

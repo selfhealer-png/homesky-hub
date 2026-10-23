@@ -1,0 +1,317 @@
+import {
+  CALENDAR_COLORS, RADIUS_CHOICES, secretKey,
+  type AdminState, type Place, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
+} from '../shared/settings';
+import { handleLogin, handleLogout, hmac, isAdmin, passesCsrfCheck, safeEqual } from './adminAuth';
+import { readConnection } from './agenda';
+import { json, type Env } from './env';
+import { agendaWindow, ProviderError } from './providers/common';
+import { exchangeCode, googleAuthUrl, listGoogleChoices } from './providers/google';
+import { deletePhotos, listPhotos, pollPicking, servePhoto, startPicking } from './photos';
+import { loadSecrets, loadSettings, saveSettings, SettingsUnavailable, updateSecrets } from './settings';
+
+// The /setup page's API. Every route except login needs an admin session, and every POST also
+// needs the X-Hub-Admin header (see adminAuth.ts).
+
+const GOOGLE_CALLBACK = '/setup/google/callback';
+
+class BadRequest extends Error {}
+
+const str = (v: unknown, field: string, max = 200): string => {
+  if (typeof v !== 'string' || !v.trim()) throw new BadRequest(`${field} is required.`);
+  if (v.length > max) throw new BadRequest(`${field} is too long.`);
+  return v.trim();
+};
+const color = (v: unknown): string => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : CALENDAR_COLORS[0]);
+const newId = () => crypto.randomUUID().slice(0, 8);
+
+function linkHost(url: string): string {
+  try {
+    const u = new URL(url.trim().replace(/^webcals?:\/\//i, 'https://'));
+    if (u.protocol !== 'https:') throw new Error();
+    return u.host;
+  } catch {
+    throw new BadRequest('The link must be a full https:// or webcal:// address.');
+  }
+}
+
+export async function handleAdmin(request: Request, env: Env, url: URL): Promise<Response> {
+  const path = url.pathname;
+  if (!env.ADMIN_PASSWORD) return json({ error: 'ADMIN_PASSWORD is not set on this hub. Run `npm run setup`.' }, { status: 503 });
+  try {
+    if (path === '/api/admin/login' && request.method === 'POST') return await handleLogin(request, env);
+    if (path === '/api/admin/logout' && request.method === 'POST') return handleLogout();
+    if (path === GOOGLE_CALLBACK) return await googleCallback(env, url);
+
+    if (!(await isAdmin(request, env))) return json({ error: 'Not signed in.' }, { status: 401 });
+    if (!passesCsrfCheck(request)) return json({ error: 'Missing X-Hub-Admin header.' }, { status: 403 });
+
+    const thumb = path.match(/^\/api\/admin\/photos\/thumb\/([0-9a-f]{20})$/);
+    if (thumb) return await servePhoto(env, 'thumbs', thumb[1], request);
+
+    const body = request.method === 'POST' ? ((await request.json().catch(() => ({}))) as Record<string, unknown>) : {};
+    switch (path) {
+      case '/api/admin/state': return json(await state(env, url));
+      case '/api/admin/connections/add': return json(await addConnection(env, body));
+      case '/api/admin/connections/update': return json(await updateConnection(env, body));
+      case '/api/admin/connections/delete': return json(await deleteConnection(env, body));
+      case '/api/admin/connections/test': return json(await testConnection(env, body));
+      case '/api/admin/google/client': return json(await saveGoogleClient(env, body));
+      case '/api/admin/google/start': return json(await googleStart(env, url));
+      case '/api/admin/google/choices': return json(await googleChoices(env));
+      case '/api/admin/google/selection': return json(await googleSelection(env, body));
+      case '/api/admin/google/disconnect': return json(await googleDisconnect(env));
+      case '/api/admin/sky': return json(await saveSky(env, body));
+      case '/api/admin/photos': return json(await listPhotos(env));
+      case '/api/admin/photos/pick': return json(await startPicking(env, str(body.collection ?? 'Photos', 'Collection', 40)));
+      case '/api/admin/photos/poll': return json(await pollPicking(env, str(body.sessionId, 'Session', 200)));
+      case '/api/admin/photos/delete': return json(await deletePhotos(env, body));
+      default: return json({ error: 'Not found' }, { status: 404 });
+    }
+  } catch (err) {
+    if (err instanceof BadRequest || err instanceof ProviderError) return json({ error: err.message }, { status: 400 });
+    if (err instanceof SettingsUnavailable) return json({ error: err.message }, { status: 503 });
+    throw err;
+  }
+}
+
+async function state(env: Env, url: URL): Promise<AdminState> {
+  return {
+    settings: await loadSettings(env),
+    status: {
+      kv: !!env.HUB_KV,
+      photos: !!env.PHOTOS,
+      displayPairing: env.DISPLAY_TOKEN ? `${url.origin}/pair#${env.DISPLAY_TOKEN}` : null,
+      origin: url.origin,
+      googleRedirectUri: `${url.origin}${GOOGLE_CALLBACK}`,
+      envFeed: !!env.AGENDA_FEED_URL,
+    },
+  };
+}
+
+async function mutate(env: Env, fn: (s: Settings) => Settings): Promise<Settings> {
+  const next = fn(structuredClone(await loadSettings(env)));
+  await saveSettings(env, next);
+  return next;
+}
+
+function find(settings: Settings, id: unknown): Connection {
+  const conn = settings.connections.find(c => c.id === id);
+  if (!conn) throw new BadRequest('That connection no longer exists.');
+  return conn;
+}
+
+async function addConnection(env: Env, b: Record<string, unknown>) {
+  const id = newId();
+  if (b.kind === 'ics') {
+    const link = str(b.url, 'Calendar link', 2000);
+    const conn: IcsConnection = { id, kind: 'ics', name: str(b.name, 'Name', 60), color: color(b.color), enabled: true, host: linkHost(link) };
+    await updateSecrets(env, { [secretKey.icsUrl(id)]: link });
+    return mutate(env, s => ({ ...s, connections: [...s.connections, conn] }));
+  }
+  if (b.kind === 'feed') {
+    const feedUrl = str(b.url, 'Feed URL', 2000);
+    linkHost(feedUrl);
+    const token = typeof b.token === 'string' && b.token.trim() ? b.token.trim() : null;
+    const conn: FeedConnection = { id, kind: 'feed', name: str(b.name, 'Name', 60), enabled: true, url: feedUrl, hasToken: !!token };
+    if (token) await updateSecrets(env, { [secretKey.feedToken(id)]: token });
+    return mutate(env, s => ({ ...s, connections: [...s.connections, conn] }));
+  }
+  throw new BadRequest('Unknown connection type.');
+}
+
+async function updateConnection(env: Env, b: Record<string, unknown>) {
+  const current = find(await loadSettings(env), b.id);
+  if (current.kind === 'ics' && typeof b.url === 'string' && b.url.trim()) {
+    const host = linkHost(b.url);
+    await updateSecrets(env, { [secretKey.icsUrl(current.id)]: b.url.trim() });
+    (b as { host?: string }).host = host;
+  }
+  if (current.kind === 'feed' && typeof b.token === 'string') {
+    await updateSecrets(env, { [secretKey.feedToken(current.id)]: b.token.trim() || null });
+    b.hasToken = !!b.token.trim();
+  }
+  return mutate(env, s => {
+    const conn = find(s, b.id) as Connection & Record<string, unknown>;
+    if (typeof b.enabled === 'boolean') conn.enabled = b.enabled;
+    if (conn.kind !== 'google' && typeof b.name === 'string' && b.name.trim()) conn.name = str(b.name, 'Name', 60);
+    if (conn.kind === 'ics' && b.color) conn.color = color(b.color);
+    if (conn.kind === 'ics' && typeof (b as { host?: string }).host === 'string') conn.host = (b as { host: string }).host;
+    if (conn.kind === 'feed' && typeof b.url === 'string' && b.url.trim()) { linkHost(b.url); conn.url = b.url.trim(); }
+    if (conn.kind === 'feed' && typeof b.hasToken === 'boolean') conn.hasToken = b.hasToken;
+    return s;
+  });
+}
+
+async function deleteConnection(env: Env, b: Record<string, unknown>) {
+  const conn = find(await loadSettings(env), b.id);
+  if (conn.kind === 'google') return googleDisconnect(env, true);
+  await updateSecrets(env, { [secretKey.icsUrl(conn.id)]: null, [secretKey.feedToken(conn.id)]: null });
+  return mutate(env, s => ({ ...s, connections: s.connections.filter(c => c.id !== conn.id) }));
+}
+
+/** Tests a saved connection by id, or an unsaved one from the form (kind + url [+ token]). */
+async function testConnection(env: Env, b: Record<string, unknown>): Promise<ConnectionTest> {
+  let conn: Connection;
+  let secrets: Record<string, string>;
+  if (typeof b.id === 'string') {
+    conn = find(await loadSettings(env), b.id);
+    secrets = await loadSecrets(env);
+  } else if (b.kind === 'ics') {
+    conn = { id: 'test', kind: 'ics', name: 'Test', color: CALENDAR_COLORS[0], enabled: true, host: linkHost(str(b.url, 'Calendar link', 2000)) };
+    secrets = { [secretKey.icsUrl('test')]: str(b.url, 'Calendar link', 2000) };
+  } else if (b.kind === 'feed') {
+    conn = { id: 'test', kind: 'feed', name: 'Test', enabled: true, url: str(b.url, 'Feed URL', 2000), hasToken: !!b.token };
+    secrets = typeof b.token === 'string' ? { [secretKey.feedToken('test')]: b.token } : {};
+  } else {
+    throw new BadRequest('Nothing to test.');
+  }
+
+  try {
+    const r = await readConnection(env, conn, secrets);
+    const { start } = agendaWindow();
+    const today = new Date().toISOString().slice(0, 10);
+    const upcoming = r.events
+      .filter(e => e.start >= (e.allDay ? today : start.toISOString()))
+      .sort((a, b) => a.start.localeCompare(b.start))
+      .slice(0, 3)
+      .map(e => e.title);
+    return { ok: true, events: r.events.length, tasks: r.tasks.length, upcoming };
+  } catch (err) {
+    return { ok: false, events: 0, tasks: 0, upcoming: [], error: err instanceof ProviderError ? err.message : 'Could not read it.' };
+  }
+}
+
+// ── Google ──────────────────────────────────────────────────────────────────
+
+function googleConn(settings: Settings): GoogleConnection | undefined {
+  return settings.connections.find((c): c is GoogleConnection => c.kind === 'google');
+}
+
+async function saveGoogleClient(env: Env, b: Record<string, unknown>) {
+  const clientId = str(b.clientId, 'Client ID', 200);
+  if (!/\.apps\.googleusercontent\.com$/.test(clientId)) throw new BadRequest('The Client ID should end in .apps.googleusercontent.com.');
+  if (typeof b.clientSecret === 'string' && b.clientSecret.trim()) await updateSecrets(env, { [secretKey.googleClientSecret]: b.clientSecret.trim() });
+  else if (!(await loadSecrets(env))[secretKey.googleClientSecret]) throw new BadRequest('Client secret is required.');
+  return mutate(env, s => {
+    const existing = googleConn(s);
+    if (existing) {
+      // A different OAuth client can't use the old refresh token.
+      if (existing.clientId !== clientId) existing.account = null;
+      existing.clientId = clientId;
+      return s;
+    }
+    return { ...s, connections: [...s.connections, { id: 'google', kind: 'google', enabled: true, clientId, account: null, calendars: [], taskLists: [] }] };
+  });
+}
+
+// OAuth state: "<expiry>.<nonce>.<hmac>". The callback is a cross-site navigation from Google,
+// so the SameSite=Strict admin cookie isn't sent with it; the signed state stands in for it.
+async function googleStart(env: Env, url: URL) {
+  const conn = googleConn(await loadSettings(env));
+  if (!conn) throw new BadRequest('Save the Google Client ID and secret first.');
+  const payload = `${Date.now() + 10 * 60_000}.${newId()}`;
+  return { url: googleAuthUrl(conn.clientId, `${url.origin}${GOOGLE_CALLBACK}`, `${payload}.${await hmac(env, `google-state:${payload}`)}`) };
+}
+
+async function googleCallback(env: Env, url: URL): Promise<Response> {
+  const back = (params: string) => Response.redirect(`${url.origin}/setup?${params}#calendars`, 302);
+  const [expiry, nonce, sig] = (url.searchParams.get('state') ?? '').split('.');
+  if (!expiry || !nonce || !sig || Number(expiry) < Date.now() || !safeEqual(sig, await hmac(env, `google-state:${expiry}.${nonce}`))) {
+    return back('google=expired');
+  }
+  if (url.searchParams.get('error')) return back(`google=${encodeURIComponent(url.searchParams.get('error')!)}`);
+
+  const settings = await loadSettings(env);
+  const conn = googleConn(settings);
+  const clientSecret = (await loadSecrets(env))[secretKey.googleClientSecret];
+  if (!conn || !clientSecret) return back('google=not-configured');
+
+  try {
+    const { refreshToken, account, scopes } = await exchangeCode(conn.clientId, clientSecret, url.searchParams.get('code') ?? '', `${url.origin}${GOOGLE_CALLBACK}`);
+    await updateSecrets(env, { [secretKey.googleRefreshToken]: refreshToken });
+    const choices = await listGoogleChoices({ clientId: conn.clientId, clientSecret, refreshToken });
+    await mutate(env, s => {
+      const g = googleConn(s)!;
+      g.account = account;
+      g.scopes = scopes;
+      g.enabled = true;
+      g.calendars = mergeChoices(g.calendars, choices.calendars);
+      g.taskLists = mergeChoices(g.taskLists, choices.taskLists);
+      return s;
+    });
+    return back('google=connected');
+  } catch {
+    return back('google=failed');
+  }
+}
+
+/** Keeps the person's ticks and colours for items that still exist; adds new ones. */
+function mergeChoices(saved: GoogleItem[], fresh: GoogleItem[]): GoogleItem[] {
+  return fresh.map(f => {
+    const s = saved.find(x => x.id === f.id);
+    return s ? { ...f, enabled: s.enabled, color: s.color } : f;
+  });
+}
+
+async function googleChoices(env: Env) {
+  const settings = await loadSettings(env);
+  const conn = googleConn(settings);
+  const secrets = await loadSecrets(env);
+  if (!conn?.account || !secrets[secretKey.googleRefreshToken]) throw new BadRequest('Google is not connected.');
+  const choices = await listGoogleChoices({ clientId: conn.clientId, clientSecret: secrets[secretKey.googleClientSecret], refreshToken: secrets[secretKey.googleRefreshToken] });
+  return mutate(env, s => {
+    const g = googleConn(s)!;
+    g.calendars = mergeChoices(g.calendars, choices.calendars);
+    g.taskLists = mergeChoices(g.taskLists, choices.taskLists);
+    return s;
+  });
+}
+
+async function googleSelection(env: Env, b: Record<string, unknown>) {
+  const pick = (saved: GoogleItem[], incoming: unknown) => {
+    const list = Array.isArray(incoming) ? (incoming as Array<Partial<GoogleItem>>) : [];
+    return saved.map(item => {
+      const change = list.find(x => x.id === item.id);
+      return change ? { ...item, enabled: !!change.enabled, color: change.color ? color(change.color) : item.color } : item;
+    });
+  };
+  return mutate(env, s => {
+    const g = googleConn(s);
+    if (!g) throw new BadRequest('Google is not set up.');
+    g.calendars = pick(g.calendars, b.calendars);
+    g.taskLists = pick(g.taskLists, b.taskLists);
+    return s;
+  });
+}
+
+async function googleDisconnect(env: Env, remove = false) {
+  const token = (await loadSecrets(env))[secretKey.googleRefreshToken];
+  // Best effort: also tell Google to forget the grant.
+  if (token) await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, { method: 'POST' }).catch(() => {});
+  await updateSecrets(env, remove
+    ? { [secretKey.googleRefreshToken]: null, [secretKey.googleClientSecret]: null }
+    : { [secretKey.googleRefreshToken]: null });
+  return mutate(env, s => {
+    if (remove) return { ...s, connections: s.connections.filter(c => c.kind !== 'google') };
+    const g = googleConn(s);
+    if (g) g.account = null;
+    return s;
+  });
+}
+
+// ── Sky ─────────────────────────────────────────────────────────────────────
+
+async function saveSky(env: Env, b: Record<string, unknown>) {
+  const raw = Array.isArray(b.places) ? (b.places as Array<Partial<Place>>) : [];
+  if (raw.length > 12) throw new BadRequest('Up to 12 places.');
+  const places: Place[] = raw.map(p => {
+    const lat = Number(p.lat), lon = Number(p.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new BadRequest('A place has invalid coordinates.');
+    // Two decimal places (~1 km) is all a radar needs, and it keeps exact addresses out of storage.
+    return { id: typeof p.id === 'string' && /^[\w-]{1,20}$/.test(p.id) ? p.id : newId(), name: str(p.name, 'Place name', 40), lat: Math.round(lat * 100) / 100, lon: Math.round(lon * 100) / 100 };
+  });
+  const active = b.active === 'device' ? 'device' : places.find(p => p.id === b.active)?.id ?? places[0]?.id ?? 'default';
+  const radiusNm = RADIUS_CHOICES.includes(Number(b.radiusNm)) ? Number(b.radiusNm) : 25;
+  return mutate(env, s => ({ ...s, sky: { places, active, radiusNm } }));
+}

@@ -1,0 +1,40 @@
+# `npm run setup` writes wrangler.toml for you. To do it by hand instead, copy this file to
+# wrangler.toml (git-ignored) and fill in your own values.
+name = "homesky-hub"
+main = "src/worker/index.ts"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/pair", "/setup*"]
+
+[vars]
+# Centre of the radar. Two decimal places (~1 km) is plenty and avoids publishing an exact address.
+HOME_LAT = "51.50"
+HOME_LON = "-0.12"
+RADAR_RADIUS_NM = "25"
+TIMEZONE = "Europe/London"
+# Optional: a local readsb/dump1090 base URL that serves /data/aircraft.json, tried before the public feeds.
+# LOCAL_ADSB_URL = "http://192.168.1.50:8080"
+
+# Secrets: set with `wrangler secret put NAME` (and in .dev.vars for local dev):
+#   DISPLAY_TOKEN       long random string; pair a display by opening https://<host>/pair#<token>
+#   ADMIN_PASSWORD      long random string; signs you in to /setup and encrypts stored connection secrets
+#   AGENDA_FEED_URL     endpoint implementing docs/feed-contract.md
+#   AGENDA_FEED_TOKEN   bearer token for that endpoint
+
+# Settings from /setup, encrypted connection secrets, and the route cache:
+[[kv_namespaces]]
+binding = "HUB_KV"
+id = "<your KV namespace id>"
+
+# Added in later milestones:
+# Photo frame storage (optional):
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "<your bucket>"
+
+# [triggers]             # M4: trending/alerts snapshot
+# crons = ["* * * * *"]

@@ -1,0 +1,9 @@
+{
+  "name": "Home&Sky Hub",
+  "short_name": "Home&Sky",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#070b16",
+  "theme_color": "#070b16",
+  "start_url": "/"
+}
