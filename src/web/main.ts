@@ -3,6 +3,7 @@ import type { HubConfig } from '../shared/types';
 import { getJson, NotPairedError } from './api';
 import type { Screen } from './screen';
 import { setMotionLevel } from './motion';
+import { showWelcome } from './welcome';
 import { boardScreen } from './screens/board';
 import { clockScreen } from './screens/clock';
 import { homeScreen } from './screens/home';
@@ -79,11 +80,14 @@ async function start() {
   try {
     config = await getJson<HubConfig>('/api/config');
   } catch (err) {
+    if (err instanceof NotPairedError) {
+      // Pair right here with the admin password (and get a welcome on a brand-new hub).
+      showWelcome(notice, start);
+      return;
+    }
     notice.hidden = false;
-    notice.textContent = err instanceof NotPairedError
-      ? 'This display is not paired yet. Open the pairing link on this device.'
-      : 'Cannot reach the hub. Retrying…';
-    if (!(err instanceof NotPairedError)) setTimeout(start, 15000);
+    notice.textContent = 'Cannot reach the hub. Retrying…';
+    setTimeout(start, 15000);
     return;
   }
   notice.hidden = true;

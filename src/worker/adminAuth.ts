@@ -34,23 +34,33 @@ export function passesCsrfCheck(request: Request): boolean {
   return request.method === 'GET' || request.headers.get('x-hub-admin') === '1';
 }
 
-export async function handleLogin(request: Request, env: Env): Promise<Response> {
+/**
+ * Checks an admin password, counting failures per IP. Returns an error response, or null when
+ * the password is right. Shared by the setup sign-in and by pairing a display with the password.
+ */
+export async function checkAdminPassword(request: Request, env: Env, password: unknown): Promise<Response | null> {
   if (!env.ADMIN_PASSWORD) return json({ error: 'ADMIN_PASSWORD is not set on this hub. Run `npm run setup`.' }, { status: 503 });
   const ip = request.headers.get('cf-connecting-ip') ?? 'local';
   const failKey = `login-fail:${ip}`;
   const failures = Number((await env.HUB_KV?.get(failKey)) ?? 0);
   if (failures >= MAX_FAILURES) return json({ error: 'Too many attempts. Try again in 15 minutes.' }, { status: 429 });
-
-  const body = (await request.json().catch(() => ({}))) as { password?: string };
-  if (typeof body.password !== 'string' || !safeEqual(body.password, env.ADMIN_PASSWORD)) {
+  if (typeof password !== 'string' || !safeEqual(password, env.ADMIN_PASSWORD)) {
     await env.HUB_KV?.put(failKey, String(failures + 1), { expirationTtl: 15 * 60 });
     return json({ error: 'That password is not right.' }, { status: 401 });
   }
+  return null;
+}
 
+export async function adminSessionCookie(env: Env): Promise<string> {
   const expiry = String(Date.now() + SESSION_HOURS * 3600_000);
-  return json({ ok: true }, {
-    headers: { 'set-cookie': `${COOKIE}=${expiry}.${await hmac(env, expiry)}; Path=/; Max-Age=${SESSION_HOURS * 3600}; HttpOnly; Secure; SameSite=Strict` },
-  });
+  return `${COOKIE}=${expiry}.${await hmac(env, expiry)}; Path=/; Max-Age=${SESSION_HOURS * 3600}; HttpOnly; Secure; SameSite=Strict`;
+}
+
+export async function handleLogin(request: Request, env: Env): Promise<Response> {
+  const body = (await request.json().catch(() => ({}))) as { password?: string };
+  const refused = await checkAdminPassword(request, env, body.password);
+  if (refused) return refused;
+  return json({ ok: true }, { headers: { 'set-cookie': await adminSessionCookie(env) } });
 }
 
 export function handleLogout(): Response {

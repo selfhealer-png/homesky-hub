@@ -1,8 +1,13 @@
-import type { Env } from './env';
+import { adminSessionCookie, checkAdminPassword } from './adminAuth';
+import { json, type Env } from './env';
+import { loadSettings } from './settings';
 
-// A display is paired once by visiting /pair#<DISPLAY_TOKEN>. The page posts the token to
-// /api/pair, which sets a long-lived cookie holding an HMAC derived from the token. Rotating
-// DISPLAY_TOKEN therefore unpairs every display.
+// A display is paired once, either by opening /pair#<DISPLAY_TOKEN> or by typing the admin
+// password on the display's own welcome screen. Pairing sets a long-lived cookie holding an
+// HMAC derived from DISPLAY_TOKEN, so rotating DISPLAY_TOKEN unpairs every display.
+//
+// The password route matters on iPhone and iPad: Safari and a Home Screen web app keep separate
+// cookies, so a pairing done in Safari never reaches the app added to the Home Screen.
 
 const COOKIE = 'hub_display';
 const MAX_AGE = 400 * 24 * 3600; // the longest Safari keeps a cookie
@@ -28,16 +33,31 @@ export async function isDisplayAuthorized(request: Request, env: Env): Promise<b
   return !!match && safeEqual(match[1], await cookieValue(env.DISPLAY_TOKEN));
 }
 
+/** True when nothing has been set up in /setup yet: the display then greets you rather than asking. */
+async function isFreshHub(env: Env): Promise<boolean> {
+  const s = await loadSettings(env);
+  return !s.connections.length && !s.sky && !s.display && !env.AGENDA_FEED_URL;
+}
+
+/** Public: lets an unpaired display choose between a welcome and a plain pairing prompt. */
+export async function handleWelcome(env: Env): Promise<Response> {
+  return json({ fresh: await isFreshHub(env) });
+}
+
 export async function handlePair(request: Request, env: Env): Promise<Response> {
-  const body = (await request.json().catch(() => ({}))) as { token?: string };
-  if (!env.DISPLAY_TOKEN || typeof body.token !== 'string' || !safeEqual(body.token, env.DISPLAY_TOKEN)) {
-    return new Response('Invalid token', { status: 401 });
+  const body = (await request.json().catch(() => ({}))) as { token?: string; password?: string };
+  if (!env.DISPLAY_TOKEN) return json({ error: 'DISPLAY_TOKEN is not set on this hub. Run `npm run setup`.' }, { status: 503 });
+  const headers = new Headers();
+  if (typeof body.password === 'string') {
+    const refused = await checkAdminPassword(request, env, body.password);
+    if (refused) return refused;
+    // Whoever knows the admin password is setting this device up: sign them in to setup too.
+    headers.append('set-cookie', await adminSessionCookie(env));
+  } else if (typeof body.token !== 'string' || !safeEqual(body.token, env.DISPLAY_TOKEN)) {
+    return json({ error: 'That pairing link is not valid.' }, { status: 401 });
   }
-  const value = await cookieValue(env.DISPLAY_TOKEN);
-  return new Response(null, {
-    status: 204,
-    headers: { 'set-cookie': `${COOKIE}=${value}; Path=/; Max-Age=${MAX_AGE}; HttpOnly; Secure; SameSite=Lax` },
-  });
+  headers.append('set-cookie', `${COOKIE}=${await cookieValue(env.DISPLAY_TOKEN)}; Path=/; Max-Age=${MAX_AGE}; HttpOnly; Secure; SameSite=Lax`);
+  return json({ ok: true, fresh: await isFreshHub(env) }, { headers });
 }
 
 export const PAIR_PAGE = `<!doctype html><html><head><meta charset="utf-8">

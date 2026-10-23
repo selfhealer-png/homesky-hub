@@ -18,10 +18,13 @@ export interface Env {
   ADMIN_PASSWORD?: string;
 }
 
-export const json = (data: unknown, init: ResponseInit = {}) =>
-  new Response(JSON.stringify(data), {
-    ...init,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...init.headers },
-  });
+export function json(data: unknown, init: ResponseInit = {}): Response {
+  // new Headers() keeps every entry, including repeated Set-Cookie headers, whether init.headers
+  // is a plain object or a Headers instance (spreading a Headers instance copies nothing).
+  const headers = new Headers(init.headers);
+  if (!headers.has('content-type')) headers.set('content-type', 'application/json; charset=utf-8');
+  if (!headers.has('cache-control')) headers.set('cache-control', 'no-store');
+  return new Response(JSON.stringify(data), { ...init, headers });
+}
 
 export const USER_AGENT = 'homesky-hub/0.1';
