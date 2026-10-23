@@ -1,18 +1,23 @@
 // Split-flap display rows. Each character is one tile. To change, a tile steps forward through
 // CHARSET the way a mechanical flap does: the top leaf falls away and the next character's
 // bottom half drops into place. Long journeys are shortened so a row settles in about half a second.
+// The display's motion setting (motion.ts) can turn flipping into a soft fade, or into nothing.
+
+import { motionLevel } from './motion';
 
 export const CHARSET = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:-/'&°→↗↘";
 const MAX_STEPS = 6;
 const STEP_MS = 75;
 const STAGGER_MS = 22;
 
-/** 'flip' is the 3D animation, 'scramble' cycles characters without it, 'fade' swaps at once. */
+/** 'flip' is the 3D animation, 'scramble' cycles characters without it, 'fade' swaps in place. */
 export type FlapMotion = 'flip' | 'scramble' | 'fade';
-let motion: FlapMotion = 'flip';
+let themeMotion: FlapMotion = 'flip';
 export function setFlapMotion(m: FlapMotion) {
-  motion = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'fade' : m;
+  themeMotion = m;
 }
+/** The theme's motion, unless the display is set to gentle or still, which always swap in place. */
+const motion = (): FlapMotion => (motionLevel() === 'full' ? themeMotion : 'fade');
 
 export function toFlapText(text: string): string {
   return text
@@ -55,9 +60,12 @@ class Tile {
 
   set(c: string, delayMs: number) {
     this.target = c;
-    if (motion === 'fade') {
+    if (motion() === 'fade') {
+      const changed = c !== this.current;
       this.current = c;
       this.paint(c);
+      // A soft fade marks the change, except when the display is set to still.
+      if (changed && motionLevel() !== 'still') this.el.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: 450, easing: 'ease-out', delay: delayMs });
       return;
     }
     if (!this.running && c !== this.current) {
@@ -86,7 +94,7 @@ class Tile {
   private step(next: string): Promise<void> {
     const prev = this.current;
     this.current = next;
-    if (motion === 'scramble') {
+    if (motion() === 'scramble') {
       this.paint(next);
       return new Promise(r => setTimeout(r, STEP_MS * 0.6));
     }

@@ -1,5 +1,6 @@
 import {
-  CALENDAR_COLORS, RADIUS_CHOICES, secretKey,
+  CALENDAR_COLORS, CLOCK_STYLES, MOTION_LEVELS, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
+  type ClockStyle, type MotionLevel,
   type AdminState, type Place, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
 import { handleLogin, handleLogout, hmac, isAdmin, passesCsrfCheck, safeEqual } from './adminAuth';
@@ -62,6 +63,7 @@ export async function handleAdmin(request: Request, env: Env, url: URL): Promise
       case '/api/admin/google/selection': return json(await googleSelection(env, body));
       case '/api/admin/google/disconnect': return json(await googleDisconnect(env));
       case '/api/admin/sky': return json(await saveSky(env, body));
+      case '/api/admin/display': return json(await saveDisplay(env, body));
       case '/api/admin/photos': return json(await listPhotos(env));
       case '/api/admin/photos/pick': return json(await startPicking(env, str(body.collection ?? 'Photos', 'Collection', 40)));
       case '/api/admin/photos/poll': return json(await pollPicking(env, str(body.sessionId, 'Session', 200)));
@@ -314,4 +316,14 @@ async function saveSky(env: Env, b: Record<string, unknown>) {
   const active = b.active === 'device' ? 'device' : places.find(p => p.id === b.active)?.id ?? places[0]?.id ?? 'default';
   const radiusNm = RADIUS_CHOICES.includes(Number(b.radiusNm)) ? Number(b.radiusNm) : 25;
   return mutate(env, s => ({ ...s, sky: { places, active, radiusNm } }));
+}
+
+// ── Display ─────────────────────────────────────────────────────────────────
+
+async function saveDisplay(env: Env, b: Record<string, unknown>) {
+  const clock = CLOCK_STYLES.includes(b.clock as ClockStyle) ? (b.clock as ClockStyle) : null;
+  const motion = MOTION_LEVELS.includes(b.motion as MotionLevel) ? (b.motion as MotionLevel) : null;
+  if (!clock || !motion) throw new BadRequest('Unknown clock style or motion level.');
+  const warmth = WARMTH_LEVELS.find(w => w === b.warmth) ?? 'normal';
+  return mutate(env, s => ({ ...s, display: { clock, motion, warmth } }));
 }

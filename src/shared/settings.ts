@@ -1,6 +1,8 @@
 // Settings chosen in /setup, stored in KV. Anything secret (calendar links, tokens, OAuth
 // credentials) is not in here: it lives in a separate encrypted blob, keyed by `secretKey`.
 
+import type { Warmth } from './wear';
+
 export type ConnectionKind = 'ics' | 'feed' | 'google';
 
 export interface IcsConnection {
@@ -39,10 +41,27 @@ export interface SkySettings {
   radiusNm: number;
 }
 
+export type ClockStyle = 'word' | 'digital' | 'analogue' | 'flip';
+/** full: every animation. gentle: changes fade instead of flipping or drifting. still: nothing moves but data. */
+export type MotionLevel = 'full' | 'gentle' | 'still';
+
+export interface DisplaySettings {
+  clock: ClockStyle;
+  motion: MotionLevel;
+  /** For clothing advice: someone who runs cold is told to dress for colder weather. */
+  warmth?: Warmth;
+}
+
+export const DEFAULT_DISPLAY: DisplaySettings = { clock: 'word', motion: 'full', warmth: 'normal' };
+export const WARMTH_LEVELS: Warmth[] = ['cold', 'normal', 'warm'];
+export const CLOCK_STYLES: ClockStyle[] = ['word', 'digital', 'analogue', 'flip'];
+export const MOTION_LEVELS: MotionLevel[] = ['full', 'gentle', 'still'];
+
 export interface Settings {
   version: 1;
   connections: Connection[];
   sky?: SkySettings;
+  display?: DisplaySettings;
 }
 
 export const EMPTY_SETTINGS: Settings = { version: 1, connections: [] };

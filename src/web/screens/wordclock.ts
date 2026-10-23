@@ -1,5 +1,5 @@
 import type { HubConfig } from '../../shared/types';
-import { h, type Screen } from '../screen';
+import { h } from '../screen';
 
 // A word clock: the time is spelled out by lighting words in a letter grid, in five-minute
 // steps ("IT IS TWENTY FIVE PAST SEVEN"). The four corner dots count the minutes in between.
@@ -47,38 +47,32 @@ export function wordsFor(hours: number, minutes: number): { words: Word[]; dots:
   return { words, dots: minutes % 5 };
 }
 
-let timer: number | undefined;
+/** Draws the word clock into el. Returns a function that stops it. */
+export function mountWordClock(el: HTMLElement, config: HubConfig): () => void {
+  const face = h('div', 'wc-face');
+  face.setAttribute('aria-hidden', 'true');
+  const cells: HTMLElement[][] = GRID.map(line => {
+    const row = line.split('').map(ch => h('span', 'wc-letter', ch));
+    face.append(...row);
+    return row;
+  });
+  const dots = [0, 1, 2, 3].map(i => h('span', `wc-dot wc-dot-${i}`));
+  const frame = h('div', 'wc-frame');
+  frame.setAttribute('role', 'img');
+  frame.append(face, ...dots);
+  el.append(frame);
 
-export const wordClockScreen: Screen = {
-  id: 'wordclock',
-  title: 'Word clock',
-  durationSec: 45,
-  mount(el: HTMLElement, config: HubConfig) {
-    const face = h('div', 'wc-face');
-    const cells: HTMLElement[][] = GRID.map(line => {
-      const row = line.split('').map(ch => h('span', 'wc-letter', ch));
-      face.append(...row);
-      return row;
-    });
-    const dots = [0, 1, 2, 3].map(i => h('span', `wc-dot wc-dot-${i}`));
-    const frame = h('div', 'wc-frame');
-    frame.append(face, ...dots);
-    el.append(frame);
-
-    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: config.timezone, hour: 'numeric', minute: 'numeric', hourCycle: 'h23' });
-    const render = () => {
-      const p = Object.fromEntries(parts.formatToParts(new Date()).map(x => [x.type, x.value]));
-      const { words, dots: n } = wordsFor(Number(p.hour), Number(p.minute));
-      const lit = new Set<HTMLElement>();
-      for (const [r, c, len] of words) for (let i = 0; i < len; i++) lit.add(cells[r][c + i]);
-      cells.flat().forEach(cell => cell.classList.toggle('on', lit.has(cell)));
-      dots.forEach((d, i) => d.classList.toggle('on', i < n));
-      frame.setAttribute('aria-label', `${p.hour}:${p.minute}`);
-    };
-    render();
-    timer = window.setInterval(render, 5000);
-  },
-  unmount() {
-    clearInterval(timer);
-  },
-};
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: config.timezone, hour: 'numeric', minute: 'numeric', hourCycle: 'h23' });
+  const render = () => {
+    const p = Object.fromEntries(parts.formatToParts(new Date()).map(x => [x.type, x.value]));
+    const { words, dots: n } = wordsFor(Number(p.hour), Number(p.minute));
+    const lit = new Set<HTMLElement>();
+    for (const [r, c, len] of words) for (let i = 0; i < len; i++) lit.add(cells[r][c + i]);
+    cells.flat().forEach(cell => cell.classList.toggle('on', lit.has(cell)));
+    dots.forEach((d, i) => d.classList.toggle('on', i < n));
+    frame.setAttribute('aria-label', `${p.hour}:${p.minute}`);
+  };
+  render();
+  const timer = window.setInterval(render, 5000);
+  return () => clearInterval(timer);
+}

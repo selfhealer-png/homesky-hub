@@ -1,3 +1,4 @@
+import { DEFAULT_DISPLAY } from '../shared/settings';
 import type { HubConfig, BoardTheme } from '../shared/types';
 import type { Env } from './env';
 import { loadSettings } from './settings';
@@ -40,6 +41,9 @@ export async function hubConfig(env: Env): Promise<HubConfig> {
     radarRadiusNm: sky?.radiusNm ?? Number(env.RADAR_RADIUS_NM ?? 25),
     timezone: env.TIMEZONE ?? 'UTC',
     boardTheme: (['splitflap', 'led', 'minimal'] as const).includes(env.BOARD_THEME as BoardTheme) ? env.BOARD_THEME as BoardTheme : 'splitflap',
+    clock: settings.display?.clock ?? DEFAULT_DISPLAY.clock,
+    motion: settings.display?.motion ?? DEFAULT_DISPLAY.motion,
+    warmth: settings.display?.warmth ?? 'normal',
     features: { agenda: !!env.AGENDA_FEED_URL || settings.connections.some(c => c.enabled), photos: !!env.PHOTOS, trending: false },
   };
 }

@@ -13,11 +13,12 @@ It's one Cloudflare Worker that serves the web app and a small API. The tablet j
 | Home: clock, today, overdue, the next few days (from any [agenda feed](docs/feed-contract.md)) | working |
 | Overhead board: split-flap board for the plane above you, with three themes | working |
 | Radar: live aircraft around you, nearest five labelled, coloured by altitude | working |
-| Word clock: the time spelled out in a letter grid | working |
+| Weather: now, the next hours and days, and what to wear | working |
+| Clock: word clock, digital, analogue or split-flap (chosen in `/setup`) | working |
 | Photos: Google Photos (via the Picker) copied to R2, crossfading slideshow | working |
 | Trending: most-tracked flights, emergency squawks, alerts | planned |
 
-Controls: tap the left or right third of the screen to switch screens, and long-press to pin the current one. On the overhead board, tap the middle to change theme; on the radar, tap the middle to switch between your saved places.
+Controls: tap the left or right third of the screen to switch screens, and long-press to pin the current one. On the overhead board, tap the middle to change theme; on the radar, tap the middle to switch between your saved places. In `/setup` → Display you can choose the clock style and how much the screens move (Full, Gentle or Still).
 
 ## Set up your own
 
@@ -46,7 +47,7 @@ npm run dev          # web app on :5173, proxies /api to the Worker
 
 * Aircraft positions: [airplanes.live](https://airplanes.live), [adsb.lol](https://adsb.lol), [adsb.fi](https://adsb.fi), community-fed ADS-B. Please respect their fair-use guidance; the Worker caches for 5 s so many displays share one upstream request.
 * Routes and airlines: [adsbdb](https://www.adsbdb.com).
-* Place search: [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api).
+* Weather and place search: [Open-Meteo](https://open-meteo.com) (forecast and geocoding).
 * Calendar parsing: [ical.js](https://github.com/kewisch/ical.js) (MPL-2.0).
 * Inspired by [esp32flight](https://github.com/theqkash/esp32flight) (MIT), and by word clocks and airport split-flap boards.
 * Titles use [Gabarito](https://github.com/naipefoundry/gabarito) (SIL Open Font License, see `src/web/public/fonts/Gabarito-OFL.txt`).

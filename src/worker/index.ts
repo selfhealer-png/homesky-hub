@@ -6,6 +6,7 @@ import { json, type Env } from './env';
 import { handleOverhead } from './overhead';
 import { handleDisplayPhotos } from './photos';
 import { hubConfig } from './sky';
+import { handleWeather } from './weather';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -26,6 +27,7 @@ export default {
         case '/api/config': return json(await hubConfig(env));
         case '/api/aircraft': return handleAircraft(env, url);
         case '/api/overhead': return handleOverhead(url, env);
+        case '/api/weather': return handleWeather(env, url);
         case '/api/agenda': return handleAgenda(env);
         default: return json({ error: 'Not found' }, { status: 404 });
       }

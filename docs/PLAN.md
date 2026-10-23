@@ -38,7 +38,8 @@ A screen is `{ id, title, mount(el), unmount(), durationSec }`. The **rotator** 
 | **Overhead board** | Split-flap board for the plane overhead: airline, callsign, route, altitude/speed/heading, progress bar, distance from home | `/api/overhead` |
 | **Airport boards** | Arrivals into chosen airports, as a split-flap airport board: inbound now, with ETA, and optionally the timetable | `/api/airport/:icao` |
 | **Trending** | Most-tracked flights and emergency squawks, with alert banners | `/api/trending` |
-| **Word clock** | The time spelled out by lighting words in a letter grid, with corner dots for the extra minutes. Also a candidate for the night screen | none |
+| **Weather** | Now, the next 18 hours, the next four days, and what to wear (feels-like bands adjusted for wind, rain, snow, UV and a personal warmth preference) | `/api/weather` (Open-Meteo) |
+| **Clock** | Word clock, digital, analogue or split-flap, chosen in `/setup`. Also a candidate for the night screen | none |
 | *(future)* | Weather, energy, departures, Home Assistant… | add a module in `src/web/screens/` |
 
 Night mode: a configurable quiet window dims the UI (Safari can't set brightness, so this is a dark overlay) and switches to a minimal clock.

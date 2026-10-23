@@ -2,13 +2,16 @@ import './styles.css';
 import type { HubConfig } from '../shared/types';
 import { getJson, NotPairedError } from './api';
 import type { Screen } from './screen';
+import { setMotionLevel } from './motion';
 import { boardScreen } from './screens/board';
+import { clockScreen } from './screens/clock';
 import { homeScreen } from './screens/home';
 import { photosScreen } from './screens/photos';
 import { radarScreen } from './screens/radar';
-import { wordClockScreen } from './screens/wordclock';
+import { weatherScreen } from './screens/weather';
 
-const screens: Screen[] = [homeScreen, boardScreen, radarScreen, wordClockScreen, photosScreen];
+const screens: Screen[] = [homeScreen, weatherScreen, boardScreen, radarScreen, clockScreen, photosScreen];
+const CONFIG_REFRESH_MS = 5 * 60_000;
 
 const stage = document.getElementById('stage')!;
 const dots = document.getElementById('dots')!;
@@ -66,6 +69,10 @@ function wireGestures() {
     else screens[index].onCenterTap?.();
   });
   stage.addEventListener('pointercancel', () => clearTimeout(pressTimer));
+  // The long press is ours (pin), not the browser's menu.
+  stage.addEventListener('contextmenu', e => e.preventDefault());
+  // iOS Safari ignores user-scalable=no; its pinch gesture has to be cancelled here instead.
+  document.addEventListener('gesturestart', e => e.preventDefault());
 }
 
 async function start() {
@@ -80,8 +87,23 @@ async function start() {
     return;
   }
   notice.hidden = true;
+  setMotionLevel(config.motion);
   wireGestures();
   show(0);
+  window.setInterval(refreshConfig, CONFIG_REFRESH_MS);
+}
+
+// Picks up changes made in /setup (clock style, motion, places) without reloading the display.
+async function refreshConfig() {
+  try {
+    const fresh = await getJson<HubConfig>('/api/config');
+    const clockChanged = fresh.clock !== config.clock;
+    Object.assign(config, fresh);
+    setMotionLevel(config.motion);
+    if (clockChanged && screens[index].id === 'clock') show(index);
+  } catch {
+    // Keep the current settings; try again next time.
+  }
 }
 
 start();

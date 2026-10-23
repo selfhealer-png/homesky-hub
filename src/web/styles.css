@@ -21,9 +21,15 @@ body {
   font: 17px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-user-select: none; user-select: none;
   -webkit-tap-highlight-color: transparent;
+  /* A display, not a page: quick taps on the edges must switch screens, not zoom (iOS Safari
+     ignores user-scalable=no), and a long press must pin a screen, not open the iOS menu. */
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
 }
 
 #stage { position: fixed; inset: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+/* Images never take touches, so a long press on a photo reaches the screen underneath. */
+#stage img { pointer-events: none; -webkit-user-drag: none; }
 .screen { height: 100%; padding: 28px 32px 40px; }
 
 #dots { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
@@ -43,6 +49,7 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
   --bg: #0F172A; --card: #1E293B; --ink: #F1F5F9; --muted: #94A3B8; --line: #334155;
   --rowbg: #24334A; --timebg: #1E3A5F; --family: #94A3B8; --faint: #64748B; --border2: #475569;
   --amber: #FBBF24; --amberbg: #3F2D12;
+  --timetext: #A9BDD8; --daytext: #CBD5E1; /* pill text, both ≥ 6:1 on their pill */
   --sam: #2563FF; --personal: #7C3AED;
   --aurora: linear-gradient(90deg, var(--sam), var(--personal));
   --font-display: "Gabarito", system-ui, sans-serif;
@@ -68,8 +75,8 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
 .ev[style*="--own"] .tick { border-color: var(--own); border-width: 2px; }
 .ev .body { flex: 1; min-width: 0; }
 .ev .t { font-weight: 500; font-size: 16px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.time { display: inline-block; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 1px 6px; border-radius: 6px; background: var(--timebg); color: var(--family); margin-right: 8px; vertical-align: 1px; }
-.time.day { background: var(--line); color: var(--muted); }
+.time { display: inline-block; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 1px 6px; border-radius: 6px; background: var(--timebg); color: var(--timetext); margin-right: 8px; vertical-align: 1px; }
+.time.day { background: var(--line); color: var(--daytext); }
 .evloc { color: var(--muted); font-size: 13px; margin-left: 6px; }
 
 .overdue .overdueheading { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--amber); margin: 0 0 8px 4px; }
@@ -141,7 +148,7 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
 
 /* ── Overhead board ─────────────────────────────────────────────────────────
    One layout, three themes. Each theme only redefines the tokens below. */
-.screen-board {
+.screen-board, .screen-clock.clock-flip {
   --board-bg: #0b0b0c;
   --tile: linear-gradient(#242427, #1a1a1c);
   --glyph: #f4efe3;
@@ -157,40 +164,56 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
   display: grid;
   place-items: center;
   transition: background 0.4s;
+  container-type: size;
 }
-.screen-board[data-theme="led"] {
+.screen-board[data-theme="led"], .screen-clock.clock-flip[data-theme="led"] {
   --board-bg: #050403;
   --tile: radial-gradient(circle, rgba(255, 170, 60, 0.07) 1px, transparent 1.3px) 0 0 / 4px 4px;
   --glyph: #ffb03a;
   --glow: 0 0 6px rgba(255, 150, 40, 0.65);
   --split: transparent;
-  --label: #8a5a1f;
+  --label: #b07a2e; /* 5.5:1 on the LED black */
   --accent: #ffb03a;
   --track: #2a1a08;
   --board-font: Menlo, "SF Mono", ui-monospace, Consolas, monospace;
   --tile-radius: 2px;
 }
-.screen-board[data-theme="minimal"] {
+.screen-board[data-theme="minimal"], .screen-clock.clock-flip[data-theme="minimal"] {
   --board-bg: #f2eee6;
   --tile: transparent;
   --glyph: #161514;
   --split: transparent;
-  --label: #7a756c;
+  --label: #655f57; /* 5.4:1 on the minimal cream */
   --accent: #c2452d;
   --track: #dcd6ca;
   --board-font: "Iowan Old Style", Georgia, "Times New Roman", serif;
   --board-weight: 500;
 }
 
-.board { display: flex; flex-direction: column; align-items: center; gap: 18px; color: var(--glyph); font-family: var(--board-font); }
+/* The board is one object, so it scales as a whole: every size below is a multiple of --s.
+   At its natural size (--s = 1px) it is 880 x 540; --s shrinks or grows it to fit the screen,
+   up to 1.5x on large tablets. Browsers without container units get the 1024x768 sizes. */
+.board {
+  --s: 1px;
+  display: flex; flex-direction: column; align-items: center; gap: calc(18 * var(--s));
+  color: var(--glyph); font-family: var(--board-font);
+}
+@supports (width: 1cqw) {
+  .board { --s: min(1.5px, calc(100cqw / 880), calc(100cqh / 540)); }
+  /* Portrait: the four stats sit 2 x 2, so the board is narrower and the letters can stay large. */
+  @container (aspect-ratio < 1) {
+    .board { --s: min(1.5px, calc(100cqw / 830), calc(100cqh / 640)); }
+    .board .stats { display: grid; grid-template-columns: repeat(2, auto); row-gap: calc(14 * var(--s)); }
+  }
+}
 
-.flaprow { display: flex; gap: var(--gap); }
-.flaprow.xl { --w: 96px; --h: 128px; --fs: 100px; --gap: 6px; }
-.flaprow.lg { --w: 54px; --h: 74px; --fs: 56px; --gap: 5px; }
-.flaprow.md { --w: 32px; --h: 46px; --fs: 32px; --gap: 3px; }
-.flaprow.sm { --w: 22px; --h: 32px; --fs: 21px; --gap: 3px; }
+.flaprow { display: flex; gap: calc(var(--gap) * var(--s)); }
+.flaprow.xl { --w: 96; --h: 128; --fs: 100; --gap: 6; }
+.flaprow.lg { --w: 54; --h: 74; --fs: 56; --gap: 5; }
+.flaprow.md { --w: 32; --h: 46; --fs: 32; --gap: 3; }
+.flaprow.sm { --w: 22; --h: 32; --fs: 21; --gap: 3; }
 
-.flap { position: relative; width: var(--w); height: var(--h); font-size: var(--fs); font-weight: var(--board-weight); perspective: 400px; }
+.flap { position: relative; width: calc(var(--w) * var(--s)); height: calc(var(--h) * var(--s)); font-size: calc(var(--fs) * var(--s)); font-weight: var(--board-weight); perspective: calc(400 * var(--s)); }
 .flap .half, .flap .leaf { position: absolute; left: 0; right: 0; height: 50%; overflow: hidden; background: var(--tile); }
 .flap .top { top: 0; border-radius: var(--tile-radius) var(--tile-radius) 0 0; }
 .flap .bottom { bottom: 0; border-radius: 0 0 var(--tile-radius) var(--tile-radius); }
@@ -212,13 +235,13 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
 @keyframes flap-top { from { transform: rotateX(0); } to { transform: rotateX(-90deg); filter: brightness(0.6); } }
 @keyframes flap-bottom { from { transform: rotateX(90deg); filter: brightness(1.4); } to { transform: rotateX(0); } }
 
-.stats { display: flex; gap: 40px; margin-top: 4px; }
-.stat-label { display: flex; justify-content: space-between; font-size: 13px; letter-spacing: 0.12em; color: var(--label); margin-bottom: 5px; font-family: system-ui, sans-serif; font-weight: 600; }
+.stats { display: flex; column-gap: calc(40 * var(--s)); margin-top: calc(4 * var(--s)); }
+.stat-label { display: flex; justify-content: space-between; font-size: max(12px, calc(13 * var(--s))); letter-spacing: 0.12em; color: var(--label); margin-bottom: 5px; font-family: system-ui, sans-serif; font-weight: 600; }
 .stat-label .unit { text-transform: none; letter-spacing: 0.04em; }
 
-.progress { display: flex; align-items: center; gap: 14px; width: min(760px, 100%); margin-top: 6px; }
+.progress { display: flex; align-items: center; gap: calc(14 * var(--s)); width: min(calc(760 * var(--s)), 100%); margin-top: calc(6 * var(--s)); }
 .progress[hidden] { display: none; }
-.progress .ap { font-size: 18px; font-weight: 700; color: var(--label); min-width: 40px; text-align: center; }
+.progress .ap { font-size: max(14px, calc(18 * var(--s))); font-weight: 700; color: var(--label); min-width: calc(40 * var(--s)); text-align: center; }
 .bar { position: relative; flex: 1; height: 4px; border-radius: 2px; background: var(--track); --progress: 0; }
 /* Both move with transforms only: the fill scales from the left, and the plane's track spans
    the bar so translateX(progress × 100%) lands it at the right point. */
@@ -226,20 +249,91 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
 .bar .plane { position: absolute; inset: 0; transform: translateX(calc(var(--progress) * 100%)); color: var(--accent); line-height: 0; transition: transform 1s ease; }
 .bar .plane svg { position: absolute; left: 0; top: 50%; transform: translate(-50%, -50%); }
 
-.board .footer { min-height: 20px; font: 600 14px/1.4 system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--label); }
+.board .footer { min-height: 20px; font: 600 max(12px, calc(14 * var(--s)))/1.4 system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--label); }
 .screen-board.emergency .flaprow.sm:first-child { --glyph: #ff5d5d; color: #ff5d5d; }
 .screen-board.empty .stats { opacity: 0.35; }
 
 /* ── Word clock ─────────────────────────────────────────────────────────── */
-.screen-wordclock { display: grid; place-items: center; background: #050608; }
-.wc-frame { position: relative; padding: 36px 52px; }
-.wc-face { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px 30px; font: 600 44px/1.2 "Gabarito", -apple-system, "Segoe UI", sans-serif; text-align: center; }
+.screen-clock { display: grid; place-items: center; background: #050608; container-type: size; }
+.wc-frame { --s: 1px; position: relative; padding: calc(36 * var(--s)) calc(52 * var(--s)); }
+@supports (width: 1cqw) {
+  .wc-frame { --s: min(1.6px, calc(100cqw / 900), calc(100cqh / 650)); }
+}
+.wc-face { display: grid; grid-template-columns: repeat(11, 1fr); gap: calc(4 * var(--s)) calc(30 * var(--s)); font: 600 calc(44 * var(--s))/1.2 "Gabarito", -apple-system, "Segoe UI", sans-serif; text-align: center; }
 .wc-letter { color: #1b1f27; transition: color 1.2s ease, text-shadow 1.2s ease; }
 .wc-letter.on { color: #f4f1ea; text-shadow: 0 0 18px rgba(255, 244, 220, 0.45); }
-.wc-dot { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: #1b1f27; transition: background 1.2s ease, box-shadow 1.2s ease; }
+.wc-dot { position: absolute; width: calc(9 * var(--s)); height: calc(9 * var(--s)); border-radius: 50%; background: #1b1f27; transition: background 1.2s ease, box-shadow 1.2s ease; }
 .wc-dot.on { background: #f4f1ea; box-shadow: 0 0 12px rgba(255, 244, 220, 0.5); }
 .wc-dot-0 { top: 8px; left: 8px; }
 .wc-dot-1 { top: 8px; right: 8px; }
 .wc-dot-2 { bottom: 8px; right: 8px; }
 .wc-dot-3 { bottom: 8px; left: 8px; }
 @media (prefers-reduced-motion: reduce) { .wc-letter, .wc-dot { transition: none; } }
+
+/* ── Clock styles (chosen in /setup) ────────────────────────────────────── */
+.dc { --s: 1px; text-align: center; color: #F1F5F9; }
+@supports (width: 1cqw) { .dc { --s: min(2px, calc(100cqw / 760), calc(100cqh / 420)); } }
+.dc-time { font: 600 calc(240 * var(--s))/0.9 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.dc-date { margin-top: calc(18 * var(--s)); font-size: max(16px, calc(30 * var(--s))); color: #94A3B8; }
+
+.ac { --s: 1px; display: flex; flex-direction: column; align-items: center; gap: calc(14 * var(--s)); }
+@supports (width: 1cqw) { .ac { --s: min(2px, calc(100cqw / 640), calc(100cqh / 660)); } }
+.ac-face { width: calc(560 * var(--s)); height: calc(560 * var(--s)); overflow: visible; }
+.ac-tick { stroke: rgba(148, 163, 184, 0.45); stroke-width: 1; stroke-linecap: round; }
+.ac-tick.hour { stroke: #E2E8F0; stroke-width: 3; }
+.ac-hand { stroke-linecap: round; }
+.ac-hand.hour { stroke: #F1F5F9; stroke-width: 7; }
+.ac-hand.minute { stroke: #F1F5F9; stroke-width: 4.5; }
+.ac-hand.second { stroke: #F59E0B; stroke-width: 1.5; }
+.ac-pin { fill: #F59E0B; }
+.ac-date { font-size: max(15px, calc(22 * var(--s))); color: #94A3B8; letter-spacing: 0.02em; }
+
+.flipclock { --s: 1px; display: flex; flex-direction: column; align-items: center; gap: calc(26 * var(--s)); color: var(--glyph); font-family: var(--board-font); }
+@supports (width: 1cqw) { .flipclock { --s: min(2.6px, calc(100cqw / 640), calc(100cqh / 300)); } }
+
+/* ── Motion levels (set in /setup; see motion.ts) ───────────────────────── */
+/* Gentle: things still change softly, but nothing drifts, flips or pings. */
+[data-motion="gentle"] .pf-layer.in .pf-img { animation: none; }
+/* Still: nothing animates at all; changes are instant. */
+[data-motion="still"] .pf-layer { transition: none; }
+[data-motion="still"] .pf-layer.in .pf-img { animation: none; }
+[data-motion="still"] .wc-letter, [data-motion="still"] .wc-dot { transition: none; }
+[data-motion="still"] .bar::before, [data-motion="still"] .bar .plane { transition: none; }
+[data-motion="still"] .screen-board { transition: none; }
+
+/* ── Weather ────────────────────────────────────────────────────────────────
+   The Home screen's slate palette. Temperature first, clothing advice second. */
+.screen-weather {
+  --ink: #F1F5F9; --muted: #94A3B8; --line: rgba(148, 163, 184, 0.16); --card: #1E293B;
+  background: #0F172A; color: var(--ink);
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr); gap: 40px; align-items: center;
+}
+.wx-loading { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 20px; }
+.wx-icon { width: 30px; height: 30px; color: #CBD5E1; flex: 0 0 auto; }
+.wx-icon.wx-sun, .wx-icon.wx-partly { color: #FBBF24; }
+.wx-icon.wx-rain, .wx-icon.wx-storm { color: #7DD3FC; }
+.wx-place { margin: 0; color: var(--muted); font-size: 16px; }
+.wx-big { display: flex; align-items: center; gap: 18px; margin-top: 2px; }
+.wx-icon-big { width: 104px; height: 104px; stroke-width: 1.4; }
+.wx-temp { font: 600 136px/1 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.wx-cond { margin: 8px 0 0; font-size: 24px; }
+.wx-range { margin: 4px 0 0; font-size: 17px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.wx-hours, .wx-days { list-style: none; margin: 0; padding: 0; display: grid; }
+.wx-hours { grid-template-columns: repeat(6, 1fr); margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--line); }
+.wx-hours li, .wx-days li { display: flex; flex-direction: column; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.wx-h-time { font-size: 14px; color: var(--muted); }
+.wx-h-temp { font-size: 19px; font-weight: 600; }
+.wx-rain { font-size: 13px; color: #7DD3FC; }
+.wx-days { grid-template-columns: repeat(4, 1fr); margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.wx-d-name { font-size: 14px; color: var(--muted); }
+.wx-d-temp { font-size: 19px; font-weight: 600; }
+.wx-d-min { font-size: 15px; color: var(--muted); margin-top: -2px; }
+
+.wx-wear { background: var(--card); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 20px; padding: 26px 28px; align-self: center; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px -14px rgba(0, 0, 0, 0.6); }
+.wx-wear h2 { margin: 0; font: 700 26px/1.15 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.015em; }
+.wx-headline { margin: 8px 0 0; font-size: 19px; line-height: 1.4; color: #CBD5E1; }
+.wx-items { list-style: none; margin: 18px 0 0; padding: 0; }
+.wx-items li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 21px; font-weight: 500; }
+.wx-items small { font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.wx-later { margin: 16px 0 0; font-size: 16px; line-height: 1.45; color: var(--muted); }

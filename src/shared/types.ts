@@ -1,6 +1,7 @@
 // Shapes shared by the Worker API and the web app.
 
-import type { Place } from './settings';
+import type { ClockStyle, MotionLevel, Place } from './settings';
+import type { Warmth, WeatherHour, WeatherNow } from './wear';
 
 export interface HubConfig {
   /** The default centre of the sky screens: the active saved place, or the deployment's HOME_LAT/LON. */
@@ -11,6 +12,9 @@ export interface HubConfig {
   radarRadiusNm: number;
   timezone: string;
   boardTheme: BoardTheme;
+  clock: ClockStyle;
+  motion: MotionLevel;
+  warmth: Warmth;
   features: { agenda: boolean; photos: boolean; trending: boolean };
 }
 
@@ -85,3 +89,13 @@ export interface AgendaFeed {
 }
 
 export type AgendaResponse = { configured: false } | ({ configured: true; errors?: string[] } & AgendaFeed);
+
+export interface WeatherDay { date: string; code: number; max: number; min: number; rain: number; sunrise: string; sunset: string }
+
+export interface WeatherResponse {
+  updatedAt: string;
+  now: WeatherNow;
+  /** The next 18 hours, soonest first. */
+  hours: WeatherHour[];
+  days: WeatherDay[];
+}

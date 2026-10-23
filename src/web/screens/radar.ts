@@ -1,6 +1,7 @@
 import type { Aircraft, AircraftResponse, HubConfig, RouteSummary } from '../../shared/types';
 import { getJson } from '../api';
 import { nextPlace, skyHome, skyQuery, type SkyHome } from '../location';
+import { motionLevel } from '../motion';
 import { h, type Screen } from '../screen';
 
 // An ambient radar for a room: calm at a glance, detailed on a closer look.
@@ -87,8 +88,8 @@ function drawScope(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: num
   ctx.setLineDash([2, 6]);
   ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
   ctx.lineWidth = 1;
-  ctx.font = '500 11px -apple-system, "Segoe UI", sans-serif';
-  ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
+  ctx.font = '600 12px -apple-system, "Segoe UI", sans-serif';
+  ctx.fillStyle = '#94A3B8'; // 6.3:1 on the disc
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (let nm = step; nm < radiusNm; nm += step) {
@@ -125,8 +126,8 @@ function drawScope(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: num
 }
 
 function drawHome(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, pingAge: number) {
-  // The ping: one soft ring per data refresh, easing out over 2.4 s.
-  if (pingAge < 2400) {
+  // The ping: one soft ring per data refresh, easing out over 2.4 s. Full motion only.
+  if (pingAge < 2400 && motionLevel() === 'full') {
     const t = pingAge / 2400;
     const ease = 1 - Math.pow(1 - t, 3);
     ctx.strokeStyle = `rgba(241, 245, 249, ${0.28 * (1 - t)})`;

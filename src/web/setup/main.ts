@@ -1,6 +1,7 @@
 import './setup.css';
 import {
-  CALENDAR_COLORS, RADIUS_CHOICES,
+  CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, MOTION_LEVELS, RADIUS_CHOICES, WARMTH_LEVELS,
+  type ClockStyle, type DisplaySettings, type MotionLevel,
   type AdminState, type PhotoInfo, type PickStatus, type Place, type SkySettings, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../../shared/settings';
 
@@ -139,7 +140,7 @@ function setSettings(s: Settings) {
 }
 
 function render() {
-  app.replaceChildren(statusCard(), calendarsCard(), photosCard(), skyCard(), laterCard());
+  app.replaceChildren(statusCard(), displayCard(), calendarsCard(), photosCard(), skyCard(), laterCard());
   if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
 }
 
@@ -582,6 +583,89 @@ async function pollPick() {
     const wait = current.status.state === 'waiting' ? current.status.pollMs : 300;
     await new Promise(r => setTimeout(r, wait));
   }
+}
+
+// ── display ─────────────────────────────────────────────────────────────────
+
+function displaySettings(): DisplaySettings {
+  return state.settings.display ?? DEFAULT_DISPLAY;
+}
+
+async function saveDisplay(next: DisplaySettings) {
+  setSettings(await api<Settings>('/api/admin/display', next));
+  toast('Saved. The display picks this up within five minutes.');
+}
+
+/** A small preview of each clock style, drawn with markup rather than images. */
+function clockPreview(style: ClockStyle): HTMLElement {
+  const box = h('span', { class: `cp cp-${style}`, 'aria-hidden': 'true' });
+  if (style === 'word') {
+    box.append(
+      h('span', {}, h('i', {}, 'IT'), ' L ', h('i', {}, 'IS'), ' AS'),
+      h('span', {}, h('i', {}, 'HALF'), ' S TEN'),
+      h('span', {}, h('i', {}, 'PAST'), ' ER'),
+      h('span', {}, 'ON ', h('i', {}, 'NINE')),
+    );
+  } else if (style === 'digital') {
+    box.append('9:30');
+  } else if (style === 'analogue') {
+    box.innerHTML = '<svg viewBox="-50 -50 100 100" width="58" height="58"><circle r="46" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="2"/><line y1="6" y2="-24" stroke="currentColor" stroke-width="5" stroke-linecap="round" transform="rotate(285)"/><line y1="8" y2="-38" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" transform="rotate(180)"/><circle r="3.5" fill="#F59E0B"/></svg>';
+  } else {
+    for (const ch of ['0', '9', ':', '3', '0']) box.append(h('span', { class: ch === ':' ? 'cp-colon' : 'cp-tile' }, ch));
+  }
+  return box;
+}
+
+const CLOCK_LABELS: Record<ClockStyle, [string, string]> = {
+  word: ['Word clock', 'The time spelled out in a letter grid.'],
+  digital: ['Digital', 'Large, plain numbers. Easiest from across a room.'],
+  analogue: ['Analogue', 'A quiet clock face.'],
+  flip: ['Split-flap', 'Flip tiles, matching the overhead board.'],
+};
+
+const MOTION_LABELS: Record<MotionLevel, [string, string]> = {
+  full: ['Full', 'Letters flip, photos drift, the radar pings when new planes arrive.'],
+  gentle: ['Gentle', 'Changes fade softly. Nothing flips, drifts or pings.'],
+  still: ['Still', 'No animation at all. Only the aircraft keep moving, because that’s live data.'],
+};
+
+function displayCard() {
+  const d = displaySettings();
+  const card = h('section', { class: 'card', id: 'display' },
+    h('h2', {}, 'Display'),
+    h('p', { class: 'lede' }, 'How the clock looks, and how much the screens move.'),
+  );
+
+  card.append(h('h3', {}, 'Clock'));
+  const clocks = h('div', { class: 'clockpicker', role: 'radiogroup', 'aria-label': 'Clock style' });
+  for (const style of CLOCK_STYLES) {
+    const [title, sub] = CLOCK_LABELS[style];
+    const radio = h('input', { type: 'radio', name: 'clock-style', value: style, checked: d.clock === style });
+    radio.addEventListener('change', () => saveDisplay({ ...d, clock: style }).catch(err => toast((err as Error).message, 'error')));
+    clocks.append(h('label', { class: 'clockopt' }, radio, clockPreview(style), h('b', {}, title), h('small', {}, sub)));
+  }
+  card.append(clocks);
+
+  card.append(h('h3', {}, 'Motion'));
+  const motion = h('div', { class: 'places', role: 'radiogroup', 'aria-label': 'Motion' });
+  for (const level of MOTION_LEVELS) {
+    const [title, sub] = MOTION_LABELS[level];
+    const radio = h('input', { type: 'radio', name: 'motion-level', value: level, checked: d.motion === level });
+    radio.addEventListener('change', () => saveDisplay({ ...d, motion: level }).catch(err => toast((err as Error).message, 'error')));
+    motion.append(h('div', { class: 'place' }, h('label', { class: 'gcheck' }, radio, h('span', {}, h('b', {}, title), h('small', {}, sub)))));
+  }
+  card.append(motion, h('p', { class: 'hint' }, 'A tablet set to “Reduce Motion” in its accessibility settings never goes above Gentle.'));
+
+  card.append(h('h3', {}, 'Clothing advice'));
+  const warmth = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Clothing advice' });
+  const WARMTH_LABELS = { cold: 'I run cold', normal: 'Typical', warm: 'I run warm' } as const;
+  for (const w of WARMTH_LEVELS) {
+    const r = h('input', { type: 'radio', name: 'warmth', value: w, checked: (d.warmth ?? 'normal') === w });
+    r.addEventListener('change', () => saveDisplay({ ...d, warmth: w }).catch(err => toast((err as Error).message, 'error')));
+    warmth.append(h('label', {}, r, h('span', {}, WARMTH_LABELS[w])));
+  }
+  card.append(warmth, h('p', { class: 'hint' }, 'The weather screen’s “What to wear” dresses you for about 3° colder or warmer than it feels.'));
+  return card;
 }
 
 // ── sky ─────────────────────────────────────────────────────────────────────
