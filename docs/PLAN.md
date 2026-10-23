@@ -71,7 +71,12 @@ Ideas taken from [esp32flight](https://github.com/theqkash/esp32flight) (MIT) an
 
 ### Data
 
-* **Positions** come from the free community ADS-B aggregators that esp32flight uses: airplanes.live first, then adsb.lol, then adsb.fi. Queries are `/v2/point/{lat}/{lon}/{radiusNm}`, edge-cached for ~5 s. A local `readsb`/`dump1090` URL can be set instead.
+* **Positions** come from free community ADS-B aggregators: adsb.lol first, then adsb.fi and airplanes.live. Queries are `/v2/point/{lat}/{lon}/{radiusNm}`. A local `readsb`/`dump1090` URL can be set instead.
+* **These sources limit requests per address, and Cloudflare's addresses are shared by many sites.** From Cloudflare, adsb.fi and airplanes.live refuse (airplanes.live now serves feeders only), and adsb.lol rate-limits often. None of them allow browsers to read their data, so the display can't fetch directly. The hub therefore uses two layers:
+  1. **A shared fetcher** (the `SKY` Durable Object, free plan): fresh positions there (< 8 s old) serve every screen on every device, so the hub asks far less often.
+  2. **If it's refused, the Worker handling the request tries itself**, from a different Cloudflare location and address, and hands a good result back to the shared fetcher.
+  Sources that refuse are rested rather than retried. If everything fails, the last good positions (< 90 s) are served, and the display keeps planes moving on their tracks for up to 2 minutes. Measured from Langwathby: 23 of 24 requests over 4 minutes returned planes, against about half before.
+* **Next step for full reliability (free, optional):** a home relay or a home ADS-B receiver that pushes positions to the hub, since the free sources work from home connections.
 * **Routes and airlines**: `api.adsbdb.com/v0/callsign/{callsign}` returns the airline name/IATA/ICAO plus the origin and destination airports with coordinates (tested working). Results are cached in KV for 24 h and shared by every screen. A route is only shown when it fits the aircraft's position and track (esp32flight rejects stale routes the same way). Without one, the board falls back to the type and registration.
 * `HOME_LAT`/`HOME_LON` are deployment variables. Rounding to 2 dp (~1 km) is recommended.
 

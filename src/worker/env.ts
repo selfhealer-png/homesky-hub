@@ -15,6 +15,7 @@ export interface Env {
   BOARD_THEME?: string;
   HUB_KV?: KVNamespace;
   PHOTOS?: R2Bucket;
+  SKY?: DurableObjectNamespace<import('./skyFetcher').SkyFetcher>;
   ADMIN_PASSWORD?: string;
 }
 

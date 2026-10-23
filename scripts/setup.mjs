@@ -202,6 +202,14 @@ ${bucket ? `
 binding = "PHOTOS"
 bucket_name = "${bucket}"
 ` : ''}
+# One shared fetcher for live aircraft (see src/worker/skyFetcher.ts). Free plan friendly.
+[[durable_objects.bindings]]
+name = "SKY"
+class_name = "SkyFetcher"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SkyFetcher"]
 `;
 }
 

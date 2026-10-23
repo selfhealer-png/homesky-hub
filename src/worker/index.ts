@@ -8,6 +8,9 @@ import { handleDisplayPhotos } from './photos';
 import { hubConfig } from './sky';
 import { handleWeather } from './weather';
 
+// The shared fetcher for live aircraft (a Durable Object; see skyFetcher.ts).
+export { SkyFetcher } from './skyFetcher';
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);

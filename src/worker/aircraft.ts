@@ -19,7 +19,7 @@ const PUBLIC_PROVIDERS: Provider[] = [
   { name: 'airplanes.live', url: (lat, lon, nm) => `https://api.airplanes.live/v2/point/${lat}/${lon}/${nm}` },
 ];
 
-const CACHE_SECONDS = 8;
+export const CACHE_SECONDS = 8;
 const STALE_OK_MS = 90_000; // serve the last good positions this long if every source fails
 
 /** Sources that refused recently, and until when to leave them alone (per Worker isolate). */
@@ -88,14 +88,24 @@ export class AircraftUnavailable extends Error {
   constructor(public details: string[]) { super('All aircraft sources failed'); }
 }
 
-/** Live aircraft within the sky radius of a centre point, nearest first. Shared by every sky screen. */
-export function getAircraft(env: Env, sky: SkyContext): Promise<AircraftResponse> {
-  const { lat, lon } = sky.home;
-  const nm = sky.radiusNm;
+/** Where to remember which sources are resting and the last good positions. */
+export interface SourceMemory {
+  restingUntil: Map<string, number>;
+  lastGood: Map<string, AircraftResponse>;
+  /** Longest pause after "too many requests", in seconds (the shared fetcher keeps it short). */
+  max429Rest?: number;
+}
 
-  const key = `aircraft:${lat}:${lon}:${nm}`;
-  // One upstream call per CACHE_SECONDS per isolate, however many displays or screens poll.
-  return cached(env, key, CACHE_SECONDS, async () => {
+export const aircraftKey = (lat: number, lon: number, nm: number) => `aircraft:${lat}:${lon}:${nm}`;
+
+/**
+ * Asks the sources in turn and returns the first good answer. Falls back to the last good
+ * positions (marked stale) for a short while if every source fails.
+ */
+export async function fetchFromSources(env: Env, lat: number, lon: number, nm: number, memory: SourceMemory): Promise<AircraftResponse> {
+  const { restingUntil, lastGood } = memory;
+  const key = aircraftKey(lat, lon, nm);
+  {
     const attempts: Array<[string, string, Provider['parse']]> = [];
     if (env.LOCAL_ADSB_URL) attempts.push(['local', `${env.LOCAL_ADSB_URL.replace(/\/$/, '')}/data/aircraft.json`, undefined]);
     for (const p of PUBLIC_PROVIDERS) attempts.push([p.name, p.url(lat, lon, nm), p.parse]);
@@ -117,7 +127,8 @@ export function getAircraft(env: Env, sky: SkyContext): Promise<AircraftResponse
         return result;
       } catch (err) {
         // Refused, or no answer in time: leave it alone a while.
-        const rest = err instanceof SourceRefused ? err.restSeconds : (err as Error).name === 'TimeoutError' ? 600 : 30;
+        let rest = err instanceof SourceRefused ? err.restSeconds : (err as Error).name === 'TimeoutError' ? 600 : 30;
+        if (memory.max429Rest && (err as Error).message.endsWith('429')) rest = Math.min(rest, memory.max429Rest);
         if (name !== 'local') restingUntil.set(name, Date.now() + rest * 1000);
         errors.push(`${name}: ${(err as Error).message}`);
       }
@@ -127,7 +138,41 @@ export function getAircraft(env: Env, sky: SkyContext): Promise<AircraftResponse
     const previous = lastGood.get(key);
     if (previous && Date.now() - previous.fetchedAt < STALE_OK_MS) return { ...previous, stale: true };
     throw new AircraftUnavailable(errors);
-  });
+  }
+}
+
+const isolateMemory: SourceMemory = { restingUntil, lastGood };
+
+/**
+ * Live aircraft within the sky radius of a centre point, nearest first. Shared by every sky screen.
+ *
+ * Two layers, because the free sources limit requests per address:
+ *   1. The shared fetcher (the SKY Durable Object). Fresh positions there are used by every
+ *      screen on every device, so the hub asks the sources far less often.
+ *   2. If the shared fetcher was refused, this Worker tries the sources itself. It runs in a
+ *      different Cloudflare location with different addresses, which often get through when the
+ *      shared fetcher's don't. A good result is handed back to the shared fetcher for everyone.
+ * Without the SKY binding, only layer 2 runs.
+ */
+export async function getAircraft(env: Env, sky: SkyContext): Promise<AircraftResponse> {
+  const { lat, lon } = sky.home;
+  const nm = sky.radiusNm;
+  const local = () => cached(env, aircraftKey(lat, lon, nm), CACHE_SECONDS, () => fetchFromSources(env, lat, lon, nm, isolateMemory));
+  if (!env.SKY) return local();
+
+  const shared = env.SKY.get(env.SKY.idFromName('shared'));
+  const result = await shared.aircraft(lat, lon, nm);
+  if (!('error' in result) && !result.stale) return result;
+
+  try {
+    const mine = await local();
+    if (!mine.stale) await shared.offer(lat, lon, nm, mine);
+    return mine;
+  } catch (err) {
+    // Neither got through: the shared fetcher's last good positions are better than nothing.
+    if (!('error' in result)) return result;
+    throw err;
+  }
 }
 
 export async function handleAircraft(env: Env, url: URL, request: Request): Promise<Response> {
