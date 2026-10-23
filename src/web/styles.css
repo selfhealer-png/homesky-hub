@@ -330,7 +330,7 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
 .screen-weather {
   --ink: #F1F5F9; --muted: #94A3B8; --line: rgba(148, 163, 184, 0.16); --card: #1E293B;
   background: #0F172A; color: var(--ink);
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr); gap: 40px; align-items: center;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr); grid-template-rows: minmax(0, 1fr); gap: 40px; align-items: center;
 }
 .wx-loading { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 20px; }
 .wx-icon { width: 30px; height: 30px; color: #CBD5E1; flex: 0 0 auto; }
@@ -338,29 +338,52 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
 .wx-icon.wx-rain, .wx-icon.wx-storm { color: #7DD3FC; }
 .wx-place { margin: 0; color: var(--muted); font-size: 16px; }
 .wx-big { display: flex; align-items: center; gap: 18px; margin-top: 2px; }
-.wx-icon-big { width: 104px; height: 104px; stroke-width: 1.4; }
-.wx-temp { font: 600 136px/1 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.wx-icon-big { width: 88px; height: 88px; stroke-width: 1.4; }
+.wx-temp { font: 600 116px/1 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
 .wx-cond { margin: 8px 0 0; font-size: 24px; }
 .wx-range { margin: 4px 0 0; font-size: 17px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .wx-hours, .wx-days { list-style: none; margin: 0; padding: 0; display: grid; }
-.wx-hours { grid-template-columns: repeat(6, 1fr); margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--line); }
+.wx-hours { grid-template-columns: repeat(6, 1fr); margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 .wx-hours li, .wx-days li { display: flex; flex-direction: column; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
 .wx-h-time { font-size: 14px; color: var(--muted); }
 .wx-h-temp { font-size: 19px; font-weight: 600; }
 .wx-rain { font-size: 13px; color: #7DD3FC; }
-.wx-days { grid-template-columns: repeat(4, 1fr); margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.wx-days { grid-template-columns: repeat(4, 1fr); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .wx-d-name { font-size: 14px; color: var(--muted); }
 .wx-d-temp { font-size: 19px; font-weight: 600; }
 .wx-d-min { font-size: 15px; color: var(--muted); margin-top: -2px; }
 
-.wx-wear { background: var(--card); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 20px; padding: 26px 28px; align-self: center; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 28px -14px rgba(0, 0, 0, 0.6); }
-.wx-wear h2 { margin: 0; font: 700 26px/1.15 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.015em; }
-.wx-headline { margin: 8px 0 0; font-size: 19px; line-height: 1.4; color: #CBD5E1; }
-.wx-items { list-style: none; margin: 18px 0 0; padding: 0; }
-.wx-items li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 21px; font-weight: 500; }
-.wx-items small { font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; }
-.wx-later { margin: 16px 0 0; font-size: 16px; line-height: 1.45; color: var(--muted); }
+/* What to wear: pictures first, one word each. */
+.wx-wear { margin-top: 18px; }
+.wx-wear h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+/* One row: items share it, so a cold day's eight still fit. */
+.wx-kit { list-style: none; margin: 8px 0 0; padding: 0; display: flex; gap: 5px; }
+.wx-kit li { flex: 1 1 0; min-width: 0; max-width: 70px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 9px 1px 8px; border-radius: 12px; background: var(--card); font-size: 11.5px; font-weight: 500; color: #CBD5E1; text-align: center; line-height: 1.15; letter-spacing: -0.01em; }
+.wx-wear-icon { width: 30px; height: 30px; color: var(--ink); }
+.wx-later { margin: 10px 0 0; font-size: 14px; line-height: 1.4; color: var(--muted); max-width: 46ch; }
+
+/* Rain radar, with pollen and air beneath it in the pollen season. */
+.wx-side { display: flex; flex-direction: column; gap: 12px; align-self: stretch; min-height: 0; }
+.wx-radar { position: relative; flex: 1; min-height: 0; border-radius: 18px; overflow: hidden; background: #0B1220; box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16); }
+.rr-layer { position: absolute; left: 0; top: 0; }
+.rr-layer img { position: absolute; width: 256px; height: 256px; max-width: none; }
+/* OpenStreetMap is light: turn it into a quiet dark map so the rain is what stands out. */
+.rr-base { filter: invert(1) hue-rotate(180deg) saturate(0.35) brightness(0.62) contrast(1.15); }
+.rr-rain { opacity: 0; transition: opacity 0.35s ease; }
+.rr-rain.on { opacity: 0.7; }
+[data-motion="still"] .rr-rain { transition: none; }
+.rr-home { position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: #F8FAFC; box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.85), 0 0 0 5px rgba(248, 250, 252, 0.35); }
+.rr-time { position: absolute; left: 12px; top: 10px; padding: 4px 9px; border-radius: 8px; background: rgba(15, 23, 42, 0.78); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rr-credit { position: absolute; right: 8px; bottom: 6px; font-size: 10px; color: rgba(203, 213, 225, 0.7); text-shadow: 0 1px 2px #000; }
+.wx-chips { list-style: none; margin: 0; padding: 0; display: flex; gap: 10px; }
+.wx-chip { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 12px; background: var(--card); font-size: 15px; }
+.wx-chip-name { color: var(--muted); }
+.wx-chip b { font-weight: 600; }
+.wx-chip-dot { width: 9px; height: 9px; border-radius: 50%; background: #4ADE80; }
+.tone-mid .wx-chip-dot { background: #FBBF24; }
+.tone-high .wx-chip-dot { background: #FB923C; }
+.tone-bad .wx-chip-dot { background: #F87171; }
 
 /* ── Phones in landscape ──────────────────────────────────────────────────
    Short screens (about 375-430 px tall) get their own layout rather than a shrunken
@@ -398,13 +421,16 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
   .wx-h-temp { font-size: 15px; }
   .wx-rain { font-size: 11px; }
   .wx-days { display: none; }
-  .wx-wear { padding: 14px 16px; border-radius: 16px; }
-  .wx-wear h2 { font-size: 19px; }
-  .wx-headline { font-size: 14px; margin-top: 4px; }
-  .wx-items { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; margin-top: 10px; }
-  .wx-items li { font-size: 14px; padding: 6px 0; }
-  .wx-items small { display: none; }
-  .wx-later { font-size: 12.5px; margin-top: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .wx-wear { margin-top: 10px; }
+  .wx-wear h2 { display: none; }
+  .wx-kit { margin-top: 0; gap: 5px; }
+  .wx-kit li { padding: 5px 0; font-size: 9.5px; gap: 3px; border-radius: 9px; }
+  .wx-wear-icon { width: 22px; height: 22px; }
+  .wx-later { font-size: 12px; margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .wx-side { gap: 8px; }
+  .wx-radar { border-radius: 14px; }
+  .rr-time { font-size: 12px; left: 8px; top: 6px; }
+  .wx-chip { padding: 5px 10px; font-size: 12px; gap: 6px; }
 
   /* Radar: a narrower panel with the three nearest */
   .screen-radar { grid-template-columns: minmax(0, 1fr) 230px; gap: 16px; padding-right: 20px; }
@@ -503,3 +529,104 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
 #dots { align-items: center; }
 #dots .gear { width: 44px; height: 44px; margin: -17px -12px -17px 4px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: rgba(148, 163, 184, 0.75); cursor: pointer; }
 #dots .gear:focus-visible { outline: 2px solid #2563FF; }
+
+/* The keep-awake video: playing, but never seen. */
+.stay-awake { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; left: 0; top: 0; }
+
+/* ── Wikipedia ──────────────────────────────────────────────────────────────
+   A page to read: warm paper-dark, a serif headline, generous measure. */
+.screen-wiki {
+  --ink: #F2ECE2; --muted: #A79E90; --line: rgba(167, 158, 144, 0.22);
+  background: #15120F; color: var(--ink);
+  display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr); gap: 44px; align-items: center;
+  padding: 44px 48px 56px;
+}
+.screen-wiki.wk-no-image { grid-template-columns: minmax(0, 720px); justify-content: center; }
+.wk-loading { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 20px; }
+.wk-figure { margin: 0; height: 100%; max-height: 640px; border-radius: 14px; overflow: hidden; background: #221D18; box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.8); }
+.wk-figure img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wk-figure.wk-tall img { object-position: center 18%; }
+.wk-text { min-width: 0; }
+.wk-kicker { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #D9A55B; }
+.wk-title { margin: 10px 0 0; font: 600 50px/1.05 ui-serif, "New York", Georgia, "Times New Roman", serif; letter-spacing: -0.015em; text-wrap: balance; }
+.wk-desc { margin: 8px 0 0; font: italic 19px/1.35 ui-serif, Georgia, serif; color: var(--muted); }
+.wk-extract {
+  margin: 20px 0 0; padding-top: 20px; border-top: 1px solid var(--line);
+  font: 20px/1.55 ui-serif, Georgia, serif; text-wrap: pretty;
+  display: -webkit-box; -webkit-line-clamp: 12; -webkit-box-orient: vertical; overflow: hidden;
+}
+.wk-credit { margin: 18px 0 0; font-size: 13px; color: var(--muted); }
+
+@media (max-height: 520px) {
+  .screen-wiki { gap: 22px; padding: 18px 24px 30px; grid-template-columns: minmax(0, 0.6fr) minmax(0, 1fr); }
+  .wk-kicker { font-size: 11px; }
+  .wk-title { font-size: 28px; margin-top: 4px; }
+  .wk-desc { font-size: 14px; margin-top: 4px; }
+  .wk-extract { font-size: 14.5px; margin-top: 10px; padding-top: 10px; -webkit-line-clamp: 7; }
+  .wk-credit { font-size: 11px; margin-top: 8px; }
+}
+
+/* ── Tonight ────────────────────────────────────────────────────────────────
+   Night sky blue, a drawn moon, a verdict first: is it worth looking up? */
+.screen-tonight {
+  --ink: #EEF0FF; --muted: #9AA3C7; --line: rgba(154, 163, 199, 0.18); --card: rgba(30, 36, 72, 0.62);
+  color: var(--ink);
+  background:
+    radial-gradient(1.5px 1.5px at 12% 18%, rgba(255,255,255,.55) 50%, transparent 51%),
+    radial-gradient(1px 1px at 31% 72%, rgba(255,255,255,.4) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 47% 9%, rgba(255,255,255,.45) 50%, transparent 51%),
+    radial-gradient(1px 1px at 63% 41%, rgba(255,255,255,.35) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 78% 14%, rgba(255,255,255,.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 88% 66%, rgba(255,255,255,.35) 50%, transparent 51%),
+    radial-gradient(1px 1px at 6% 88%, rgba(255,255,255,.3) 50%, transparent 51%),
+    radial-gradient(120% 90% at 20% 0%, #1B2350 0%, #0B0F26 55%, #070A1A 100%);
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 40px; align-items: center;
+}
+.tn-loading { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 20px; }
+.tn-kicker { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.tn-verdict { margin: 10px 0 0; font: 600 44px/1.08 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.02em; text-wrap: balance; max-width: 16ch; }
+.tn-moon-row { display: flex; align-items: center; gap: 24px; margin-top: 30px; }
+.tn-moon { width: 132px; height: 132px; flex: 0 0 auto; filter: drop-shadow(0 0 24px rgba(226, 232, 255, 0.22)); }
+.tn-moon-dark { fill: #262C4D; }
+.tn-moon-lit { fill: #ECEBDD; }
+.tn-moon-name { margin: 0; font-size: 26px; font-weight: 600; }
+.tn-moon-lit-pct { margin: 2px 0 0; font-size: 17px; color: var(--muted); }
+.tn-moon-times { margin: 8px 0 0; font-size: 17px; font-variant-numeric: tabular-nums; }
+.tn-times { display: grid; grid-template-columns: repeat(4, auto); justify-content: start; gap: 6px 34px; margin: 30px 0 0; padding-top: 18px; border-top: 1px solid var(--line); }
+.tn-times dt { font-size: 13px; color: var(--muted); }
+.tn-times dd { margin: 2px 0 0; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tn-note { grid-column: 1 / -1; font-size: 14px; color: var(--muted); }
+.tn-side { display: flex; flex-direction: column; gap: 12px; }
+.tn-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 20px; }
+.tn-card h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.tn-big { margin: 6px 0 0; font-size: 22px; font-weight: 600; }
+.tn-sub { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+.tn-aurora.tone-maybe .tn-big { color: #86EFAC; }
+.tn-aurora.tone-good .tn-big { color: #4ADE80; }
+.tn-iss ul { list-style: none; margin: 8px 0 0; padding: 0; }
+.tn-iss li { display: flex; flex-direction: column; padding: 7px 0; border-top: 1px solid var(--line); }
+.tn-iss li:first-child { border-top: 0; padding-top: 2px; }
+.tn-iss b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.tn-iss span { font-size: 14px; color: var(--muted); }
+
+@media (max-height: 520px) {
+  .screen-tonight { gap: 20px; }
+  .tn-kicker { font-size: 11px; }
+  .tn-verdict { font-size: 26px; margin-top: 4px; }
+  .tn-moon-row { margin-top: 12px; gap: 14px; }
+  .tn-moon { width: 64px; height: 64px; }
+  .tn-moon-name { font-size: 17px; }
+  .tn-moon-lit-pct, .tn-moon-times { font-size: 13px; margin-top: 2px; }
+  .tn-times { margin-top: 12px; padding-top: 10px; gap: 2px 18px; }
+  .tn-times dt { font-size: 11px; }
+  .tn-times dd { font-size: 16px; }
+  .tn-side { gap: 6px; }
+  .tn-card { padding: 8px 12px; border-radius: 12px; }
+  .tn-card h2 { font-size: 10px; }
+  .tn-big { font-size: 15px; margin-top: 2px; }
+  .tn-sub { font-size: 11px; margin-top: 1px; }
+  .tn-iss b { font-size: 13px; }
+  .tn-iss span { font-size: 11px; }
+  .tn-iss li { padding: 3px 0; }
+  .tn-iss li:nth-child(n+3) { display: none; }
+}

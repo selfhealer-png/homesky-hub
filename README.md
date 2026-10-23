@@ -13,9 +13,11 @@ It's one Cloudflare Worker that serves the web app and a small API. The tablet j
 | Home: clock, today, overdue, the next few days (from any [agenda feed](docs/feed-contract.md)) | working |
 | Overhead board: split-flap board for the plane above you, with three themes | working |
 | Radar: live aircraft around you, nearest five labelled, coloured by altitude | working |
-| Weather: now, the next hours and days, and what to wear | working |
+| Weather: now, the next hours and days, what to wear (as icons), a rain radar, and pollen and air quality in the pollen season | working |
+| Tonight: is it worth looking up? Cloud, the moon's phase and times, when it gets dark, the aurora chance, and visible Space Station passes | working |
 | Clock: word clock, digital, analogue or split-flap (chosen in `/setup`) | working |
 | Photos: Google Photos (via the Picker), full screen or framed prints, portraits in pairs, labelled with place and date | working |
+| Wikipedia: today's featured article, with its picture | working |
 | Trending: most-tracked flights, emergency squawks, alerts | planned |
 
 Controls: tap the left or right third of the screen to switch screens, and long-press to pin the current one. On the overhead board, tap the middle to change theme; on the radar, tap the middle to switch between your saved places. In `/setup` → Display you can choose the clock style and how much the screens move (Full, Gentle or Still).
@@ -42,14 +44,18 @@ npm run dev          # web app on :5173, proxies /api to the Worker
 
 ### iPad tips
 
-* Settings › Display & Brightness › Auto-Lock → **Never**, and keep it on power.
+* The hub asks the screen to stay on by itself (Screen Wake Lock, with a fallback for older iPads). Set Settings › Display & Brightness › Auto-Lock → **Never** as well, and keep it on power.
 * Settings › Accessibility › **Guided Access**, so the app can't be swiped away.
 
 ## Data sources and credits
 
 * Aircraft positions: [airplanes.live](https://airplanes.live), [adsb.lol](https://adsb.lol), [adsb.fi](https://adsb.fi), community-fed ADS-B. Please respect their fair-use guidance; the Worker caches for 5 s so many displays share one upstream request.
 * Routes and airlines: [adsbdb](https://www.adsbdb.com).
-* Weather and place search: [Open-Meteo](https://open-meteo.com) (forecast and geocoding).
+* Weather, cloud, pollen, air quality and place search: [Open-Meteo](https://open-meteo.com) (forecast, air quality from CAMS, geocoding).
+* Rain radar: [RainViewer](https://www.rainviewer.com), over [OpenStreetMap](https://www.openstreetmap.org/copyright) map tiles (© OpenStreetMap contributors).
+* Aurora: Kp forecast from the [NOAA Space Weather Prediction Center](https://www.swpc.noaa.gov).
+* Space Station orbit: [CelesTrak](https://celestrak.org), with [satellite.js](https://github.com/shashwatak/satellite-js) (MIT). Sun and moon are calculated on the hub.
+* Article of the day: [Wikipedia](https://en.wikipedia.org) via the Wikimedia feed API (text CC BY-SA).
 * Calendar parsing: [ical.js](https://github.com/kewisch/ical.js) (MPL-2.0).
 * Inspired by [esp32flight](https://github.com/theqkash/esp32flight) (MIT), and by word clocks and airport split-flap boards.
 * Titles use [Gabarito](https://github.com/naipefoundry/gabarito) (SIL Open Font License, see `src/web/public/fonts/Gabarito-OFL.txt`).

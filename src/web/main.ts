@@ -4,14 +4,17 @@ import { getJson, NotPairedError } from './api';
 import type { Screen } from './screen';
 import { setMotionLevel } from './motion';
 import { showWelcome } from './welcome';
+import { startKeepAwake } from './wakeLock';
 import { boardScreen } from './screens/board';
 import { clockScreen } from './screens/clock';
 import { homeScreen } from './screens/home';
 import { photosScreen } from './screens/photos';
 import { radarScreen } from './screens/radar';
+import { tonightScreen } from './screens/tonight';
 import { weatherScreen } from './screens/weather';
+import { wikiScreen } from './screens/wiki';
 
-const ALL_SCREENS: Screen[] = [homeScreen, weatherScreen, boardScreen, radarScreen, clockScreen, photosScreen];
+const ALL_SCREENS: Screen[] = [homeScreen, weatherScreen, boardScreen, radarScreen, tonightScreen, clockScreen, photosScreen, wikiScreen];
 /** The screens in rotation: those with something to show (no photo frame until there are photos). */
 let screens: Screen[] = ALL_SCREENS;
 const CONFIG_REFRESH_MS = 5 * 60_000;
@@ -142,6 +145,7 @@ async function start() {
   notice.hidden = true;
   setMotionLevel(config.motion);
   wireGestures();
+  startKeepAwake();
   show(0);
   window.setInterval(refreshConfig, CONFIG_REFRESH_MS);
 }

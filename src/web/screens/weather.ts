@@ -1,16 +1,18 @@
 import type { HubConfig, WeatherResponse } from '../../shared/types';
 import { describe, laterToday, recommend } from '../../shared/wear';
 import { getJson } from '../api';
-import { weatherIcon } from '../icons';
+import { wearIcon, weatherIcon } from '../icons';
+import { mountRainRadar } from '../rainRadar';
 import { skyHome, skyQuery } from '../location';
 import { h, type Screen } from '../screen';
 
-// Weather now, the next few hours and days, and what to wear for it. The clothing advice is
-// the point of the screen, so it gets the right half and the largest text after the
-// temperature itself.
+// Weather now, the next few hours and days, what to wear for it, and the rain on its way.
+// What to wear is a row of pictures, not a paragraph: it should be read in a glance on the
+// way out of the door.
 
 const REFRESH_MS = 10 * 60_000;
 let timer: number | undefined;
+let stopRadar: (() => void) | undefined;
 
 const deg = (n: number) => `${Math.round(n)}°`;
 
@@ -24,7 +26,16 @@ function isNight(iso: string, sunrise?: string, sunset?: string) {
   return iso < sunrise || iso >= sunset;
 }
 
-function render(el: HTMLElement, data: WeatherResponse, place: string, config: HubConfig) {
+const LEVEL_TONE: Record<string, string> = { Good: 'ok', Fair: 'ok', Low: 'ok', Moderate: 'mid', High: 'high', Poor: 'high', 'Very high': 'bad', 'Very poor': 'bad', 'Extremely poor': 'bad' };
+
+function chip(name: string, value: string, tone: string) {
+  const li = h('li', `wx-chip tone-${tone}`);
+  li.append(h('span', 'wx-chip-dot'), h('span', 'wx-chip-name', name), h('b', undefined, value));
+  return li;
+}
+
+function render(el: HTMLElement, data: WeatherResponse, home: { name: string; lat: number; lon: number }, config: HubConfig) {
+  stopRadar?.();
   const now = data.now;
   const today = data.days[0];
   const info = describe(now.code, now.isDay);
@@ -32,13 +43,29 @@ function render(el: HTMLElement, data: WeatherResponse, place: string, config: H
 
   // Now
   const left = h('section', 'wx-now');
-  left.append(h('p', 'wx-place', place));
+  left.append(h('p', 'wx-place', home.name));
   const big = h('div', 'wx-big');
   big.append(weatherIcon(info.icon, 'wx-icon wx-icon-big'), h('span', 'wx-temp', deg(now.temp)));
   left.append(big);
   const feels = Math.abs(now.feels - now.temp) >= 1 ? ` · feels like ${deg(now.feels)}` : '';
   left.append(h('p', 'wx-cond', `${info.label}${feels}`));
   if (today) left.append(h('p', 'wx-range', `High ${deg(today.max)} · Low ${deg(today.min)}`));
+
+  // What to wear: a row of pictures with a word each, readable from across the room.
+  const wear = h('section', 'wx-wear');
+  const kit = h('ul', 'wx-kit');
+  kit.setAttribute('aria-label', 'What to wear');
+  for (const item of rec.items) {
+    const li = h('li');
+    li.title = item.why ? `${item.text} (${item.why})` : item.text;
+    li.setAttribute('aria-label', li.title);
+    li.append(wearIcon(item.icon), h('span', undefined, item.short));
+    kit.append(li);
+  }
+  wear.append(h('h2', undefined, 'Wear'), kit);
+  const later = laterToday(now, data.hours, rec);
+  if (later) wear.append(h('p', 'wx-later', later));
+  left.append(wear);
 
   // Next hours: every third hour
   const hours = h('ol', 'wx-hours');
@@ -61,19 +88,20 @@ function render(el: HTMLElement, data: WeatherResponse, place: string, config: H
   }
   left.append(hours, days);
 
-  // What to wear
-  const right = h('section', 'wx-wear');
-  right.append(h('h2', undefined, 'What to wear'), h('p', 'wx-headline', rec.headline));
-  const list = h('ul', 'wx-items');
-  for (const item of rec.items) {
-    const li = h('li');
-    li.append(h('span', undefined, item.text));
-    if (item.why) li.append(h('small', undefined, item.why));
-    list.append(li);
+  // The rain radar, with pollen and air quality underneath in the pollen season.
+  const right = h('section', 'wx-side');
+  const radar = h('div', 'wx-radar');
+  right.append(radar);
+  const air = data.air;
+  if (air && (air.pollen || air.aqiLabel)) {
+    const chips = h('ul', 'wx-chips');
+    if (air.pollen) chips.append(chip('Pollen', `${air.pollen.level}${air.pollen.level === 'Low' ? '' : ` · ${air.pollen.kind}`}`, LEVEL_TONE[air.pollen.level]));
+    if (air.aqiLabel) chips.append(chip('Air', air.aqiLabel, LEVEL_TONE[air.aqiLabel] ?? 'mid'));
+    right.append(chips);
   }
-  right.append(list, h('p', 'wx-later', laterToday(now, data.hours, rec)));
 
   el.replaceChildren(left, right);
+  stopRadar = mountRainRadar(radar, home.lat, home.lon);
 }
 
 export const weatherScreen: Screen = {
@@ -86,7 +114,7 @@ export const weatherScreen: Screen = {
       try {
         const home = await skyHome(config);
         const data = await getJson<WeatherResponse>(`/api/weather?${skyQuery(home)}`);
-        render(el, data, home.name, config);
+        render(el, data, home, config);
       } catch {
         if (!el.querySelector('.wx-now')) el.replaceChildren(h('p', 'wx-loading', 'The forecast isn’t available right now.'));
       }
@@ -96,5 +124,7 @@ export const weatherScreen: Screen = {
   },
   unmount() {
     clearInterval(timer);
+    stopRadar?.();
+    stopRadar = undefined;
   },
 };

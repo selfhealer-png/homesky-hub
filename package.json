@@ -16,12 +16,13 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261019.1",
+    "esbuild": "^0.25.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.0",
-    "wrangler": "^4.0.0",
-    "esbuild": "^0.25.0"
+    "wrangler": "^4.0.0"
   },
   "dependencies": {
-    "ical.js": "^2.2.1"
+    "ical.js": "^2.2.1",
+    "satellite.js": "^6.0.2"
   }
 }

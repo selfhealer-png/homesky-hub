@@ -41,52 +41,55 @@ const WIND_MATTERS_BELOW = 18; // wind is a relief when it's hot, not a problem
 const HEAVY_COAT_BELOW = 22; // a heavy waterproof is too much in warm rain
 
 type Slot = 'base' | 'mid' | 'outer' | 'legs' | 'neck' | 'hands' | 'head' | 'eyes' | 'feet' | 'carry';
-export interface WearItem { slot: Slot; rank: number; text: string; why?: string }
+export type WearIcon = 'tshirt' | 'longsleeve' | 'jumper' | 'jacket' | 'coat' | 'raincoat' | 'shorts' | 'trousers'
+  | 'scarf' | 'gloves' | 'beanie' | 'sunhat' | 'sunglasses' | 'umbrella' | 'boots' | 'sandals';
+/** text is the full advice; icon and short (one or two words) are what the screen shows. */
+export interface WearItem { slot: Slot; rank: number; text: string; icon: WearIcon; short: string; why?: string }
 
 interface Band { min: number; name: string; headline: string; items: WearItem[] }
 
 const BANDS: Band[] = [
   { min: 27, name: 'very hot', headline: 'Very hot. Wear as little as you can get away with.', items: [
-    { slot: 'base', rank: 1, text: 'Loose, breathable top' },
-    { slot: 'legs', rank: 1, text: 'Shorts or a light skirt' },
-    { slot: 'feet', rank: 1, text: 'Sandals or breathable trainers' },
+    { slot: 'base', rank: 1, text: 'Loose, breathable top', icon: 'tshirt', short: 'Light top' },
+    { slot: 'legs', rank: 1, text: 'Shorts or a light skirt', icon: 'shorts', short: 'Shorts' },
+    { slot: 'feet', rank: 1, text: 'Sandals or breathable trainers', icon: 'sandals', short: 'Sandals' },
   ] },
   { min: 22, name: 'warm', headline: 'Warm. A single light layer is plenty.', items: [
-    { slot: 'base', rank: 1, text: 'T-shirt' },
-    { slot: 'legs', rank: 1, text: 'Shorts or light trousers' },
+    { slot: 'base', rank: 1, text: 'T-shirt', icon: 'tshirt', short: 'T-shirt' },
+    { slot: 'legs', rank: 1, text: 'Shorts or light trousers', icon: 'shorts', short: 'Shorts' },
   ] },
   { min: 17, name: 'mild', headline: 'Mild. One layer, with something to hand.', items: [
-    { slot: 'base', rank: 2, text: 'T-shirt or a light long-sleeve top' },
-    { slot: 'legs', rank: 2, text: 'Jeans or light trousers' },
+    { slot: 'base', rank: 2, text: 'T-shirt or a light long-sleeve top', icon: 'tshirt', short: 'T-shirt' },
+    { slot: 'legs', rank: 2, text: 'Jeans or light trousers', icon: 'trousers', short: 'Trousers' },
   ] },
   { min: 12, name: 'cool', headline: 'Cool. You’ll want a layer over the top.', items: [
-    { slot: 'base', rank: 3, text: 'Long-sleeve top' },
-    { slot: 'outer', rank: 1, text: 'Light jacket' },
-    { slot: 'legs', rank: 2, text: 'Jeans or trousers' },
+    { slot: 'base', rank: 3, text: 'Long-sleeve top', icon: 'longsleeve', short: 'Long sleeves' },
+    { slot: 'outer', rank: 1, text: 'Light jacket', icon: 'jacket', short: 'Jacket' },
+    { slot: 'legs', rank: 2, text: 'Jeans or trousers', icon: 'trousers', short: 'Trousers' },
   ] },
   { min: 7, name: 'chilly', headline: 'Chilly. Jumper and jacket weather.', items: [
-    { slot: 'base', rank: 3, text: 'Long-sleeve top' },
-    { slot: 'mid', rank: 2, text: 'Jumper or fleece' },
-    { slot: 'outer', rank: 2, text: 'Proper jacket' },
-    { slot: 'legs', rank: 3, text: 'Jeans or thicker trousers' },
+    { slot: 'base', rank: 3, text: 'Long-sleeve top', icon: 'longsleeve', short: 'Long sleeves' },
+    { slot: 'mid', rank: 2, text: 'Jumper or fleece', icon: 'jumper', short: 'Jumper' },
+    { slot: 'outer', rank: 2, text: 'Proper jacket', icon: 'jacket', short: 'Jacket' },
+    { slot: 'legs', rank: 3, text: 'Jeans or thicker trousers', icon: 'trousers', short: 'Trousers' },
   ] },
   { min: 2, name: 'cold', headline: 'Cold. Wrap up properly before you go out.', items: [
-    { slot: 'base', rank: 4, text: 'Thermal or thick long-sleeve base layer' },
-    { slot: 'mid', rank: 3, text: 'Jumper or fleece' },
-    { slot: 'outer', rank: 3, text: 'Winter coat' },
-    { slot: 'legs', rank: 3, text: 'Thick trousers' },
-    { slot: 'neck', rank: 1, text: 'Scarf' },
-    { slot: 'hands', rank: 1, text: 'Gloves' },
+    { slot: 'base', rank: 4, text: 'Thermal or thick long-sleeve base layer', icon: 'longsleeve', short: 'Thermal' },
+    { slot: 'mid', rank: 3, text: 'Jumper or fleece', icon: 'jumper', short: 'Jumper' },
+    { slot: 'outer', rank: 3, text: 'Winter coat', icon: 'coat', short: 'Coat' },
+    { slot: 'legs', rank: 3, text: 'Thick trousers', icon: 'trousers', short: 'Trousers' },
+    { slot: 'neck', rank: 1, text: 'Scarf', icon: 'scarf', short: 'Scarf' },
+    { slot: 'hands', rank: 1, text: 'Gloves', icon: 'gloves', short: 'Gloves' },
   ] },
   { min: -99, name: 'freezing', headline: 'Freezing. Full winter kit, hands and head included.', items: [
-    { slot: 'base', rank: 4, text: 'Thermal base layer' },
-    { slot: 'mid', rank: 4, text: 'Thick jumper or fleece' },
-    { slot: 'outer', rank: 4, text: 'Insulated winter coat' },
-    { slot: 'legs', rank: 4, text: 'Thermal-lined or heavy trousers' },
-    { slot: 'neck', rank: 2, text: 'Scarf' },
-    { slot: 'hands', rank: 2, text: 'Warm gloves' },
-    { slot: 'head', rank: 2, text: 'Warm hat' },
-    { slot: 'feet', rank: 3, text: 'Warm socks and boots' },
+    { slot: 'base', rank: 4, text: 'Thermal base layer', icon: 'longsleeve', short: 'Thermal' },
+    { slot: 'mid', rank: 4, text: 'Thick jumper or fleece', icon: 'jumper', short: 'Jumper' },
+    { slot: 'outer', rank: 4, text: 'Insulated winter coat', icon: 'coat', short: 'Big coat' },
+    { slot: 'legs', rank: 4, text: 'Thermal-lined or heavy trousers', icon: 'trousers', short: 'Trousers' },
+    { slot: 'neck', rank: 2, text: 'Scarf', icon: 'scarf', short: 'Scarf' },
+    { slot: 'hands', rank: 2, text: 'Warm gloves', icon: 'gloves', short: 'Gloves' },
+    { slot: 'head', rank: 2, text: 'Warm hat', icon: 'beanie', short: 'Hat' },
+    { slot: 'feet', rank: 3, text: 'Warm socks and boots', icon: 'boots', short: 'Boots' },
   ] },
 ];
 
@@ -111,7 +114,7 @@ export function recommend(now: WeatherNow, hours: WeatherHour[] = [], warmth: Wa
   let note = '';
   const windy = now.wind >= WIND_BREEZY || now.gusts >= WIND_GUSTY;
   if (windy && effective < WIND_MATTERS_BELOW) {
-    add({ slot: 'outer', rank: 5, text: 'Windproof jacket', why: `wind ${Math.round(now.wind)} km/h` });
+    add({ slot: 'outer', rank: 5, text: 'Windproof jacket', icon: 'jacket', short: 'Windproof', why: `wind ${Math.round(now.wind)} km/h` });
     note = 'The wind makes it feel sharper than the thermometer says.';
   }
 
@@ -119,20 +122,20 @@ export function recommend(now: WeatherNow, hours: WeatherHour[] = [], warmth: Wa
   const rainSoon = hours.slice(0, 3).reduce((m, h) => Math.max(m, h.rain), 0);
   if (rainNow || rainSoon >= RAIN_LIKELY) {
     add(effective < HEAVY_COAT_BELOW
-      ? { slot: 'outer', rank: 6, text: 'Waterproof coat', why: 'it’s wet out' }
-      : { slot: 'outer', rank: 6, text: 'Light rain jacket', why: 'warm but wet' });
-    add({ slot: 'feet', rank: 4, text: 'Shoes that cope with puddles' });
-    add({ slot: 'carry', rank: 2, text: 'Umbrella' });
+      ? { slot: 'outer', rank: 6, text: 'Waterproof coat', icon: 'raincoat', short: 'Waterproof', why: 'it’s wet out' }
+      : { slot: 'outer', rank: 6, text: 'Light rain jacket', icon: 'raincoat', short: 'Rain jacket', why: 'warm but wet' });
+    add({ slot: 'feet', rank: 4, text: 'Shoes that cope with puddles', icon: 'boots', short: 'Boots' });
+    add({ slot: 'carry', rank: 2, text: 'Umbrella', icon: 'umbrella', short: 'Umbrella' });
   } else if (rainSoon >= RAIN_MAYBE) {
-    add({ slot: 'carry', rank: 1, text: 'Umbrella', why: `${Math.round(rainSoon)}% chance soon` });
+    add({ slot: 'carry', rank: 1, text: 'Umbrella', icon: 'umbrella', short: 'Umbrella', why: `${Math.round(rainSoon)}% chance soon` });
   }
 
-  if (isSnowy(now.code)) add({ slot: 'feet', rank: 5, text: 'Boots with good grip', why: 'snow underfoot' });
+  if (isSnowy(now.code)) add({ slot: 'feet', rank: 5, text: 'Boots with good grip', icon: 'boots', short: 'Grip boots', why: 'snow underfoot' });
 
   const uvPeak = hours.reduce((m, h) => Math.max(m, h.uv), 0);
   if (now.isDay && uvPeak >= UV_HIGH) {
-    add({ slot: 'eyes', rank: 1, text: 'Sunglasses and sun cream', why: `UV ${Math.round(uvPeak)}` });
-    if (effective >= 22) add({ slot: 'head', rank: 1, text: 'Sun hat' });
+    add({ slot: 'eyes', rank: 1, text: 'Sunglasses and sun cream', icon: 'sunglasses', short: 'Sun cream', why: `UV ${Math.round(uvPeak)}` });
+    if (effective >= 22) add({ slot: 'head', rank: 1, text: 'Sun hat', icon: 'sunhat', short: 'Sun hat' });
   }
 
   const items = SLOT_ORDER.filter(s => slots.has(s)).map(s => slots.get(s)!);

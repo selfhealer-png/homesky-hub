@@ -6,7 +6,9 @@ import { json, type Env } from './env';
 import { handleOverhead } from './overhead';
 import { handleDisplayPhotos } from './photos';
 import { hubConfig } from './sky';
+import { handleTonight } from './tonight';
 import { handleWeather } from './weather';
+import { handleWiki } from './wiki';
 
 // The shared fetcher for live aircraft (a Durable Object; see skyFetcher.ts).
 export { SkyFetcher } from './skyFetcher';
@@ -33,6 +35,8 @@ export default {
         case '/api/overhead': return handleOverhead(url, env, request);
         case '/api/weather': return handleWeather(env, url, request);
         case '/api/agenda': return handleAgenda(env);
+        case '/api/wiki': return handleWiki(env);
+        case '/api/tonight': return handleTonight(env, url, request);
         default: return json({ error: 'Not found' }, { status: 404 });
       }
     }

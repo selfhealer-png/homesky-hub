@@ -82,7 +82,7 @@ On the iPad:
 
 1. **Open the pairing link** in Safari. The hub appears.
 2. Tap **Share** (the square with an arrow) → **Add to Home Screen** → **Add**. From now on, open the hub from its Home Screen icon. It runs full screen, with no browser bars.
-3. **Keep the screen on:** Settings › Display & Brightness › **Auto-Lock** › **Never**.
+3. **Keep the screen on:** the hub asks the tablet to stay awake by itself, but set Settings › Display & Brightness › **Auto-Lock** › **Never** as well, to be sure. On older iPads, tap the screen once after opening the hub so it can keep itself awake.
 4. **Stop it being closed by accident** (recommended for a shared room): Settings › Accessibility › **Guided Access** › turn it on and set a passcode. Then open the hub and **triple-click the Home button** to lock it to the hub. Triple-click again and enter the passcode to leave.
 5. Keep it plugged in.
 
@@ -147,6 +147,10 @@ To add more photos later, pick again. Photos stay in Google Photos; the hub only
 - **Motion:** **Full**, **Gentle** (changes fade, nothing flips or drifts) or **Still** (no animation at all). Choose Gentle if the flipping letters are distracting.
 - **Clothing advice:** "I run cold" or "I run warm" shifts the weather screen's *What to wear* by about 3°C.
 
+**On the weather screen**, *Wear* shows what to put on as pictures, with a line underneath about how the day changes. The rain radar shows the last hour of rain around you (it loops when Motion is Full). Pollen and air quality appear from April to September (October to March in the southern hemisphere); pollen counts are only available in Europe.
+
+**Tonight** shows whether it's worth looking up: cloud, the moon, when it gets dark, the chance of seeing the aurora, and when the Space Station passes over brightly enough to see.
+
 Changes reach the tablet within about five minutes, without touching it.
 
 ## Updating later
@@ -186,7 +190,7 @@ Everything fits comfortably inside free allowances for one household:
 - **Cloudflare Workers:** 100,000 requests a day free. A tablet showing the hub all day uses a fraction of that.
 - **Cloudflare KV** (settings): well within the free tier.
 - **Cloudflare R2** (photos): 10 GB free, about 20,000 photos at screen size.
-- **Weather (Open-Meteo), flight data (community ADS-B feeds) and routes (adsbdb)** are free and need no keys. Please don't point many tablets at one hub at very short intervals.
+- **Weather and pollen (Open-Meteo), rain radar (RainViewer, on OpenStreetMap), aurora (NOAA), Space Station orbits (CelesTrak), Wikipedia, flight data (community ADS-B feeds) and routes (adsbdb)** are all free and need no keys. Please don't point many tablets at one hub at very short intervals.
 
 ## Privacy
 

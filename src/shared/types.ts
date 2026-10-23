@@ -1,6 +1,7 @@
 // Shapes shared by the Worker API and the web app.
 
 import type { ClockStyle, MotionLevel, PhotoStyle, Place } from './settings';
+import type { AirInfo } from './air';
 import type { Warmth, WeatherHour, WeatherNow } from './wear';
 
 export interface HubConfig {
@@ -101,4 +102,29 @@ export interface WeatherResponse {
   /** The next 18 hours, soonest first. */
   hours: WeatherHour[];
   days: WeatherDay[];
+  /** Pollen and air quality: only in the pollen season. */
+  air?: AirInfo;
+}
+
+/** Wikipedia's featured article of the day. */
+export interface WikiResponse {
+  date: string;
+  title: string;
+  description?: string;
+  extract: string;
+  url?: string;
+  image?: { url: string; width: number; height: number };
+}
+
+/** A visible pass of the International Space Station. */
+export interface IssPass { start: string; end: string; maxElev: number; from: string; to: string }
+
+/** Tonight's sky. Times are ISO strings; any part can be missing if its source is down. */
+export interface TonightResponse {
+  night: { sunset?: string; dark?: string; darkEnds?: string; sunrise?: string; allDay?: boolean; allNight?: boolean };
+  moon: { name: string; phase: number; fraction: number; rise?: string; set?: string };
+  aurora?: { kp: number; chance: 'unlikely' | 'possible' | 'good' };
+  /** Average cloud cover, %, over the first half of the night. */
+  cloud?: number;
+  iss?: IssPass[];
 }

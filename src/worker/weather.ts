@@ -1,3 +1,4 @@
+import { aqiLabel, inPollenSeason, peakPollen, POLLEN_FIELDS, type AirInfo } from '../shared/air';
 import type { WeatherResponse } from '../shared/types';
 import { cached } from './cache';
 import { json, USER_AGENT, type Env } from './env';
@@ -12,6 +13,26 @@ interface OpenMeteo {
   daily: { time: string[]; weather_code: number[]; temperature_2m_max: number[]; temperature_2m_min: number[]; precipitation_probability_max: number[]; sunrise: string[]; sunset: string[] };
 }
 
+/** Today's air quality and pollen peak. Extra to the forecast, so any failure just leaves it out. */
+async function fetchAir(lat: number, lon: number): Promise<AirInfo | undefined> {
+  const u = new URL('https://air-quality-api.open-meteo.com/v1/air-quality');
+  u.search = new URLSearchParams({
+    latitude: String(lat), longitude: String(lon), timezone: 'auto', forecast_days: '1',
+    current: 'european_aqi', hourly: POLLEN_FIELDS.join(','),
+  }).toString();
+  try {
+    const res = await fetch(u, { headers: { 'user-agent': USER_AGENT }, signal: AbortSignal.timeout(8_000) });
+    if (!res.ok) return undefined;
+    const d = (await res.json()) as { current?: { european_aqi?: number | null }; hourly?: Record<string, Array<number | null>> };
+    const aqi = d.current?.european_aqi ?? undefined;
+    const air: AirInfo = { pollen: peakPollen(d.hourly ?? {}) };
+    if (typeof aqi === 'number') Object.assign(air, { aqi: Math.round(aqi), aqiLabel: aqiLabel(aqi) });
+    return air.aqi === undefined && !air.pollen ? undefined : air;
+  } catch {
+    return undefined;
+  }
+}
+
 async function fetchForecast(lat: number, lon: number): Promise<WeatherResponse> {
   const u = new URL('https://api.open-meteo.com/v1/forecast');
   u.search = new URLSearchParams({
@@ -20,9 +41,11 @@ async function fetchForecast(lat: number, lon: number): Promise<WeatherResponse>
     hourly: 'temperature_2m,apparent_temperature,precipitation_probability,weather_code,wind_speed_10m,uv_index',
     daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset',
   }).toString();
+  const airing = inPollenSeason(lat) ? fetchAir(lat, lon) : Promise.resolve(undefined);
   const res = await fetch(u, { headers: { 'user-agent': USER_AGENT }, signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new Error(`Open-Meteo answered ${res.status}`);
   const d = (await res.json()) as OpenMeteo;
+  const air = await airing;
 
   // The rest of today and tonight: the next 18 hours from now.
   const hourNow = d.current.time.slice(0, 13);
@@ -43,6 +66,7 @@ async function fetchForecast(lat: number, lon: number): Promise<WeatherResponse>
       date, code: d.daily.weather_code[i], max: d.daily.temperature_2m_max[i], min: d.daily.temperature_2m_min[i],
       rain: d.daily.precipitation_probability_max[i] ?? 0, sunrise: d.daily.sunrise[i], sunset: d.daily.sunset[i],
     })),
+    air,
   };
 }
 
