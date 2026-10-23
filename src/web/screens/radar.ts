@@ -70,9 +70,12 @@ function projected(a: Aircraft, home: SkyHome, seconds: number): [number, number
   return [e + Math.sin(t) * d, n + Math.cos(t) * d];
 }
 
+/** How many planes get a label and a row in the list: fewer on a phone, where space is short. */
+const listed = () => (window.matchMedia('(max-height: 520px)').matches ? 3 : FEATURED);
+
 function featured(data: AircraftResponse): Set<string> {
   const airborne = data.aircraft.filter(a => a.altFt !== null);
-  return new Set([...airborne.filter(a => a.emergency), ...airborne.slice(0, FEATURED)].map(a => a.hex));
+  return new Set([...airborne.filter(a => a.emergency), ...airborne.slice(0, listed())].map(a => a.hex));
 }
 
 function drawScope(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, radiusNm: number) {
@@ -290,6 +293,9 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
       list.append(li);
     }
     if (!rows.length) list.append(h('li', 'radar-empty', 'Clear skies right now.'));
+    // The heading counts every plane in range; say where the rest are so the numbers add up.
+    const more = airborne.length - rows.length;
+    if (rows.length && more > 0) list.append(h('li', 'radar-more', `+${more} more on the radar`));
   }
   if (state.error) list.append(h('li', 'radar-empty', state.error));
 
