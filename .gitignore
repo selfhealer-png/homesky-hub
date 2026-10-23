@@ -10,3 +10,4 @@ wrangler.toml
 .claude/
 .homesky.json
 .test-build/
+homesky-secrets.txt

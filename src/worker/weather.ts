@@ -46,9 +46,9 @@ async function fetchForecast(lat: number, lon: number): Promise<WeatherResponse>
   };
 }
 
-export async function handleWeather(env: Env, url: URL): Promise<Response> {
+export async function handleWeather(env: Env, url: URL, request: Request): Promise<Response> {
   try {
-    const { home } = await skyContext(env, url);
+    const { home } = await skyContext(env, url, request);
     return json(await cached(env, `weather:${home.lat}:${home.lon}`, 600, () => fetchForecast(home.lat, home.lon)));
   } catch (err) {
     return json({ error: (err as Error).message }, { status: 502 });

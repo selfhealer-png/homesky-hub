@@ -11,8 +11,8 @@ import { skyContext } from './sky';
 const AIRLINE_CALLSIGN = /^[A-Z]{3}\d[0-9A-Z]{0,4}$/; // ICAO airline prefix + flight number
 const ROUTE_LOOKUPS = 4; // at most this many adsbdb lookups per request; they're cached for 24 h
 
-export async function handleOverhead(url: URL, env: Env): Promise<Response> {
-  const sky = await skyContext(env, url).catch(err => err as Error);
+export async function handleOverhead(url: URL, env: Env, request: Request): Promise<Response> {
+  const sky = await skyContext(env, url, request).catch(err => err as Error);
   if (sky instanceof Error) return json({ error: sky.message }, { status: 500 });
   const radiusNm = Math.min(sky.radiusNm, Number(env.BOARD_RADIUS_NM ?? 20));
   const minAltFt = Number(env.BOARD_MIN_ALT_FT ?? 300);

@@ -1,8 +1,10 @@
 import type { HubConfig } from '../shared/types';
 
-// Where this display's sky screens are centred. The setup page picks the default: a saved
-// place, or "each display uses its own location". On the display, tapping the middle of the
-// radar steps through the saved places; that choice is remembered on this display only.
+// Where this display's sky and weather screens are centred. The setup page picks the default:
+// a saved place, or "each display uses its own location" (also what a new hub does). If the
+// device won't share its location, config.home is the hub's estimate from the internet
+// connection. On the display, tapping the middle of the radar steps through the saved places;
+// that choice is remembered on this display only.
 
 export interface SkyHome { lat: number; lon: number; name: string }
 

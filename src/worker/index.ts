@@ -24,10 +24,10 @@ export default {
       if (pathname === '/api/photos' || pathname.startsWith('/api/photos/')) return handleDisplayPhotos(env, url, request);
 
       switch (pathname) {
-        case '/api/config': return json(await hubConfig(env));
-        case '/api/aircraft': return handleAircraft(env, url);
-        case '/api/overhead': return handleOverhead(url, env);
-        case '/api/weather': return handleWeather(env, url);
+        case '/api/config': return json(await hubConfig(env, request));
+        case '/api/aircraft': return handleAircraft(env, url, request);
+        case '/api/overhead': return handleOverhead(url, env, request);
+        case '/api/weather': return handleWeather(env, url, request);
         case '/api/agenda': return handleAgenda(env);
         default: return json({ error: 'Not found' }, { status: 404 });
       }

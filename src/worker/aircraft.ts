@@ -94,9 +94,9 @@ export function getAircraft(env: Env, sky: SkyContext): Promise<AircraftResponse
   });
 }
 
-export async function handleAircraft(env: Env, url: URL): Promise<Response> {
+export async function handleAircraft(env: Env, url: URL, request: Request): Promise<Response> {
   try {
-    const data = await getAircraft(env, await skyContext(env, url));
+    const data = await getAircraft(env, await skyContext(env, url, request));
     // ?routes=N adds routes for the N nearest airborne aircraft (plus any emergency).
     // Lookups are cached for 24 h, so this costs nothing after the first sighting.
     const n = Math.min(8, Number(url.searchParams.get('routes') ?? 0));

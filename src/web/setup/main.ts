@@ -743,7 +743,7 @@ function skyCard() {
   };
   for (const p of sky.places) list.append(option(p.id, p.name, `${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}`, true));
   list.append(option('device', 'Each display’s own location', 'Uses the tablet’s GPS or Wi-Fi location. The tablet asks permission the first time.', false));
-  if (!sky.places.length) list.prepend(h('p', { class: 'empty' }, 'No places saved yet, so the deployment’s HOME_LAT/HOME_LON is used.'));
+  if (!sky.places.length) list.prepend(h('p', { class: 'empty' }, 'No places saved yet, so each display uses its own location, or roughly where its internet connection is.'));
   card.append(list);
 
   // Add a place

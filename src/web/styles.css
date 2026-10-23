@@ -360,3 +360,62 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
 .wx-items li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 21px; font-weight: 500; }
 .wx-items small { font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; }
 .wx-later { margin: 16px 0 0; font-size: 16px; line-height: 1.45; color: var(--muted); }
+
+/* ── Phones in landscape ──────────────────────────────────────────────────
+   Short screens (about 375-430 px tall) get their own layout rather than a shrunken
+   tablet one: each screen keeps what matters at a glance and drops the rest. */
+@media (max-height: 520px) {
+  .screen { padding: 14px 20px 26px; }
+  #dots { bottom: 8px; gap: 8px; }
+  #dots button { width: 8px; height: 8px; }
+
+  /* Home: a smaller clock; today and overdue only (the next days need the room) */
+  .screen-home { grid-template-columns: 0.7fr 1.3fr; gap: 22px; }
+  .clock .time-now { font-size: 76px; }
+  .clock .date-now { font-size: 16px; margin-top: 8px; }
+  .agenda { gap: 8px; align-self: start; }
+  .agenda .days { display: none; }
+  .card { padding: 10px 12px; border-radius: 14px; }
+  .todayhead { margin-bottom: 6px; }
+  .todayhead b { font-size: 17px; }
+  .ev { padding: 6px 10px; margin-bottom: 5px; border-radius: 10px; }
+  .ev .t { font-size: 14px; }
+  .ev .tick { flex-basis: 16px; width: 16px; height: 16px; }
+  .overdue .overdueheading { font-size: 14px; margin-bottom: 4px; }
+
+  /* Weather: now and the next hours on the left; the clothing list in two columns */
+  .screen-weather { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr); gap: 20px; }
+  .wx-place { font-size: 13px; }
+  .wx-big { gap: 10px; }
+  .wx-icon-big { width: 52px; height: 52px; }
+  .wx-temp { font-size: 64px; }
+  .wx-cond { font-size: 16px; margin-top: 4px; }
+  .wx-range { font-size: 13px; }
+  .wx-hours { margin-top: 12px; padding-top: 10px; }
+  .wx-hours .wx-icon { width: 22px; height: 22px; }
+  .wx-h-time { font-size: 12px; }
+  .wx-h-temp { font-size: 15px; }
+  .wx-rain { font-size: 11px; }
+  .wx-days { display: none; }
+  .wx-wear { padding: 14px 16px; border-radius: 16px; }
+  .wx-wear h2 { font-size: 19px; }
+  .wx-headline { font-size: 14px; margin-top: 4px; }
+  .wx-items { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; margin-top: 10px; }
+  .wx-items li { font-size: 14px; padding: 6px 0; }
+  .wx-items small { display: none; }
+  .wx-later { font-size: 12.5px; margin-top: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* Radar: a narrower panel with the three nearest */
+  .screen-radar { grid-template-columns: minmax(0, 1fr) 230px; gap: 16px; padding-right: 20px; }
+  .radar-panel { padding: 4px 0 0; }
+  .radar-head h2 { font-size: 19px; }
+  .radar-sub { font-size: 12px; margin-top: 2px; }
+  .radar-list { margin-top: 10px; }
+  .radar-row { padding: 6px 0; gap: 10px; }
+  .radar-row:nth-child(n + 4) { display: none; }
+  .radar-row:nth-child(3) { border-bottom: 1px solid var(--line); }
+  .radar-main b { font-size: 15px; }
+  .radar-route, .radar-figs { font-size: 12px; }
+  .radar-legend { padding-top: 8px; }
+  .legend-title { margin-bottom: 4px; }
+}

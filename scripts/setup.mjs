@@ -78,10 +78,12 @@ async function main() {
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(name)) throw new Error(`"${name}" is not a valid Worker name.`);
 
   // 3. Location
-  step(3, 'Location (centre of the radar)');
-  let place = saved.place;
+  step(3, 'Location (optional)');
+  console.log(c.dim('   Leave it blank and each display uses its own location (it asks once), falling back to'));
+  console.log(c.dim('   roughly where its internet connection is. You can also add places later in /setup.'));
+  let place = saved.place ?? null;
   if (!place || !(await confirm(`Keep ${place.label}?`))) place = await pickPlace();
-  console.log(c.green(`✔ ${place.label} → ${place.lat}, ${place.lon} (${place.timezone})`));
+  console.log(place ? c.green(`✔ ${place.label} → ${place.lat}, ${place.lon} (${place.timezone})`) : c.green('✔ No fixed location: displays use their own'));
 
   // 4. Shopping list
   step(4, 'Cloudflare shopping list');
@@ -162,7 +164,8 @@ async function main() {
 
 async function pickPlace() {
   for (;;) {
-    const q = await ask('Town, city or postcode');
+    const q = await ask('Town, city or postcode (blank to skip)');
+    if (!q) return null;
     const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=5&name=${encodeURIComponent(q)}`).then(r => r.json()).catch(() => null);
     const results = res?.results ?? [];
     if (!results.length) { console.log(c.red('No matches. Try a nearby town.')); continue; }
@@ -188,9 +191,7 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/pair", "/setup*"]
 
 [vars]
-HOME_LAT = "${place.lat}"
-HOME_LON = "${place.lon}"
-TIMEZONE = "${place.timezone}"
+${place ? `HOME_LAT = "${place.lat}"\nHOME_LON = "${place.lon}"\n` : ''}TIMEZONE = "${place?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone}"
 RADAR_RADIUS_NM = "25"
 
 [[kv_namespaces]]
