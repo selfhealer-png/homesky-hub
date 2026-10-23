@@ -11,7 +11,9 @@ import { photosScreen } from './screens/photos';
 import { radarScreen } from './screens/radar';
 import { weatherScreen } from './screens/weather';
 
-const screens: Screen[] = [homeScreen, weatherScreen, boardScreen, radarScreen, clockScreen, photosScreen];
+const ALL_SCREENS: Screen[] = [homeScreen, weatherScreen, boardScreen, radarScreen, clockScreen, photosScreen];
+/** The screens in rotation: those with something to show (no photo frame until there are photos). */
+let screens: Screen[] = ALL_SCREENS;
 const CONFIG_REFRESH_MS = 5 * 60_000;
 
 const stage = document.getElementById('stage')!;
@@ -46,20 +48,37 @@ function setPinned(value: boolean) {
   schedule();
 }
 
-function wireGestures() {
+function buildRotation() {
+  const current = screens[index];
+  screens = ALL_SCREENS.filter(s => s.isAvailable?.(config) ?? true);
+  index = Math.max(0, screens.indexOf(current));
+  dots.replaceChildren();
   screens.forEach((s, n) => {
     const b = document.createElement('button');
     b.title = s.title;
+    b.setAttribute('aria-label', s.title);
+    b.classList.toggle('active', n === index);
     b.addEventListener('click', e => { e.stopPropagation(); show(n); });
     dots.append(b);
   });
+  // Always visible, so Settings never depends on knowing about the long press.
+  const gear = document.createElement('button');
+  gear.className = 'gear';
+  gear.setAttribute('aria-label', 'Menu and settings');
+  gear.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>';
+  gear.addEventListener('click', e => { e.stopPropagation(); openMenu(); });
+  dots.append(gear);
+}
 
-  // Tap the left or right third to step; long-press anywhere to pin or unpin the current screen.
+function wireGestures() {
+  buildRotation();
+
+  // Tap the left or right third to step; long-press anywhere for the menu (pin, settings).
   let pressTimer: number | undefined;
   let longPressed = false;
   stage.addEventListener('pointerdown', () => {
     longPressed = false;
-    pressTimer = window.setTimeout(() => { longPressed = true; setPinned(!pinned); }, 700);
+    pressTimer = window.setTimeout(() => { longPressed = true; openMenu(); }, 700);
   });
   stage.addEventListener('pointerup', e => {
     clearTimeout(pressTimer);
@@ -74,6 +93,36 @@ function wireGestures() {
   stage.addEventListener('contextmenu', e => e.preventDefault());
   // iOS Safari ignores user-scalable=no; its pinch gesture has to be cancelled here instead.
   document.addEventListener('gesturestart', e => e.preventDefault());
+}
+
+/** The long-press menu: the way into Settings from the display. */
+function openMenu() {
+  const scrim = document.createElement('div');
+  scrim.className = 'menu-scrim';
+  const menu = document.createElement('div');
+  menu.className = 'menu';
+  menu.setAttribute('role', 'dialog');
+  menu.setAttribute('aria-label', 'Display menu');
+  const title = document.createElement('h2');
+  title.textContent = screens[index].title;
+  const item = (text: string, action: () => void, primary = false) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = text;
+    if (primary) b.className = 'primary';
+    b.addEventListener('click', e => { e.stopPropagation(); scrim.remove(); action(); });
+    return b;
+  };
+  menu.append(
+    title,
+    item(pinned ? 'Carry on rotating' : 'Stay on this screen', () => setPinned(!pinned), true),
+    item('Settings', () => { location.href = '/setup'; }),
+    item('Close', () => {}),
+  );
+  scrim.append(menu);
+  scrim.addEventListener('click', e => { if (e.target === scrim) scrim.remove(); });
+  document.body.append(scrim);
+  (menu.querySelector('button') as HTMLButtonElement).focus();
 }
 
 async function start() {
@@ -102,8 +151,10 @@ async function refreshConfig() {
   try {
     const fresh = await getJson<HubConfig>('/api/config');
     const clockChanged = fresh.clock !== config.clock;
+    const rotationChanged = JSON.stringify(fresh.features) !== JSON.stringify(config.features);
     Object.assign(config, fresh);
     setMotionLevel(config.motion);
+    if (rotationChanged) buildRotation();
     if (clockChanged && screens[index].id === 'clock') show(index);
   } catch {
     // Keep the current settings; try again next time.

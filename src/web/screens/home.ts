@@ -58,10 +58,9 @@ function card(...children: Node[]) {
 
 function renderAgenda(list: HTMLElement, data: AgendaResponse, tz: string) {
   list.replaceChildren();
-  if (!data.configured) {
-    list.append(card(h('p', 'muted', 'No agenda feed connected yet. Add one in the setup wizard to see events and tasks here.')));
-    return;
-  }
+  // Nothing connected: the Home screen is just the clock (Settings is one tap away on the gear).
+  list.closest('.screen')?.classList.toggle('clock-only', !data.configured);
+  if (!data.configured) return;
   const colors = new Map(data.sources.map(s => [s.id, s.color]));
   const today = dayKey(new Date(), tz);
 
@@ -125,7 +124,8 @@ export const homeScreen: Screen = {
 
     const load = () => getJson<AgendaResponse>('/api/agenda')
       .then(data => renderAgenda(list, data, config.timezone))
-      .catch(() => list.replaceChildren(card(h('p', 'muted', 'Agenda unavailable right now.'))));
+      // Can't reach the calendars: keep what's showing, or just the clock if nothing is yet.
+      .catch(() => { if (!list.childElementCount) list.closest('.screen')?.classList.add('clock-only'); });
     load();
     refreshTimer = window.setInterval(load, 5 * 60 * 1000);
   },

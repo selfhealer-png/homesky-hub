@@ -1,7 +1,8 @@
 import './setup.css';
+import { CLOCK_LABELS, clockPreview } from '../clockPreview';
 import {
   CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, MOTION_LEVELS, PHOTO_STYLES, RADIUS_CHOICES, WARMTH_LEVELS,
-  type ClockStyle, type DisplaySettings, type MotionLevel,
+  type DisplaySettings, type MotionLevel,
   type AdminState, type PhotoInfo, type PickStatus, type Place, type SkySettings, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../../shared/settings';
 
@@ -152,8 +153,8 @@ function statusCard() {
     h('h2', {}, 'This hub'),
     h('ul', { class: 'checklist' },
       item(s.kv, 'Settings storage', s.kv ? 'KV namespace connected.' : 'No KV namespace bound. Run npm run setup.'),
-      item(!!s.displayPairing, 'Pair a display', s.displayPairing
-        ? h('div', {}, h('p', {}, 'Open this link once on the tablet, then add it to the Home Screen. Anyone with it can view the hub, so treat it like a password.'), copyRow(s.displayPairing, 'Copy link'))
+      item(!!s.displayPairing, 'Add another screen', s.displayPairing
+        ? h('div', {}, h('p', {}, 'Open the hub’s address on the other device and sign in with the admin password. Or, to let someone use a screen without the admin password, send them this link instead. Anyone with it can view the hub, so treat it like a password.'), copyRow(s.displayPairing, 'Copy link'))
         : 'DISPLAY_TOKEN is not set. Run npm run setup.'),
       item(s.photos, 'Photo storage', s.photos ? 'R2 bucket connected, ready for the photo frame.' : 'No R2 bucket yet. Optional: the photo frame needs it.'),
     ),
@@ -626,33 +627,6 @@ async function saveDisplay(next: DisplaySettings) {
   setSettings(await api<Settings>('/api/admin/display', next));
   toast('Saved. The display picks this up within five minutes.');
 }
-
-/** A small preview of each clock style, drawn with markup rather than images. */
-function clockPreview(style: ClockStyle): HTMLElement {
-  const box = h('span', { class: `cp cp-${style}`, 'aria-hidden': 'true' });
-  if (style === 'word') {
-    box.append(
-      h('span', {}, h('i', {}, 'IT'), ' L ', h('i', {}, 'IS'), ' AS'),
-      h('span', {}, h('i', {}, 'HALF'), ' S TEN'),
-      h('span', {}, h('i', {}, 'PAST'), ' ER'),
-      h('span', {}, 'ON ', h('i', {}, 'NINE')),
-    );
-  } else if (style === 'digital') {
-    box.append('9:30');
-  } else if (style === 'analogue') {
-    box.innerHTML = '<svg viewBox="-50 -50 100 100" width="58" height="58"><circle r="46" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="2"/><line y1="6" y2="-24" stroke="currentColor" stroke-width="5" stroke-linecap="round" transform="rotate(285)"/><line y1="8" y2="-38" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" transform="rotate(180)"/><circle r="3.5" fill="#F59E0B"/></svg>';
-  } else {
-    for (const ch of ['0', '9', ':', '3', '0']) box.append(h('span', { class: ch === ':' ? 'cp-colon' : 'cp-tile' }, ch));
-  }
-  return box;
-}
-
-const CLOCK_LABELS: Record<ClockStyle, [string, string]> = {
-  word: ['Word clock', 'The time spelled out in a letter grid.'],
-  digital: ['Digital', 'Large, plain numbers. Easiest from across a room.'],
-  analogue: ['Analogue', 'A quiet clock face.'],
-  flip: ['Split-flap', 'Flip tiles, matching the overhead board.'],
-};
 
 const MOTION_LABELS: Record<MotionLevel, [string, string]> = {
   full: ['Full', 'Letters flip, photos drift, the radar pings when new planes arrive.'],

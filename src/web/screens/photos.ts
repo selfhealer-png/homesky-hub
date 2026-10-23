@@ -137,6 +137,7 @@ export const photosScreen: Screen = {
   id: 'photos',
   title: 'Photos',
   durationSec: 90,
+  isAvailable: config => config.features.photos,
   mount(el: HTMLElement, config: HubConfig) {
     mounted = true;
     const framed = config.photoStyle === 'framed';

@@ -1,0 +1,8 @@
+/* Clock style previews: shared by the first-run wizard and the /setup Display card. */
+.cp { height: 76px; margin-bottom: 8px; border-radius: 10px; background: #0b0f1a; color: #F1F5F9; display: flex; align-items: center; justify-content: center; }
+.cp-word { flex-direction: column; gap: 1px; font: 600 10px/1.1 "Gabarito", sans-serif; letter-spacing: 0.22em; color: #2b3242; }
+.cp-word i { font-style: normal; color: #F1F5F9; }
+.cp-digital { font: 600 34px/1 "Gabarito", sans-serif; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.cp-flip { gap: 3px; font: 700 20px/1 "Avenir Next Condensed", "Arial Narrow", sans-serif; }
+.cp-tile { width: 20px; height: 28px; display: grid; place-items: center; border-radius: 3px; background: linear-gradient(#242427 50%, #1a1a1c 50%); color: #f4efe3; }
+.cp-colon { color: #f4efe3; }

@@ -178,13 +178,6 @@ progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--sam);
 .clockopt:has(input:checked) { border-color: var(--sam); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sam) 20%, transparent); }
 .clockopt:has(input:focus-visible) { outline: 2px solid var(--sam); outline-offset: 2px; }
 .clockopt small { color: var(--muted); font-size: 13px; }
-.cp { height: 76px; margin-bottom: 8px; border-radius: 10px; background: #0b0f1a; color: #F1F5F9; display: flex; align-items: center; justify-content: center; }
-.cp-word { flex-direction: column; gap: 1px; font: 600 10px/1.1 "Gabarito", sans-serif; letter-spacing: 0.22em; color: #2b3242; }
-.cp-word i { font-style: normal; color: #F1F5F9; }
-.cp-digital { font: 600 34px/1 "Gabarito", sans-serif; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.cp-flip { gap: 3px; font: 700 20px/1 "Avenir Next Condensed", "Arial Narrow", sans-serif; }
-.cp-tile { width: 20px; height: 28px; display: grid; place-items: center; border-radius: 3px; background: linear-gradient(#242427 50%, #1a1a1c 50%); color: #f4efe3; }
-.cp-colon { color: #f4efe3; }
 
 /* Photo labels */
 .placerow { margin-bottom: 10px; }
@@ -192,3 +185,6 @@ progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--sam);
 .thumb-edit { all: unset; display: block; width: 100%; height: 100%; cursor: pointer; }
 .thumb-edit:focus-visible { outline: 2px solid var(--sam); outline-offset: 2px; border-radius: 10px; }
 .thumb figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 6px 4px; font-size: 11px; font-weight: 600; color: #fff; background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+
+.topnav { display: flex; gap: 14px; align-items: baseline; }
+.topnav a.link { text-decoration: none; font-weight: 600; }

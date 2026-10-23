@@ -1,6 +1,7 @@
 import { DEFAULT_DISPLAY } from '../shared/settings';
 import type { HubConfig, BoardTheme } from '../shared/types';
 import type { Env } from './env';
+import { listPhotos } from './photos';
 import { loadSettings } from './settings';
 
 // Where the sky and weather screens are centred. In order:
@@ -64,6 +65,6 @@ export async function hubConfig(env: Env, request?: Request): Promise<HubConfig>
     motion: settings.display?.motion ?? DEFAULT_DISPLAY.motion,
     warmth: settings.display?.warmth ?? 'normal',
     photoStyle: settings.display?.photoStyle ?? 'fill',
-    features: { agenda: !!env.AGENDA_FEED_URL || settings.connections.some(c => c.enabled), photos: !!env.PHOTOS, trending: false },
+    features: { agenda: !!env.AGENDA_FEED_URL || settings.connections.some(c => c.enabled), photos: (await listPhotos(env)).length > 0, trending: false },
   };
 }

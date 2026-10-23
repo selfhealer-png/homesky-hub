@@ -10,6 +10,8 @@ export interface Screen {
   unmount(): void;
   /** Optional: a tap on the middle third of the screen (left and right thirds switch screens). */
   onCenterTap?(): void;
+  /** Optional: leave this screen out of the rotation while it has nothing to show. */
+  isAvailable?(config: HubConfig): boolean;
 }
 
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {

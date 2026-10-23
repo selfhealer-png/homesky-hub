@@ -9,7 +9,7 @@ import { h, type Screen } from '../screen';
 // coloured by altitude. The one animation that carries meaning is the ping that ripples
 // out from home each time fresh positions arrive.
 
-const POLL_MS = 8000;
+const POLL_MS = 10_000;
 const FEATURED = 5;
 const TRAIL_POINTS = 8;
 const FRAME_MS = 1000 / 30; // 30 fps is plenty for planes and kinder to an always-on tablet
@@ -64,7 +64,8 @@ function offsetNm(home: SkyHome, lat: number, lon: number): [number, number] {
 function projected(a: Aircraft, home: SkyHome, seconds: number): [number, number] {
   const [e, n] = offsetNm(home, a.lat, a.lon);
   if (a.groundSpeedKt == null || a.trackDeg == null) return [e, n];
-  const d = (a.groundSpeedKt * Math.min(seconds, 30)) / 3600;
+  // Keep moving them for up to two minutes, so a missed update or two doesn't freeze or empty the radar.
+  const d = (a.groundSpeedKt * Math.min(seconds, 120)) / 3600;
   const t = (a.trackDeg * Math.PI) / 180;
   return [e + Math.sin(t) * d, n + Math.cos(t) * d];
 }
@@ -174,7 +175,8 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
   const data = state.data;
   if (data) {
     const feature = featured(data);
-    const elapsed = (Date.now() - state.receivedAt) / 1000;
+    // From when the positions were measured, which can be earlier than when they arrived.
+    const elapsed = (Date.now() - data.fetchedAt) / 1000;
     const visible = data.aircraft.filter(a => a.altFt !== null);
     const pos = new Map(visible.map(a => {
       const [e, n] = projected(a, state.home, elapsed);
@@ -325,7 +327,9 @@ export const radarScreen: Screen = {
         for (const hex of [...state.trails.keys()]) if (!seen.has(hex)) { state.trails.delete(hex); state.placement.delete(hex); }
         Object.assign(state, { data, receivedAt: Date.now(), error: null, pingAt: performance.now() });
       } catch {
-        state.error = 'Aircraft data unavailable. Retrying.';
+        // The free sources often refuse a request; the planes keep gliding on their last tracks.
+        // Only say so once nothing new has arrived for over a minute.
+        state.error = !state.data || Date.now() - state.data.fetchedAt > 60_000 ? 'Live positions are delayed. Retrying.' : null;
       }
       renderPanel(panel, config, state);
     };

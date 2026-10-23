@@ -40,6 +40,8 @@ export interface AircraftResponse {
   source: string;
   fetchedAt: number; // epoch ms
   aircraft: Aircraft[];
+  /** True when every source failed just now and these are the last good positions. */
+  stale?: boolean;
   /** Routes for the few featured aircraft, keyed by hex, when requested with ?routes=N. */
   routes?: Record<string, RouteSummary>;
 }

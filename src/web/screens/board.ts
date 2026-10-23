@@ -4,7 +4,7 @@ import { FlapRow, setFlapMotion, type FlapMotion } from '../flap';
 import { skyHome, skyQuery } from '../location';
 import { h, type Screen } from '../screen';
 
-const POLL_MS = 8000;
+const POLL_MS = 10_000;
 const MIN_HOLD_MS = 30000; // stay on one aircraft at least this long
 const THEMES: BoardTheme[] = ['splitflap', 'led', 'minimal'];
 const MOTION: Record<BoardTheme, FlapMotion> = { splitflap: 'flip', led: 'scramble', minimal: 'fade' };
@@ -159,7 +159,8 @@ export const boardScreen: Screen = {
         if (hex !== held) { held = hex; heldSince = Date.now(); }
         render(ui, data);
       } catch {
-        ui.footer.textContent = 'Aircraft data unavailable, retrying.';
+        // Keep the last board on screen; a single refused update isn't worth mentioning.
+        if (!held) ui.footer.textContent = 'Looking for aircraft…';
       }
     };
     poll();

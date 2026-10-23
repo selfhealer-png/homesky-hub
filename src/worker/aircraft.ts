@@ -4,17 +4,31 @@ import { json, USER_AGENT, type Env } from './env';
 import { lookupRoute, withProgress } from './routes';
 import { skyContext, type SkyContext } from './sky';
 
-// Community ADS-B aggregators, tried in order (the same set esp32flight uses). All speak the
-// readsb JSON dialect. A local receiver, if configured, goes first.
-interface Provider { name: string; url: (lat: number, lon: number, nm: number) => string }
+// Free, community-fed ADS-B sources, tried in order. A local receiver, if configured, goes first.
+//
+// These services rate-limit or block traffic from shared cloud addresses (and a Worker's
+// requests come from Cloudflare's), so the hub is careful with them: a source that refuses is
+// left alone for a while instead of being asked again every few seconds, the order puts the
+// most tolerant first, and if every source fails briefly the last good positions are served
+// (marked stale) so the screens don't go blank.
+interface Provider { name: string; url: (lat: number, lon: number, nm: number) => string; parse?: (body: unknown) => ReadsbAircraft[] }
 
 const PUBLIC_PROVIDERS: Provider[] = [
-  { name: 'airplanes.live', url: (lat, lon, nm) => `https://api.airplanes.live/v2/point/${lat}/${lon}/${nm}` },
   { name: 'adsb.lol', url: (lat, lon, nm) => `https://api.adsb.lol/v2/point/${lat}/${lon}/${nm}` },
   { name: 'adsb.fi', url: (lat, lon, nm) => `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${nm}` },
+  { name: 'airplanes.live', url: (lat, lon, nm) => `https://api.airplanes.live/v2/point/${lat}/${lon}/${nm}` },
 ];
 
-const CACHE_SECONDS = 5;
+const CACHE_SECONDS = 8;
+const STALE_OK_MS = 90_000; // serve the last good positions this long if every source fails
+
+/** Sources that refused recently, and until when to leave them alone (per Worker isolate). */
+const restingUntil = new Map<string, number>();
+const lastGood = new Map<string, AircraftResponse>();
+
+class SourceRefused extends Error {
+  constructor(message: string, public restSeconds: number) { super(message); }
+}
 const EMERGENCY_SQUAWKS = new Set(['7500', '7600', '7700']);
 
 interface ReadsbAircraft {
@@ -55,11 +69,19 @@ function normalize(raw: ReadsbAircraft, lat0: number, lon0: number): Aircraft | 
   };
 }
 
-async function fetchProvider(name: string, url: string): Promise<{ name: string; list: ReadsbAircraft[] }> {
-  const res = await fetch(url, { headers: { 'user-agent': USER_AGENT, accept: 'application/json' }, signal: AbortSignal.timeout(6000) });
-  if (!res.ok) throw new Error(`${name} answered ${res.status}`);
-  const body = (await res.json()) as { ac?: ReadsbAircraft[]; aircraft?: ReadsbAircraft[] };
-  return { name, list: body.ac ?? body.aircraft ?? [] };
+async function fetchProvider(name: string, url: string, parse?: Provider['parse']): Promise<ReadsbAircraft[]> {
+  const res = await fetch(url, { headers: { 'user-agent': USER_AGENT, accept: 'application/json' }, signal: AbortSignal.timeout(4000) });
+  if (res.status === 429) {
+    // "Too many requests": wait as long as the source asks, else a minute.
+    const wait = Number(res.headers.get('retry-after') ?? res.headers.get('x-rate-limit-retry-after-seconds'));
+    throw new SourceRefused(`${name} answered 429`, Number.isFinite(wait) && wait > 0 ? Math.min(wait, 3600) : 60);
+  }
+  if (res.status === 403) throw new SourceRefused(`${name} answered 403`, 600);
+  if (!res.ok) throw new SourceRefused(`${name} answered ${res.status}`, 30);
+  const body = await res.json();
+  if (parse) return parse(body);
+  const b = body as { ac?: ReadsbAircraft[]; aircraft?: ReadsbAircraft[] };
+  return b.ac ?? b.aircraft ?? [];
 }
 
 export class AircraftUnavailable extends Error {
@@ -71,25 +93,39 @@ export function getAircraft(env: Env, sky: SkyContext): Promise<AircraftResponse
   const { lat, lon } = sky.home;
   const nm = sky.radiusNm;
 
+  const key = `aircraft:${lat}:${lon}:${nm}`;
   // One upstream call per CACHE_SECONDS per isolate, however many displays or screens poll.
-  return cached(env, `aircraft:${lat}:${lon}:${nm}`, CACHE_SECONDS, async () => {
-    const attempts: Array<[string, string]> = [];
-    if (env.LOCAL_ADSB_URL) attempts.push(['local', `${env.LOCAL_ADSB_URL.replace(/\/$/, '')}/data/aircraft.json`]);
-    for (const p of PUBLIC_PROVIDERS) attempts.push([p.name, p.url(lat, lon, nm)]);
+  return cached(env, key, CACHE_SECONDS, async () => {
+    const attempts: Array<[string, string, Provider['parse']]> = [];
+    if (env.LOCAL_ADSB_URL) attempts.push(['local', `${env.LOCAL_ADSB_URL.replace(/\/$/, '')}/data/aircraft.json`, undefined]);
+    for (const p of PUBLIC_PROVIDERS) attempts.push([p.name, p.url(lat, lon, nm), p.parse]);
 
     const errors: string[] = [];
-    for (const [name, url] of attempts) {
+    for (const [name, url, parse] of attempts) {
+      if ((restingUntil.get(name) ?? 0) > Date.now()) {
+        errors.push(`${name}: resting after an earlier refusal`);
+        continue;
+      }
       try {
-        const { list } = await fetchProvider(name, url);
+        const list = await fetchProvider(name, url, parse);
         const aircraft = list
           .map(a => normalize(a, lat, lon))
           .filter((a): a is Aircraft => !!a && a.distanceNm <= nm)
           .sort((a, b) => a.distanceNm - b.distanceNm);
-        return { source: name, fetchedAt: Date.now(), aircraft };
+        const result: AircraftResponse = { source: name, fetchedAt: Date.now(), aircraft };
+        lastGood.set(key, result);
+        return result;
       } catch (err) {
+        // Refused, or no answer in time: leave it alone a while.
+        const rest = err instanceof SourceRefused ? err.restSeconds : (err as Error).name === 'TimeoutError' ? 600 : 30;
+        if (name !== 'local') restingUntil.set(name, Date.now() + rest * 1000);
         errors.push(`${name}: ${(err as Error).message}`);
       }
     }
+    // Everything failed: better slightly old positions (the display moves them along their
+    // track) than an empty radar, for a short while.
+    const previous = lastGood.get(key);
+    if (previous && Date.now() - previous.fetchedAt < STALE_OK_MS) return { ...previous, stale: true };
     throw new AircraftUnavailable(errors);
   });
 }

@@ -444,3 +444,63 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
   .wel-card h1 { font-size: 22px; }
   .wel-note { display: none; }
 }
+
+/* ── First-run wizard (on the display, after the password on a new hub) ──── */
+.wel-card.wide { width: min(620px, 100%); max-height: calc(100dvh - 40px); overflow-y: auto; }
+.wel-tip { margin: 0 0 16px; padding: 10px 12px; border-radius: 12px; background: rgba(37, 99, 255, 0.14); color: #CBD5E1; font-size: 14px; line-height: 1.45; }
+.ob-step { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #94A3B8; }
+.ob-sub { margin: 18px 0 8px; font: 700 15px/1.2 "Gabarito", -apple-system, sans-serif; color: #CBD5E1; }
+.ob-options { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.ob-option { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid #475569; background: #0F172A; cursor: pointer; min-height: 48px; }
+.ob-option:has(input:checked) { border-color: #2563FF; box-shadow: 0 0 0 3px rgba(37, 99, 255, 0.25); }
+.ob-option input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: #2563FF; flex: 0 0 auto; }
+.ob-option-text { display: flex; flex-direction: column; gap: 2px; }
+.ob-option-text small { color: #94A3B8; font-size: 13px; line-height: 1.4; }
+.ob-place { margin-top: 10px; }
+.ob-search { display: flex; gap: 8px; }
+.ob-search input, .ob-fields > input { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: #F1F5F9; background: #0F172A; border: 1.5px solid #475569; border-radius: 12px; padding: 12px 14px; min-height: 48px; }
+.ob-search input:focus, .ob-fields > input:focus { outline: none; border-color: #2563FF; box-shadow: 0 0 0 3px rgba(37, 99, 255, 0.3); }
+.ob-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 8px; }
+.ob-result { all: unset; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid #475569; cursor: pointer; }
+.ob-result:focus-visible { outline: 2px solid #2563FF; }
+.ob-result small, .ob-hint { color: #94A3B8; font-size: 13px; }
+.ob-chosen { margin: 8px 0 0; min-height: 20px; color: #86EFAC; font-weight: 600; }
+.ob-fields { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.ob-result-line { margin: 0; min-height: 20px; font-size: 14px; color: #94A3B8; }
+.ob-result-line.good { color: #86EFAC; }
+.ob-result-line.bad { color: #FCA5A5; }
+.ob-help { margin-top: 4px; color: #94A3B8; font-size: 14px; }
+.ob-help summary { cursor: pointer; color: #CBD5E1; font-weight: 600; padding: 6px 0; }
+.ob-help p { margin: 6px 0; line-height: 1.45; }
+.ob-clocks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.ob-clock { position: relative; display: flex; flex-direction: column; align-items: stretch; padding: 8px; border-radius: 14px; border: 1.5px solid #475569; cursor: pointer; font-size: 14px; text-align: center; }
+.ob-clock input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.ob-clock:has(input:checked) { border-color: #2563FF; box-shadow: 0 0 0 3px rgba(37, 99, 255, 0.25); }
+.ob-clock:has(input:focus-visible) { outline: 2px solid #2563FF; outline-offset: 2px; }
+.ob-clock .cp { height: 60px; margin-bottom: 6px; }
+.ob-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+@media (max-width: 560px) { .ob-clocks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-height: 520px) {
+  .wel-card.wide { max-height: calc(100dvh - 24px); }
+  .ob-options { flex-direction: row; }
+  .ob-option { flex: 1; }
+}
+
+/* ── Long-press menu on the display ─────────────────────────────────────── */
+.menu-scrim { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(2, 6, 23, 0.55); }
+.menu { display: flex; flex-direction: column; gap: 8px; width: min(320px, calc(100% - 32px)); padding: 16px; border-radius: 20px; background: #1E293B; border: 1px solid rgba(148, 163, 184, 0.22); box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.8); }
+.menu h2 { margin: 0 0 4px 4px; font: 700 15px/1.2 "Gabarito", -apple-system, sans-serif; color: #94A3B8; }
+.menu button { min-height: 48px; border-radius: 12px; border: 1.5px solid #475569; background: #0F172A; color: #F1F5F9; font: 600 16px/1 -apple-system, "Segoe UI", sans-serif; cursor: pointer; }
+.menu button.primary { background: #2563FF; border-color: #2563FF; }
+
+/* ── Nothing set up yet ─────────────────────────────────────────────────── */
+.screen-home.clock-only { grid-template-columns: 1fr; place-items: center; text-align: center; }
+.screen-home.clock-only .agenda { display: none; }
+.screen-home.clock-only .time-now { font-size: 190px; }
+.screen-home.clock-only .date-now { font-size: 28px; }
+@media (max-height: 520px) { .screen-home.clock-only .time-now { font-size: 120px; } }
+
+/* The gear beside the dots: quiet, but always there. 44px target around an 18px icon. */
+#dots { align-items: center; }
+#dots .gear { width: 44px; height: 44px; margin: -17px -12px -17px 4px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: rgba(148, 163, 184, 0.75); cursor: pointer; }
+#dots .gear:focus-visible { outline: 2px solid #2563FF; }
