@@ -6,7 +6,7 @@ import { h, type Screen } from '../screen';
 // The photo frame. Four styles, chosen in /setup:
 //   fill     edge to edge with a slow drift; the time and caption sit on a soft scrim
 //   framed   prints in a dark frame with a cream mount, hung on a dim wall, each with a small
-//            gallery label underneath (place or collection, and the date)
+//            gallery label underneath (place, if one was typed in /setup, and the date)
 //   instant  instant-camera prints dropped on a table, a little askew, captioned by hand on the lip
 //   float    borderless, rounded photos over a blur of their own colours, each labelled underneath
 // Portrait photos are paired: a landscape screen holds two portraits side by side far better
@@ -56,7 +56,8 @@ async function nextSlide(): Promise<PhotoInfo[]> {
   return [first, ...deck.splice(partner, 1)];
 }
 
-const placeOf = (p: PhotoInfo) => p.caption ?? (p.collection && p.collection !== 'Photos' ? p.collection : '');
+// Only a place typed in /setup: a collection name ("Family") says nothing about where a photo was taken.
+const placeOf = (p: PhotoInfo) => p.caption ?? '';
 
 function dateOf(p: PhotoInfo, tz: string): string {
   if (!p.taken) return '';
