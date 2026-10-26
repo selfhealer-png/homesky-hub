@@ -1,6 +1,6 @@
 import { CLOCK_LABELS, clockPreview } from '../clockPreview';
 import {
-  CLOCK_STYLES, DEFAULT_DISPLAY, DEFAULT_NIGHT, DEFAULT_RADAR_MAP, MOTION_LEVELS, NIGHT_MODES, WARMTH_LEVELS,
+  CLOCK_STYLES, DEFAULT_DISPLAY, DEFAULT_NIGHT, DEFAULT_RADAR_MAP, MOTION_LEVELS, NIGHT_MODES, ROTATE_CHOICES, WARMTH_LEVELS,
   type MotionLevel, type NightMode, type ScreenId,
 } from '../../shared/settings';
 import type { Warmth } from '../../shared/wear';
@@ -223,6 +223,30 @@ export function orderPage() {
     pageHead('Screen order', 'The order the display goes through its screens. Screens that are off keep their place for when they’re back on.'),
     h('div', { class: 'rows' }, ...rows),
     h('div', { class: 'buttons' }, reset),
+  ];
+}
+
+// ── screen timing ───────────────────────────────────────────────────────────
+
+const pace = (sec: number) => sec < 60 ? `${sec} seconds` : sec === 60 ? 'minute' : `${sec / 60} minutes`;
+
+export function timingSummary() {
+  const sec = displaySettings().rotateSec;
+  return sec ? `Every ${pace(sec)}` : 'Each screen’s own pace';
+}
+
+export function timingPage() {
+  const d = displaySettings();
+  const options: Array<[string, string, string]> = [
+    ['auto', 'Each screen’s own pace', 'Busier screens stay longer: Photos 1½ minutes, Home and the flight screens 1 minute, Weather and the clock 45 seconds, the rest about 40.'],
+    ...ROTATE_CHOICES.map(sec => [String(sec), `Every ${pace(sec)}`, ''] as [string, string, string]),
+  ];
+  return [
+    pageHead('Screen timing', 'How long the display stays on each screen before moving to the next.'),
+    card(null,
+      choiceList('rotate', 'Change screens', options, d.rotateSec ? String(d.rotateSec) : 'auto',
+        v => quietly(saveDisplay({ ...d, rotateSec: v === 'auto' ? null : Number(v) }))),
+      h('p', { class: 'hint' }, 'A tap on the left or right of the display still moves on straight away, and a screen you’ve pinned stays put.')),
   ];
 }
 

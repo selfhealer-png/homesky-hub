@@ -57,7 +57,8 @@ function show(i: number) {
 
 function schedule() {
   clearTimeout(timer);
-  if (!pinned) timer = window.setTimeout(() => show(index + 1), screens[index].durationSec * 1000);
+  // The pace chosen in /setup, or else each screen's own.
+  if (!pinned) timer = window.setTimeout(() => show(index + 1), (config.rotateSec ?? screens[index].durationSec) * 1000);
 }
 
 /** A screen someone chose (a tap or a dot), not the rotation: say which one it is. */
@@ -212,11 +213,13 @@ async function refreshConfig() {
   try {
     const fresh = await getJson<HubConfig>('/api/config');
     const clockChanged = fresh.clock !== config.clock;
+    const paceChanged = fresh.rotateSec !== config.rotateSec;
     const rotationChanged = JSON.stringify([fresh.features, fresh.airports, fresh.screensOff, fresh.order]) !== JSON.stringify([config.features, config.airports, config.screensOff, config.order]);
     Object.assign(config, fresh);
     setMotionLevel(config.motion);
     updateNight();
     if (rotationChanged) buildRotation();
+    if (paceChanged) schedule();
     if (clockChanged && screens[index].id === 'clock') show(index);
   } catch {
     // Keep the current settings; try again next time.

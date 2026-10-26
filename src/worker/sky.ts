@@ -72,6 +72,7 @@ export async function hubConfig(env: Env, request?: Request): Promise<HubConfig>
     wikiPictures: settings.display?.wikiPictures ?? true,
     screensOff: settings.display?.screensOff ?? [],
     order: screenOrder(settings.display?.order),
+    rotateSec: settings.display?.rotateSec ?? null,
     features: { agenda: !!env.AGENDA_FEED_URL || settings.connections.some(c => c.enabled), photos: (await listPhotos(env)).length > 0, trending: false },
   };
 }

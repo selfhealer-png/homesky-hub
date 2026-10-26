@@ -1,6 +1,6 @@
 import {
   CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_NIGHT, MAX_AIRPORTS, MOTION_LEVELS, NIGHT_MODES, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
-  SCREEN_IDS, isClockTime, type ClockStyle, type GoogleWants, type ScreenId, type MotionLevel, type NightSettings,
+  ROTATE_CHOICES, SCREEN_IDS, isClockTime, type ClockStyle, type GoogleWants, type ScreenId, type MotionLevel, type NightSettings,
   type AdminState, type Place, type SavedAirport, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
 import { screenOrder } from '../shared/rotation';
@@ -365,5 +365,8 @@ async function saveDisplay(env: Env, b: Record<string, unknown>) {
   const screensOff = (s: ScreenId[] | undefined) => b.screensOff === undefined ? s : SCREEN_IDS.filter(id => (b.screensOff as unknown[]).includes(id));
   if (b.order !== undefined && !Array.isArray(b.order)) throw new BadRequest('order must be a list of screens.');
   const order = (s: ScreenId[] | undefined) => b.order === undefined ? s : screenOrder(b.order as unknown[]);
-  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle, night: night(s.display?.night), wikiPictures: wikiPictures(s.display?.wikiPictures), screensOff: screensOff(s.display?.screensOff), order: order(s.display?.order) } }));
+  // A number from the choices, null for each screen's own pace, or left as it was when not sent.
+  if (b.rotateSec !== undefined && b.rotateSec !== null && !ROTATE_CHOICES.includes(b.rotateSec as number)) throw new BadRequest('Unknown screen timing.');
+  const rotateSec = (s: number | null | undefined) => (b.rotateSec === undefined ? s : b.rotateSec as number | null) ?? undefined;
+  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle, night: night(s.display?.night), wikiPictures: wikiPictures(s.display?.wikiPictures), screensOff: screensOff(s.display?.screensOff), order: order(s.display?.order), rotateSec: rotateSec(s.display?.rotateSec) } }));
 }

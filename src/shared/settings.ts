@@ -89,7 +89,13 @@ export interface DisplaySettings {
   /** The order screens rotate in, as the person arranged it. Screens missing from it (added in a
    *  later release) slot in after the screen they follow by default. */
   order?: ScreenId[];
+  /** Seconds before the display moves to the next screen. Absent: each screen's own pace
+   *  (null when saving says "go back to that"). */
+  rotateSec?: number | null;
 }
+
+/** How often the display can be set to change screens, in seconds. */
+export const ROTATE_CHOICES = [15, 30, 60, 120, 300, 600];
 
 export type ScreenId = 'home' | 'weather' | 'rain' | 'board' | 'radar' | 'airport' | 'tonight' | 'clock' | 'photos' | 'wiki';
 /** Every screen, in the default rotation order. */

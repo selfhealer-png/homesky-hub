@@ -26,6 +26,8 @@ export interface HubConfig {
   screensOff: ScreenId[];
   /** Every screen, in the order they rotate (screenOrder() of the saved order). */
   order: ScreenId[];
+  /** Seconds on each screen, or null for each screen's own pace. */
+  rotateSec: number | null;
   features: { agenda: boolean; photos: boolean; trending: boolean };
 }
 
