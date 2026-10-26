@@ -360,6 +360,7 @@ async function saveDisplay(env: Env, b: Record<string, unknown>) {
     to: isClockTime(n.to) ? n.to : s.to,
   };
   const wikiPictures = (s: boolean | undefined) => typeof b.wikiPictures === 'boolean' ? b.wikiPictures : s;
+  const stripClock = (s: boolean | undefined) => typeof b.stripClock === 'boolean' ? b.stripClock : s;
   // Like night, left as it was when not sent. Unknown ids are dropped, duplicates collapse.
   if (b.screensOff !== undefined && !Array.isArray(b.screensOff)) throw new BadRequest('screensOff must be a list of screens.');
   const screensOff = (s: ScreenId[] | undefined) => b.screensOff === undefined ? s : SCREEN_IDS.filter(id => (b.screensOff as unknown[]).includes(id));
@@ -368,5 +369,5 @@ async function saveDisplay(env: Env, b: Record<string, unknown>) {
   // A number from the choices, null for each screen's own pace, or left as it was when not sent.
   if (b.rotateSec !== undefined && b.rotateSec !== null && !ROTATE_CHOICES.includes(b.rotateSec as number)) throw new BadRequest('Unknown screen timing.');
   const rotateSec = (s: number | null | undefined) => (b.rotateSec === undefined ? s : b.rotateSec as number | null) ?? undefined;
-  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle, night: night(s.display?.night), wikiPictures: wikiPictures(s.display?.wikiPictures), screensOff: screensOff(s.display?.screensOff), order: order(s.display?.order), rotateSec: rotateSec(s.display?.rotateSec) } }));
+  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle, night: night(s.display?.night), wikiPictures: wikiPictures(s.display?.wikiPictures), screensOff: screensOff(s.display?.screensOff), order: order(s.display?.order), rotateSec: rotateSec(s.display?.rotateSec), stripClock: stripClock(s.display?.stripClock) } }));
 }

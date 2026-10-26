@@ -73,6 +73,7 @@ export async function hubConfig(env: Env, request?: Request): Promise<HubConfig>
     screensOff: settings.display?.screensOff ?? [],
     order: screenOrder(settings.display?.order),
     rotateSec: settings.display?.rotateSec ?? null,
+    stripClock: settings.display?.stripClock ?? false,
     features: { agenda: !!env.AGENDA_FEED_URL || settings.connections.some(c => c.enabled), photos: (await listPhotos(env)).length > 0, trending: false },
   };
 }

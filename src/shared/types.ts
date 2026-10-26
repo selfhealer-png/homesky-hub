@@ -28,6 +28,8 @@ export interface HubConfig {
   order: ScreenId[];
   /** Seconds on each screen, or null for each screen's own pace. */
   rotateSec: number | null;
+  /** Show the time in the bottom corner of screens without their own clock. */
+  stripClock: boolean;
   features: { agenda: boolean; photos: boolean; trending: boolean };
 }
 

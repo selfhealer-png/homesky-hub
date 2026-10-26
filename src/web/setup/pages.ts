@@ -250,6 +250,15 @@ export function timingPage() {
   ];
 }
 
+// ── the time on every screen ────────────────────────────────────────────────
+
+/** A switch for the time in the bottom corner. Off unless chosen. */
+export function stripClockSwitch() {
+  const d = displaySettings();
+  return iosSwitch(d.stripClock ?? false, 'Show the time on every screen', on =>
+    saveDisplay({ ...d, stripClock: on }, on ? 'The time shows in the corner of every screen.' : 'The time is off. Screens with their own clock still show it.'));
+}
+
 // ── hub pages ───────────────────────────────────────────────────────────────
 
 export const NIGHT_LABELS: Record<NightMode, [string, string]> = {

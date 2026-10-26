@@ -51,7 +51,6 @@ function show(i: number) {
   document.body.classList.toggle('own-clock', !!screens[index].ownClock);
   setCaption(screens[index].title);
   screens[index].mount(el, config);
-  dots.querySelectorAll('button').forEach((b, n) => b.classList.toggle('active', n === index));
   schedule();
 }
 
@@ -79,16 +78,9 @@ function buildRotation() {
   // Switched-off screens leave; in quiet hours only the calm ones stay, plus a screen someone has pinned.
   screens = pickRotation(ALL_SCREENS, config, currentNight() === 'quiet', pinned ? current : undefined);
   index = Math.max(0, screens.indexOf(current));
+  // No dot per screen: just the gear, always there so Settings never depends on knowing about
+  // the long press. Screens are switched by tapping the left or right of the display.
   dots.replaceChildren();
-  screens.forEach((s, n) => {
-    const b = document.createElement('button');
-    b.title = s.title;
-    b.setAttribute('aria-label', s.title);
-    b.classList.toggle('active', n === index);
-    b.addEventListener('click', e => { e.stopPropagation(); showChosen(n); });
-    dots.append(b);
-  });
-  // Always visible, so Settings never depends on knowing about the long press.
   const gear = document.createElement('button');
   gear.className = 'gear';
   gear.setAttribute('aria-label', 'Menu and settings');
@@ -97,7 +89,7 @@ function buildRotation() {
   dots.append(gear);
 }
 
-/** The strip along the bottom, either side of the dots: a caption on the left, the time on the right. */
+/** The strip along the bottom: a caption on the left and, if chosen in /setup, the time on the right. */
 function buildStrip() {
   const caption = document.createElement('div');
   caption.id = 'caption';
@@ -198,6 +190,7 @@ async function start() {
   notice.hidden = true;
   offlineSince = undefined;
   setMotionLevel(config.motion);
+  document.body.classList.toggle('strip-clock', config.stripClock);
   wireGestures();
   startKeepAwake();
   startNight(config, () => {
@@ -217,6 +210,7 @@ async function refreshConfig() {
     const rotationChanged = JSON.stringify([fresh.features, fresh.airports, fresh.screensOff, fresh.order]) !== JSON.stringify([config.features, config.airports, config.screensOff, config.order]);
     Object.assign(config, fresh);
     setMotionLevel(config.motion);
+    document.body.classList.toggle('strip-clock', config.stripClock);
     updateNight();
     if (rotationChanged) buildRotation();
     if (paceChanged) schedule();

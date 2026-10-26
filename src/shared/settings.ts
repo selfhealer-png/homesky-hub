@@ -92,6 +92,8 @@ export interface DisplaySettings {
   /** Seconds before the display moves to the next screen. Absent: each screen's own pace
    *  (null when saving says "go back to that"). */
   rotateSec?: number | null;
+  /** The time in the bottom corner of screens that don't show it themselves. Off unless chosen. */
+  stripClock?: boolean;
 }
 
 /** How often the display can be set to change screens, in seconds. */

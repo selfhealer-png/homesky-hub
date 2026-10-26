@@ -35,18 +35,14 @@ body {
 /* The dots: a 10px mark in a 30×36 target, so a finger finds them. Inactive dots are slate at
    3.9:1 on the page (above the 3:1 a control needs); a pinned screen's dot gets a solid ring. */
 #dots { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; align-items: center; padding: 0 4px; }
-#dots button:not(.gear) { width: 30px; height: 36px; padding: 0; border: 0; background: none; display: grid; place-items: center; cursor: pointer; }
-#dots button:not(.gear)::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #64748B; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); transition: background 0.2s, box-shadow 0.2s; }
-#dots button.active::before { background: var(--accent); }
-body.pinned #dots button.active::before { box-shadow: 0 0 0 2px #0F172A, 0 0 0 4px var(--accent); }
-#dots button:not(.gear):focus-visible { outline: 2px solid #2563FF; outline-offset: -4px; border-radius: 8px; }
 
-/* The shared strip along the bottom, either side of the dots: what this screen is showing on the
-   left, the time on the right. Off on screens that show the time themselves (body.own-clock). */
+/* The shared strip along the bottom: what this screen is showing on the left and, when chosen in
+   /setup (body.strip-clock), the time on the right. Off on screens that show the time themselves
+   (body.own-clock). */
 #caption, #strip-time { position: fixed; bottom: 0; z-index: 5; height: 36px; display: flex; align-items: center; pointer-events: none; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
 #caption { left: 32px; max-width: calc(50% - 210px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #94A3B8; font: 500 16px/1 -apple-system, "Segoe UI", sans-serif; }
 #strip-time { right: 32px; color: #E2E8F0; font: 600 22px/1 "Gabarito", -apple-system, sans-serif; font-variant-numeric: tabular-nums; }
-body.own-clock #caption, body.own-clock #strip-time { display: none; }
+body.own-clock #caption, body.own-clock #strip-time, body:not(.strip-clock) #strip-time { display: none; }
 /* On the cream board by day, the strip takes the board's ink. */
 html:not([data-night]) body:has(.screen[data-theme="minimal"]) #caption { color: #655f57; text-shadow: none; }
 html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { color: #161514; text-shadow: none; }
@@ -509,8 +505,6 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
    tablet one: each screen keeps what matters at a glance and drops the rest. */
 @media (max-height: 520px) {
   .screen { padding: 14px 20px 26px; }
-  #dots button:not(.gear) { width: 24px; height: 30px; }
-  #dots button:not(.gear)::before { width: 8px; height: 8px; }
   #flash { bottom: 34px; font-size: 14px; padding: 6px 12px; }
   #caption, #strip-time { height: 30px; }
   #caption { left: 20px; max-width: calc(50% - 150px); font-size: 12px; }
@@ -655,10 +649,12 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 .screen-home.clock-only .date-now { font-size: 28px; }
 @media (max-height: 520px) { .screen-home.clock-only .time-now { font-size: 120px; } }
 
-/* The gear beside the dots: quiet, but always there. 44px target around an 18px icon. */
+/* The gear, bottom centre: quiet, but always there. 44px target around an 18px icon. A pinned
+   screen shows it in the accent colour. */
 #dots { align-items: center; }
 #dots .gear { width: 44px; height: 44px; margin: -4px -8px -4px 2px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: rgba(148, 163, 184, 0.75); cursor: pointer; }
 #dots .gear:focus-visible { outline: 2px solid #2563FF; }
+body.pinned #dots .gear { color: var(--accent); }
 
 /* The keep-awake video: playing, but never seen. */
 .stay-awake { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; left: 0; top: 0; }

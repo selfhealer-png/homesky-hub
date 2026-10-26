@@ -1,7 +1,7 @@
 import './setup.css';
 import type { AdminState } from '../../shared/settings';
 import { accountsPage, googleConnection } from './accounts';
-import { aboutPage, CATEGORIES, hubProblems, motionPage, MOTION_LABELS, nightPage, nightSummary, orderPage, orderSummary, SCREENS, screenPage, screenRow, timingPage, timingSummary } from './pages';
+import { aboutPage, CATEGORIES, hubProblems, motionPage, MOTION_LABELS, nightPage, nightSummary, orderPage, orderSummary, SCREENS, screenPage, screenRow, stripClockSwitch, timingPage, timingSummary } from './pages';
 import { placesPage } from './sky';
 import { displaySettings, onRender, placeName, setState, state } from './store';
 import { api, busy, field, group, h, HttpError, input, row, svg, tile, toast } from './ui';
@@ -116,6 +116,7 @@ window.addEventListener('hashchange', () => {
 // ── the list ────────────────────────────────────────────────────────────────
 
 const HUB_ICONS = {
+  time: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M13 15h4"/>',
   timing: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5"/>',
   order: '<path d="M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4"/>',
   places: '<path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/>',
@@ -145,10 +146,11 @@ function listPage() {
     h('h2', { class: 'listtitle', tabindex: '-1' }, 'Settings'),
     ...CATEGORIES.map(([id, title], i) => group(title, SCREENS.filter(s => s.category === id).map(screenRow),
       i === CATEGORIES.length - 1 ? 'Switched-off screens leave the display’s rotation within five minutes. A screen with nothing to show yet stays out until it has.' : undefined)),
-    group('Rotation', [
+    group('Display', [
       row({ icon: tile(HUB_ICONS.order, neutral), title: 'Screen order', summary: orderSummary(), href: '#/order' }),
       row({ icon: tile(HUB_ICONS.timing, neutral), title: 'Screen timing', summary: timingSummary(), href: '#/timing' }),
-    ]),
+      row({ icon: tile(HUB_ICONS.time, neutral), title: 'Time on every screen', summary: 'In the bottom corner, beside the screen’s name', control: stripClockSwitch() }),
+    ], 'Home, the Clock and the photo frame always show the time themselves.'),
     group('Hub', [
       row({ icon: tile(HUB_ICONS.places, '#0EA5E9'), title: 'Places', summary: placeName(), href: '#/places' }),
       row({ icon: tile(HUB_ICONS.accounts, '#2563FF'), title: 'Accounts', summary: accountsSummary(), href: '#/accounts' }),
