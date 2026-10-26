@@ -240,3 +240,6 @@ input.ios:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .cardhead h3 { margin: 0; }
 .place .actions { display: flex; gap: 6px; flex: 0 0 auto; }
 .primary.button-link { color: #fff; }
+.ghost.icon { display: grid; place-items: center; width: 36px; padding: 0; }
+.actions .spacer { display: inline-block; width: 36px; }
+.row .actions { position: relative; z-index: 1; display: flex; gap: 6px; flex: 0 0 auto; }

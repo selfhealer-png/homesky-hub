@@ -1,27 +1,21 @@
 import type { HubConfig, WeatherResponse } from '../../shared/types';
-import { describe, essentials, isWet, laterToday, recommend } from '../../shared/wear';
+import { describe, essentials, laterToday, recommend } from '../../shared/wear';
 import { getJson } from '../api';
 import { wearIcon, weatherIcon } from '../icons';
-import { mountRainRadar } from '../rainRadar';
 import { skyHome, skyQuery } from '../location';
 import { h, setCaption, type Screen } from '../screen';
 
-// Weather now and what to wear for it on the left; the next hours and days on the right, with
-// the rain radar under them only when rain is around. What to wear is a few pictures, not a
-// paragraph: it should be read in a glance on the way out of the door.
+// Weather now and what to wear for it on the left; the next hours and days on the right. What
+// to wear is a few pictures, not a paragraph: it should be read in a glance on the way out of the
+// door. The rain radar has its own screen (rain.ts).
 
 const REFRESH_MS = 10 * 60_000;
 let timer: number | undefined;
-let stopRadar: (() => void) | undefined;
 
 const deg = (n: number) => `${Math.round(n)}°`;
 
 /** The hub's other screens all use the 24-hour clock. Forecast times are already local. */
 const hourLabel = (iso: string) => iso.slice(11, 16);
-
-/** Rain is around: falling now, or likely in the next six hours. Only then is the radar shown. */
-const rainAround = (data: WeatherResponse) =>
-  isWet(data.now.code) || data.now.precipitation > 0 || data.hours.slice(0, 6).some(h => h.rain >= 40 || isWet(h.code));
 
 function isNight(iso: string, sunrise?: string, sunset?: string) {
   if (!sunrise || !sunset) return false;
@@ -37,7 +31,6 @@ function chip(name: string, value: string, tone: string) {
 }
 
 function render(el: HTMLElement, data: WeatherResponse, home: { name: string; lat: number; lon: number }, config: HubConfig) {
-  stopRadar?.();
   const now = data.now;
   const today = data.days[0];
   const info = describe(now.code, now.isDay);
@@ -101,17 +94,9 @@ function render(el: HTMLElement, data: WeatherResponse, home: { name: string; la
     left.append(chips);
   }
 
-  // The forecast, and the rain radar under it when there's rain to watch. On a dry day the
-  // forecast has the column to itself.
   const right = h('section', 'wx-side');
   right.append(hours, days);
-  const wet = rainAround(data);
-  right.classList.toggle('dry', !wet);
-  const radar = wet ? h('div', 'wx-radar') : null;
-  if (radar) right.append(radar);
-
   el.replaceChildren(left, right);
-  if (radar) stopRadar = mountRainRadar(radar, home.lat, home.lon);
 }
 
 export const weatherScreen: Screen = {
@@ -134,7 +119,5 @@ export const weatherScreen: Screen = {
   },
   unmount() {
     clearInterval(timer);
-    stopRadar?.();
-    stopRadar = undefined;
   },
 };

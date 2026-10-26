@@ -3,6 +3,7 @@ import {
   SCREEN_IDS, isClockTime, type ClockStyle, type GoogleWants, type ScreenId, type MotionLevel, type NightSettings,
   type AdminState, type Place, type SavedAirport, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
+import { screenOrder } from '../shared/rotation';
 import { handleLogin, handleLogout, hmac, isAdmin, passesCsrfCheck, safeEqual } from './adminAuth';
 import { readConnection } from './agenda';
 import { json, type Env } from './env';
@@ -362,5 +363,7 @@ async function saveDisplay(env: Env, b: Record<string, unknown>) {
   // Like night, left as it was when not sent. Unknown ids are dropped, duplicates collapse.
   if (b.screensOff !== undefined && !Array.isArray(b.screensOff)) throw new BadRequest('screensOff must be a list of screens.');
   const screensOff = (s: ScreenId[] | undefined) => b.screensOff === undefined ? s : SCREEN_IDS.filter(id => (b.screensOff as unknown[]).includes(id));
-  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle, night: night(s.display?.night), wikiPictures: wikiPictures(s.display?.wikiPictures), screensOff: screensOff(s.display?.screensOff) } }));
+  if (b.order !== undefined && !Array.isArray(b.order)) throw new BadRequest('order must be a list of screens.');
+  const order = (s: ScreenId[] | undefined) => b.order === undefined ? s : screenOrder(b.order as unknown[]);
+  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle, night: night(s.display?.night), wikiPictures: wikiPictures(s.display?.wikiPictures), screensOff: screensOff(s.display?.screensOff), order: order(s.display?.order) } }));
 }

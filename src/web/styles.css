@@ -428,14 +428,14 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 
 /* ── Weather ────────────────────────────────────────────────────────────────
    The Home screen's slate palette. Temperature first, clothing advice second; the forecast on
-   the right, with the rain radar under it only when rain is around. */
+   the right, big enough to read from further away. */
 .screen-weather {
   --ink: #F1F5F9; --muted: #94A3B8; --line: rgba(148, 163, 184, 0.16); --card: #1E293B;
   background: #0F172A; color: var(--ink);
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr); grid-template-rows: minmax(0, 1fr); gap: 40px; align-items: center;
 }
 .wx-loading { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 20px; }
-.wx-icon { width: 30px; height: 30px; color: #CBD5E1; flex: 0 0 auto; }
+.wx-icon { width: 40px; height: 40px; color: #CBD5E1; flex: 0 0 auto; }
 .wx-icon.wx-sun, .wx-icon.wx-partly { color: #FBBF24; }
 .wx-icon.wx-rain, .wx-icon.wx-storm { color: #7DD3FC; }
 .wx-big { display: flex; align-items: center; gap: 18px; margin-top: 2px; }
@@ -447,19 +447,13 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 .wx-hours, .wx-days { list-style: none; margin: 0; padding: 0; display: grid; }
 .wx-hours { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .wx-hours li, .wx-days li { display: flex; flex-direction: column; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
-.wx-h-time { font-size: 15px; color: var(--muted); }
-.wx-h-temp { font-size: 21px; font-weight: 600; }
+.wx-h-time { font-size: 17px; color: var(--muted); }
+.wx-h-temp { font-size: 27px; font-weight: 600; }
 .wx-rain { font-size: 14px; color: #7DD3FC; white-space: nowrap; }
-.wx-days { grid-template-columns: repeat(4, minmax(0, 1fr)); padding-top: 16px; border-top: 1px solid var(--line); }
-.wx-d-name { font-size: 15px; color: var(--muted); }
-.wx-d-temp { font-size: 21px; font-weight: 600; }
+.wx-days { grid-template-columns: repeat(4, minmax(0, 1fr)); padding-top: 30px; border-top: 1px solid var(--line); }
+.wx-d-name { font-size: 17px; color: var(--muted); }
+.wx-d-temp { font-size: 27px; font-weight: 600; }
 .wx-d-min { font-size: 16px; color: var(--muted); margin-top: -2px; }
-/* A dry day: the forecast has the column to itself, so it can be read from further away. */
-.wx-side.dry { justify-content: center; gap: 30px; }
-.wx-side.dry .wx-days { padding-top: 30px; }
-.wx-side.dry .wx-icon { width: 40px; height: 40px; }
-.wx-side.dry .wx-h-temp, .wx-side.dry .wx-d-temp { font-size: 27px; }
-.wx-side.dry .wx-h-time, .wx-side.dry .wx-d-name { font-size: 17px; }
 
 /* What to wear: pictures first, one word each. */
 .wx-wear { margin-top: 18px; }
@@ -470,8 +464,26 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 .wx-also { margin: 10px 0 0 2px; font-size: 15px; color: var(--muted); }
 .wx-later { margin: 12px 0 0 2px; font-size: 17px; line-height: 1.45; color: #CBD5E1; max-width: 42ch; }
 
-/* Rain radar, with pollen and air beneath it in the pollen season. */
-.wx-side { display: flex; flex-direction: column; gap: 18px; align-self: stretch; min-height: 0; }
+.wx-side { display: flex; flex-direction: column; justify-content: center; gap: 30px; align-self: stretch; min-height: 0; }
+
+/* Rain map: the radar fills most of the screen, the outlook and the next hours beside it. */
+.screen-rain {
+  --ink: #F1F5F9; --muted: #94A3B8; --line: rgba(148, 163, 184, 0.16);
+  background: #0F172A; color: var(--ink);
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr); gap: 32px;
+}
+.rain-map { align-self: stretch; }
+.rain-panel { display: flex; flex-direction: column; justify-content: center; gap: 26px; min-width: 0; }
+.rain-panel h2 { margin: 0; font: 700 34px/1.12 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.015em; }
+.rain-hours { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.rain-hours li { display: grid; grid-template-columns: 56px minmax(0, 1fr) 48px; align-items: center; gap: 12px; font-variant-numeric: tabular-nums; }
+.rain-time { font-size: 17px; color: var(--muted); }
+.rain-pct { font-size: 17px; text-align: right; color: var(--muted); }
+.rain-hours li.wet .rain-pct { color: #7DD3FC; font-weight: 600; }
+.rain-bar { height: 10px; border-radius: 5px; background: rgba(148, 163, 184, 0.16); overflow: hidden; }
+.rain-bar::before { content: ""; display: block; height: 100%; width: var(--p); border-radius: 5px; background: #7DD3FC; }
+
+/* The radar box, used by the rain map. */
 .wx-radar { position: relative; flex: 1; min-height: 0; border-radius: 18px; overflow: hidden; background: #0B1220; box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16); }
 .rr-layer { position: absolute; left: 0; top: 0; }
 .rr-layer img { position: absolute; width: 256px; height: 256px; max-width: none; }
@@ -528,9 +540,7 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
   .wx-temp { font-size: 64px; }
   .wx-cond { font-size: 16px; margin-top: 4px; }
   .wx-range { font-size: 13px; }
-  .wx-hours .wx-icon { width: 22px; height: 22px; }
   .wx-h-time { font-size: 12px; }
-  .wx-h-temp { font-size: 15px; }
   .wx-rain { font-size: 11px; }
   .wx-days { display: none; }
   .wx-wear { margin-top: 10px; }
@@ -538,12 +548,18 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
   .wx-kit li { padding: 6px 2px; font-size: 11px; gap: 3px; border-radius: 9px; }
   .wx-wear-icon { width: 24px; height: 24px; }
   .wx-also { font-size: 11px; margin-top: 4px; }
-  .wx-side.dry .wx-icon { width: 26px; height: 26px; }
-  .wx-side.dry .wx-h-temp { font-size: 17px; }
+  .wx-side .wx-icon { width: 26px; height: 26px; }
+  .wx-h-temp { font-size: 17px; }
   .wx-later { font-size: 12px; margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .wx-side { gap: 8px; }
   .wx-radar { border-radius: 14px; }
   .rr-time { font-size: 12px; left: 8px; top: 6px; }
+  .screen-rain { grid-template-columns: minmax(0, 1fr) 200px; gap: 16px; }
+  .rain-panel { gap: 12px; }
+  .rain-panel h2 { font-size: 20px; }
+  .rain-hours { gap: 6px; }
+  .rain-hours li { grid-template-columns: 42px minmax(0, 1fr) 36px; gap: 8px; }
+  .rain-time, .rain-pct { font-size: 12px; }
   .wx-chip { padding: 5px 10px; font-size: 12px; gap: 6px; }
 
   /* Radar: a narrower panel with the three nearest */

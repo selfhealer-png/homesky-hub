@@ -24,6 +24,8 @@ export interface HubConfig {
   wikiPictures: boolean;
   /** Screens switched off in /setup; they never join the rotation. */
   screensOff: ScreenId[];
+  /** Every screen, in the order they rotate (screenOrder() of the saved order). */
+  order: ScreenId[];
   features: { agenda: boolean; photos: boolean; trending: boolean };
 }
 

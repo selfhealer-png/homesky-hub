@@ -13,11 +13,13 @@ import { clockScreen } from './screens/clock';
 import { homeScreen } from './screens/home';
 import { photosScreen } from './screens/photos';
 import { radarScreen } from './screens/radar';
+import { rainScreen } from './screens/rain';
 import { tonightScreen } from './screens/tonight';
 import { weatherScreen } from './screens/weather';
 import { wikiScreen } from './screens/wiki';
 
-const ALL_SCREENS: Screen[] = [homeScreen, weatherScreen, boardScreen, radarScreen, airportScreen, tonightScreen, clockScreen, photosScreen, wikiScreen];
+/** In the default order (SCREEN_IDS); the saved order in config.order rearranges them. */
+const ALL_SCREENS: Screen[] = [homeScreen, weatherScreen, rainScreen, boardScreen, radarScreen, airportScreen, tonightScreen, clockScreen, photosScreen, wikiScreen];
 /** The screens in rotation: those with something to show (no photo frame until there are photos). */
 let screens: Screen[] = ALL_SCREENS;
 const CONFIG_REFRESH_MS = 5 * 60_000;
@@ -210,7 +212,7 @@ async function refreshConfig() {
   try {
     const fresh = await getJson<HubConfig>('/api/config');
     const clockChanged = fresh.clock !== config.clock;
-    const rotationChanged = JSON.stringify([fresh.features, fresh.airports, fresh.screensOff]) !== JSON.stringify([config.features, config.airports, config.screensOff]);
+    const rotationChanged = JSON.stringify([fresh.features, fresh.airports, fresh.screensOff, fresh.order]) !== JSON.stringify([config.features, config.airports, config.screensOff, config.order]);
     Object.assign(config, fresh);
     setMotionLevel(config.motion);
     updateNight();

@@ -57,7 +57,7 @@ export function placesPage() {
   });
 
   return [
-    pageHead('Places', 'Weather, Overhead, Flight radar and Tonight all use this location. On the display, tap the middle of the radar to step through your places.'),
+    pageHead('Places', 'Weather, the rain map, Overhead, Flight radar and Tonight all use this location. On the display, tap the middle of the radar to step through your places.'),
     card('Centre on', list),
     card('Add a place', form, results, h('div', { class: 'buttons' }, here),
       h('p', { class: 'hint' }, 'Places are rounded to about 1 km. That’s plenty for a radar, and your exact address is never stored.')),

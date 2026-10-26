@@ -8,16 +8,27 @@ import { calendarChoices, calendarCount } from './accounts';
 import { PHOTO_LABELS, photoCount, photoSections } from './photos';
 import { airportCards, airportCodes, locationRow, MAP_LABELS, mapCard, rangeCard } from './sky';
 import { displaySettings, isScreenOn, km, placeName, saveDisplay, setScreenOn, skySettings, state } from './store';
-import { card, choiceList, copyRow, h, iosSwitch, pageHead, quietly, row, segmented, tile } from './ui';
+import { screenOrder } from '../../shared/rotation';
+import { busy, card, choiceList, copyRow, h, iosSwitch, pageHead, quietly, row, segmented, svg, tile } from './ui';
 
 // Every screen the hub can show, with its row on the Settings list and its own page, and the
 // hub-wide pages (Night, Motion, This hub).
 
 interface Summary { text: string; needs?: boolean }
 
+/** How the Settings list groups the screens, in this order. */
+export const CATEGORIES = [
+  ['everyday', 'Everyday'],
+  ['weather', 'Weather and sky'],
+  ['flights', 'Flights'],
+  ['pictures', 'Pictures and reading'],
+] as const;
+type Category = typeof CATEGORIES[number][0];
+
 export interface ScreenDef {
   id: ScreenId;
   name: string;
+  category: Category;
   /** What it shows, under the title on its page. */
   lede: string;
   icon: string;
@@ -34,7 +45,7 @@ const WARMTH_LABELS: Record<Warmth, string> = { cold: 'I run cold', normal: 'Typ
 
 export const SCREENS: ScreenDef[] = [
   {
-    id: 'home', name: 'Home', color: '#2563FF', quiet: true,
+    id: 'home', name: 'Home', category: 'everyday', color: '#2563FF', quiet: true,
     lede: 'Today’s calendar and tasks, readable across the room.',
     icon: '<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>',
     summary: () => {
@@ -45,8 +56,8 @@ export const SCREENS: ScreenDef[] = [
     body: () => calendarChoices(),
   },
   {
-    id: 'weather', name: 'Weather', color: '#0EA5E9',
-    lede: 'Now and the next hours, with what to wear.',
+    id: 'weather', name: 'Weather', category: 'weather', color: '#0EA5E9',
+    lede: 'Now, the next hours and days, and what to wear.',
     icon: '<path d="M8.5 3.5v1.6M3.5 8.5h1.6M5 5l1.1 1.1M12.4 5.1 11.3 6.2"/><path d="M5.6 11.3a3.4 3.4 0 0 1 6.2-2.3"/><path d="M9.5 20h8a3.6 3.6 0 0 0 .5-7.15 5.2 5.2 0 0 0-9.9-1A3.7 3.7 0 0 0 9.5 20Z"/>',
     summary: () => ({ text: `${placeName()} · ${WARMTH_LABELS[displaySettings().warmth ?? 'normal']}` }),
     body: () => {
@@ -61,21 +72,28 @@ export const SCREENS: ScreenDef[] = [
     },
   },
   {
-    id: 'board', name: 'Overhead', color: '#7C3AED',
+    id: 'rain', name: 'Rain map', category: 'weather', color: '#0284C7',
+    lede: 'The last hour of rain radar around your place, with the chance of rain hour by hour.',
+    icon: '<path d="M7 15.5h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.2 7.1 4.2 4.2 0 0 0 7 15.5Z"/><path d="M8.5 18.5 7.5 21M12.5 18.5l-1 2.5M16.5 18.5l-1 2.5"/>',
+    summary: () => ({ text: placeName() }),
+    body: () => [locationRow(), card(null, h('p', { class: 'hint' }, 'The map is about 300 km across, so it shows the rain that’s on its way. Radar: RainViewer; map: OpenStreetMap.'))],
+  },
+  {
+    id: 'board', name: 'Overhead', category: 'flights', color: '#7C3AED',
     lede: 'A split-flap board of the planes passing over right now.',
     icon: '<path d="M21 15.5v-2l-8-5V4a1.5 1.5 0 0 0-3 0v4.5l-8 5v2l8-2.5V18l-2 1.5V21l3.5-1 3.5 1v-1.5L13 18v-5Z"/>',
     summary: () => ({ text: `${placeName()} · ${km(skySettings().radiusNm)}` }),
     body: () => [locationRow(), rangeCard('Flight radar')],
   },
   {
-    id: 'radar', name: 'Flight radar', color: '#2e9d6e',
+    id: 'radar', name: 'Flight radar', category: 'flights', color: '#2e9d6e',
     lede: 'Live aircraft on a radar sweep around your place.',
     icon: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="m12 12 5.5-5.5"/>',
     summary: () => ({ text: `${placeName()} · ${km(skySettings().radiusNm)} · ${MAP_LABELS[skySettings().map ?? DEFAULT_RADAR_MAP]}` }),
     body: () => [locationRow(), rangeCard('Overhead'), mapCard()],
   },
   {
-    id: 'airport', name: 'Airport boards', color: '#F59E0B',
+    id: 'airport', name: 'Airport boards', category: 'flights', color: '#F59E0B',
     lede: 'Arrivals and departures boards for airports you choose.',
     icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h4M7 14h4M14 10h3M14 14h3"/>',
     summary: () => {
@@ -85,14 +103,14 @@ export const SCREENS: ScreenDef[] = [
     body: () => airportCards(),
   },
   {
-    id: 'tonight', name: 'Tonight', color: '#4F46E5', quiet: true,
+    id: 'tonight', name: 'Tonight', category: 'weather', color: '#4F46E5', quiet: true,
     lede: 'The night sky: the moon, planets and what’s worth looking up for.',
     icon: '<path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10Z"/>',
     summary: () => ({ text: placeName() }),
     body: () => [locationRow()],
   },
   {
-    id: 'clock', name: 'Clock', color: '#64748B', quiet: true,
+    id: 'clock', name: 'Clock', category: 'everyday', color: '#64748B', quiet: true,
     lede: 'A big clock. It’s also what the display falls back to if every screen is off.',
     icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     summary: () => ({ text: CLOCK_LABELS[displaySettings().clock][0] }),
@@ -109,7 +127,7 @@ export const SCREENS: ScreenDef[] = [
     },
   },
   {
-    id: 'photos', name: 'Photos', color: '#E11D48',
+    id: 'photos', name: 'Photos', category: 'pictures', color: '#E11D48',
     lede: 'A photo frame of pictures you pick from Google Photos.',
     icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/>',
     summary: () => {
@@ -122,7 +140,7 @@ export const SCREENS: ScreenDef[] = [
     body: () => photoSections(),
   },
   {
-    id: 'wiki', name: 'Wikipedia', color: '#475569',
+    id: 'wiki', name: 'Wikipedia', category: 'pictures', color: '#475569',
     lede: 'Wikipedia’s featured article of the day.',
     icon: '<path d="M4 5h5a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H4Z"/><path d="M20 5h-5a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h6Z"/>',
     summary: () => ({ text: (displaySettings().wikiPictures ?? true) ? 'With its picture' : 'Words only' }),
@@ -164,6 +182,48 @@ export function screenPage(s: ScreenDef) {
     row({ title: 'Show on the hub', summary: !on ? 'Off: left out of the rotation' : sum.needs ? sum.text : 'In the rotation', needs: on && sum.needs, control: screenSwitch(s) }),
     quietNote ? h('p', { class: 'hint' }, quietNote, ' ', h('a', { href: '#/night' }, 'Night settings')) : null);
   return [pageHead(s.name, s.lede), head, ...s.body()];
+}
+
+// ── screen order ────────────────────────────────────────────────────────────
+
+const byId = (id: ScreenId) => SCREENS.find(s => s.id === id)!;
+export const currentOrder = () => screenOrder(displaySettings().order).filter(id => SCREENS.some(s => s.id === id));
+
+export function orderSummary() {
+  const on = currentOrder().filter(isScreenOn).map(id => byId(id).name);
+  return on.length > 3 ? `${on.slice(0, 3).join(', ')}…` : on.join(', ') || 'Every screen is off';
+}
+
+export function orderPage() {
+  const d = displaySettings();
+  const order = currentOrder();
+  const save = (next: ScreenId[]) => saveDisplay({ ...d, order: next }, 'Order saved. The display picks this up within five minutes.');
+  const move = (from: number, to: number) => {
+    const next = [...order];
+    next.splice(to, 0, ...next.splice(from, 1));
+    return save(next);
+  };
+  const button = (label: string, path: string, action: () => Promise<void>) => {
+    const b = h('button', { type: 'button', class: 'ghost small icon', 'aria-label': label }, svg(path, 16));
+    b.addEventListener('click', () => busy(b, action));
+    return b;
+  };
+  const rows = order.map((id, i) => {
+    const s = byId(id);
+    return row({
+      icon: tile(s.icon, s.color), title: s.name, summary: isScreenOn(id) ? undefined : 'Off',
+      control: h('span', { class: 'actions' },
+        i > 0 ? button(`Move ${s.name} up`, '<path d="m6 15 6-6 6 6"/>', () => move(i, i - 1)) : h('span', { class: 'spacer' }),
+        i < order.length - 1 ? button(`Move ${s.name} down`, '<path d="m6 9 6 6 6-6"/>', () => move(i, i + 1)) : h('span', { class: 'spacer' })),
+    });
+  });
+  const reset = h('button', { type: 'button', class: 'ghost' }, 'Back to the usual order');
+  reset.addEventListener('click', () => busy(reset, () => save(screenOrder())));
+  return [
+    pageHead('Screen order', 'The order the display goes through its screens. Screens that are off keep their place for when they’re back on.'),
+    h('div', { class: 'rows' }, ...rows),
+    h('div', { class: 'buttons' }, reset),
+  ];
 }
 
 // ── hub pages ───────────────────────────────────────────────────────────────

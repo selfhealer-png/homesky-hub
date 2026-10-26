@@ -86,10 +86,14 @@ export interface DisplaySettings {
   wikiPictures?: boolean;
   /** Screens the person switched off. A list of what's off, so a screen added later starts on. */
   screensOff?: ScreenId[];
+  /** The order screens rotate in, as the person arranged it. Screens missing from it (added in a
+   *  later release) slot in after the screen they follow by default. */
+  order?: ScreenId[];
 }
 
-export type ScreenId = 'home' | 'weather' | 'board' | 'radar' | 'airport' | 'tonight' | 'clock' | 'photos' | 'wiki';
-export const SCREEN_IDS: ScreenId[] = ['home', 'weather', 'board', 'radar', 'airport', 'tonight', 'clock', 'photos', 'wiki'];
+export type ScreenId = 'home' | 'weather' | 'rain' | 'board' | 'radar' | 'airport' | 'tonight' | 'clock' | 'photos' | 'wiki';
+/** Every screen, in the default rotation order. */
+export const SCREEN_IDS: ScreenId[] = ['home', 'weather', 'rain', 'board', 'radar', 'airport', 'tonight', 'clock', 'photos', 'wiki'];
 
 export type PhotoStyle = 'fill' | 'framed' | 'instant' | 'float';
 export const PHOTO_STYLES: PhotoStyle[] = ['fill', 'framed', 'instant', 'float'];

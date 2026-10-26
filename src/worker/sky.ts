@@ -1,4 +1,5 @@
 import { DEFAULT_DISPLAY, DEFAULT_NIGHT, DEFAULT_RADAR_MAP } from '../shared/settings';
+import { screenOrder } from '../shared/rotation';
 import type { HubConfig, BoardTheme } from '../shared/types';
 import type { Env } from './env';
 import { listPhotos } from './photos';
@@ -70,6 +71,7 @@ export async function hubConfig(env: Env, request?: Request): Promise<HubConfig>
     night: settings.display?.night ?? DEFAULT_NIGHT,
     wikiPictures: settings.display?.wikiPictures ?? true,
     screensOff: settings.display?.screensOff ?? [],
+    order: screenOrder(settings.display?.order),
     features: { agenda: !!env.AGENDA_FEED_URL || settings.connections.some(c => c.enabled), photos: (await listPhotos(env)).length > 0, trending: false },
   };
 }

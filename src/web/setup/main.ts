@@ -1,7 +1,7 @@
 import './setup.css';
 import type { AdminState } from '../../shared/settings';
 import { accountsPage, googleConnection } from './accounts';
-import { aboutPage, hubProblems, motionPage, MOTION_LABELS, nightPage, nightSummary, SCREENS, screenPage, screenRow } from './pages';
+import { aboutPage, CATEGORIES, hubProblems, motionPage, MOTION_LABELS, nightPage, nightSummary, orderPage, orderSummary, SCREENS, screenPage, screenRow } from './pages';
 import { placesPage } from './sky';
 import { displaySettings, onRender, placeName, setState, state } from './store';
 import { api, busy, field, group, h, HttpError, input, row, tile, toast } from './ui';
@@ -66,6 +66,7 @@ function page(route: string): Node[] {
     if (def) return screenPage(def);
   }
   switch (route) {
+    case '#/order': return orderPage();
     case '#/places': return placesPage();
     case '#/accounts': return accountsPage();
     case '#/night': return nightPage();
@@ -91,6 +92,7 @@ window.addEventListener('hashchange', () => {
 // ── the list ────────────────────────────────────────────────────────────────
 
 const HUB_ICONS = {
+  order: '<path d="M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4"/>',
   places: '<path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/>',
   accounts: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',
   night: '<path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10Z"/><path d="M17 4v3M15.5 5.5h3"/>',
@@ -116,7 +118,11 @@ function listPage() {
   const neutral = '#64748B';
   return [
     h('h2', { class: 'listtitle', tabindex: '-1' }, 'Settings'),
-    group('Screens', SCREENS.map(screenRow), 'Switched-off screens leave the display’s rotation within five minutes. A screen with nothing to show yet stays out until it has.'),
+    ...CATEGORIES.map(([id, title], i) => group(title, SCREENS.filter(s => s.category === id).map(screenRow),
+      i === CATEGORIES.length - 1 ? 'Switched-off screens leave the display’s rotation within five minutes. A screen with nothing to show yet stays out until it has.' : undefined)),
+    group('Rotation', [
+      row({ icon: tile(HUB_ICONS.order, neutral), title: 'Screen order', summary: orderSummary(), href: '#/order' }),
+    ]),
     group('Hub', [
       row({ icon: tile(HUB_ICONS.places, '#0EA5E9'), title: 'Places', summary: placeName(), href: '#/places' }),
       row({ icon: tile(HUB_ICONS.accounts, '#2563FF'), title: 'Accounts', summary: accountsSummary(), href: '#/accounts' }),
