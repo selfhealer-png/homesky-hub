@@ -21,8 +21,11 @@ export async function showWelcome(root: HTMLElement, onReady: () => void) {
   submit.type = 'submit';
   const error = h('p', 'wel-error');
   error.setAttribute('role', 'alert');
+  // A hidden username lets password managers save and fill the admin password.
+  const user = h('input');
+  Object.assign(user, { type: 'text', name: 'username', autocomplete: 'username', value: 'admin', hidden: true });
   const form = h('form', 'wel-form');
-  form.append(label, password, error, submit);
+  form.append(user, label, password, error, submit);
 
   const card = h('section', 'wel-card');
   if (isAppleTouch() && !isHomeScreenApp()) {

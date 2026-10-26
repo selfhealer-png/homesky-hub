@@ -6,7 +6,8 @@ import { json, type Env } from './env';
 // form cannot send.
 
 const COOKIE = 'hub_admin';
-const SESSION_HOURS = 12;
+// As long as a display stays paired: Safari keeps a cookie at most 400 days.
+const SESSION_HOURS = 400 * 24;
 const MAX_FAILURES = 10; // per IP per 15 minutes
 
 export async function hmac(env: Env, message: string): Promise<string> {
