@@ -10,6 +10,8 @@ export interface TileSource {
   url: (z: number, x: number, y: number) => string;
   maxZoom: number;
   credit: string;
+  /** The tiles have names drawn in, so they must be shown near their natural size to be readable. */
+  text?: boolean;
 }
 
 export const TILE_SOURCES: Record<Exclude<RadarMap, 'plain'>, TileSource> = {
@@ -17,6 +19,7 @@ export const TILE_SOURCES: Record<Exclude<RadarMap, 'plain'>, TileSource> = {
     url: (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
     maxZoom: 18,
     credit: '© OpenStreetMap',
+    text: true,
   },
   satellite: {
     url: (z, x, y) => `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/${z}/${y}/${x}.jpg`,
@@ -41,8 +44,10 @@ export function worldPixel(lat: number, lon: number, zoom: number) {
 export function tileDisc(source: TileSource, lat: number, lon: number, r: number, pxPerNm: number): HTMLElement {
   // At zoom z a degree of longitude is 256·2^z/360 px; a nautical mile east is 1/(60·cos φ) of a degree.
   const zoom = Math.log2((pxPerNm * 360 * 60 * Math.cos((lat * Math.PI) / 180)) / TILE);
-  // Fetch one level sharper on high-density screens, then scale tiles to fit exactly.
-  const z = Math.max(1, Math.min(source.maxZoom, Math.ceil(zoom) + (window.devicePixelRatio >= 2 ? 1 : 0)));
+  // Photos: fetch a sharper level and scale it down to fit. Maps with names drawn in: pick the
+  // level that shows them at 85–170% of their natural size, or the text shrinks to unreadable.
+  const level = source.text ? Math.floor(zoom + 0.25) : Math.ceil(zoom) + (window.devicePixelRatio >= 2 ? 1 : 0);
+  const z = Math.max(1, Math.min(source.maxZoom, level));
   const k = 2 ** (zoom - z);
   const size = TILE * k;
   const centre = worldPixel(lat, lon, z);
