@@ -1,6 +1,7 @@
 import './styles.css';
 import type { HubConfig } from '../shared/types';
 import { getJson, NotPairedError } from './api';
+import { pickRotation } from '../shared/rotation';
 import { flash, setCaption, type Screen } from './screen';
 import { setMotionLevel } from './motion';
 import { currentNight, startNight, updateNight } from './night';
@@ -72,9 +73,8 @@ function setPinned(value: boolean) {
 
 function buildRotation() {
   const current = screens[index];
-  // In quiet hours only the calm screens stay, plus a screen someone has pinned.
-  const quiet = currentNight() === 'quiet';
-  screens = ALL_SCREENS.filter(s => (s.isAvailable?.(config) ?? true) && (!quiet || s.quiet || (pinned && s === current)));
+  // Switched-off screens leave; in quiet hours only the calm ones stay, plus a screen someone has pinned.
+  screens = pickRotation(ALL_SCREENS, config, currentNight() === 'quiet', pinned ? current : undefined);
   index = Math.max(0, screens.indexOf(current));
   dots.replaceChildren();
   screens.forEach((s, n) => {
@@ -167,7 +167,8 @@ function openMenu() {
   menu.append(
     title,
     item(pinned ? 'Carry on rotating' : 'Stay on this screen', () => setPinned(!pinned), true),
-    item('Settings', () => { location.href = '/setup'; }),
+    // Straight to this screen's own settings page; Back there leads to the rest.
+    item('Settings', () => { location.href = `/setup#/screens/${screens[index].id}`; }),
     item('Close', () => {}),
   );
   scrim.append(menu);
@@ -209,7 +210,7 @@ async function refreshConfig() {
   try {
     const fresh = await getJson<HubConfig>('/api/config');
     const clockChanged = fresh.clock !== config.clock;
-    const rotationChanged = JSON.stringify([fresh.features, fresh.airports]) !== JSON.stringify([config.features, config.airports]);
+    const rotationChanged = JSON.stringify([fresh.features, fresh.airports, fresh.screensOff]) !== JSON.stringify([config.features, config.airports, config.screensOff]);
     Object.assign(config, fresh);
     setMotionLevel(config.motion);
     updateNight();

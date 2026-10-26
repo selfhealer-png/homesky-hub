@@ -84,7 +84,12 @@ export interface DisplaySettings {
   night?: NightSettings;
   /** Show the featured article's picture. Off: words only, for a display children see unsupervised. */
   wikiPictures?: boolean;
+  /** Screens the person switched off. A list of what's off, so a screen added later starts on. */
+  screensOff?: ScreenId[];
 }
+
+export type ScreenId = 'home' | 'weather' | 'board' | 'radar' | 'airport' | 'tonight' | 'clock' | 'photos' | 'wiki';
+export const SCREEN_IDS: ScreenId[] = ['home', 'weather', 'board', 'radar', 'airport', 'tonight', 'clock', 'photos', 'wiki'];
 
 export type PhotoStyle = 'fill' | 'framed' | 'instant' | 'float';
 export const PHOTO_STYLES: PhotoStyle[] = ['fill', 'framed', 'instant', 'float'];

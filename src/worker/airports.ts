@@ -25,7 +25,7 @@ export async function handleAirportBoard(env: Env, url: URL): Promise<Response> 
   const code = (url.searchParams.get('code') ?? '').toUpperCase();
   const airport = (await loadSettings(env)).sky?.airports?.find(a => a.icao === code);
   // Only airports chosen in /setup, so the board can't be used to query anywhere at all.
-  if (!airport) return json({ error: 'That airport isn’t set up. Add it in /setup › Sky.' }, { status: 404 });
+  if (!airport) return json({ error: 'That airport isn’t set up. Add it in /setup › Airport boards.' }, { status: 404 });
   try {
     return json(await cached(env, `airport:v1:${airport.icao}`, BOARD_SECONDS, () => buildBoard(env, airport)));
   } catch (err) {

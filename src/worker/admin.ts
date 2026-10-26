@@ -1,6 +1,6 @@
 import {
   CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_NIGHT, MAX_AIRPORTS, MOTION_LEVELS, NIGHT_MODES, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
-  isClockTime, type ClockStyle, type GoogleWants, type MotionLevel, type NightSettings,
+  SCREEN_IDS, isClockTime, type ClockStyle, type GoogleWants, type ScreenId, type MotionLevel, type NightSettings,
   type AdminState, type Place, type SavedAirport, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
 import { handleLogin, handleLogout, hmac, isAdmin, passesCsrfCheck, safeEqual } from './adminAuth';
@@ -225,7 +225,7 @@ async function googleStart(env: Env, url: URL, b: Record<string, unknown>) {
 }
 
 async function googleCallback(env: Env, url: URL): Promise<Response> {
-  const back = (params: string) => Response.redirect(`${url.origin}/setup?${params}#calendars`, 302);
+  const back = (params: string) => Response.redirect(`${url.origin}/setup?${params}#/accounts`, 302);
   const [expiry, nonce, sig] = (url.searchParams.get('state') ?? '').split('.');
   if (!expiry || !nonce || !sig || Number(expiry) < Date.now() || !safeEqual(sig, await hmac(env, `google-state:${expiry}.${nonce}`))) {
     return back('google=expired');
@@ -359,5 +359,8 @@ async function saveDisplay(env: Env, b: Record<string, unknown>) {
     to: isClockTime(n.to) ? n.to : s.to,
   };
   const wikiPictures = (s: boolean | undefined) => typeof b.wikiPictures === 'boolean' ? b.wikiPictures : s;
-  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle, night: night(s.display?.night), wikiPictures: wikiPictures(s.display?.wikiPictures) } }));
+  // Like night, left as it was when not sent. Unknown ids are dropped, duplicates collapse.
+  if (b.screensOff !== undefined && !Array.isArray(b.screensOff)) throw new BadRequest('screensOff must be a list of screens.');
+  const screensOff = (s: ScreenId[] | undefined) => b.screensOff === undefined ? s : SCREEN_IDS.filter(id => (b.screensOff as unknown[]).includes(id));
+  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle, night: night(s.display?.night), wikiPictures: wikiPictures(s.display?.wikiPictures), screensOff: screensOff(s.display?.screensOff) } }));
 }

@@ -1,102 +1,17 @@
 import './setup.css';
-import { CLOCK_LABELS, clockPreview } from '../clockPreview';
-import {
-  CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, DEFAULT_NIGHT, DEFAULT_RADAR_MAP, MAX_AIRPORTS, MOTION_LEVELS, NIGHT_MODES, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS,
-  type DisplaySettings, type MotionLevel, type NightMode, type RadarMap,
-  googleGranted, type GooglePart, type GoogleWants,
-  type AdminState, type PhotoInfo, type PickStatus, type Place, type SavedAirport, type SkySettings, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
-} from '../../shared/settings';
+import type { AdminState } from '../../shared/settings';
+import { accountsPage, googleConnection } from './accounts';
+import { aboutPage, hubProblems, motionPage, MOTION_LABELS, nightPage, nightSummary, SCREENS, screenPage, screenRow } from './pages';
+import { placesPage } from './sky';
+import { displaySettings, onRender, placeName, setState, state } from './store';
+import { api, busy, field, group, h, HttpError, input, row, tile, toast } from './ui';
 
-// The admin setup page. Every value from the server is rendered with textContent (via h()),
-// never innerHTML, so a calendar name can't inject markup.
+// The admin setup page, laid out like a phone's Settings app: a list of the hub's screens (each
+// with an on/off switch and its own page), then the hub-wide settings. Pages are hash routes
+// (#/screens/radar, #/places…) so Back works and a page can be linked to.
 
 const app = document.getElementById('app')!;
 const logoutBtn = document.getElementById('logout') as HTMLButtonElement;
-const toastEl = document.getElementById('toast')!;
-
-let state: AdminState;
-let openPanel: 'ics' | 'feed' | 'google' | null = null;
-
-// ── helpers ─────────────────────────────────────────────────────────────────
-
-function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string | boolean | undefined> = {}, ...children: Array<Node | string | null | undefined | false>): HTMLElementTagNameMap[K] {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v === undefined || v === false) continue;
-    if (k === 'class') el.className = String(v);
-    else if (v === true) el.setAttribute(k, '');
-    else el.setAttribute(k, v);
-  }
-  for (const c of children) if (c !== null && c !== undefined && c !== false) el.append(c);
-  return el;
-}
-
-class HttpError extends Error { constructor(public status: number, message: string) { super(message); } }
-
-async function api<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method: body === undefined ? 'GET' : 'POST',
-    credentials: 'same-origin',
-    headers: body === undefined ? {} : { 'content-type': 'application/json', 'x-hub-admin': '1' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new HttpError(res.status, (data as { error?: string }).error ?? `Request failed (${res.status}).`);
-  return data as T;
-}
-
-let toastTimer: number | undefined;
-function toast(message: string, kind: 'ok' | 'error' = 'ok') {
-  toastEl.textContent = message;
-  toastEl.className = kind;
-  toastEl.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => (toastEl.hidden = true), 4000);
-}
-
-/** Runs an action with the button disabled; shows any error as a toast. */
-async function busy(btn: HTMLButtonElement, fn: () => Promise<void>) {
-  const label = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Working…';
-  try { await fn(); } catch (err) { toast((err as Error).message, 'error'); } finally { btn.disabled = false; btn.textContent = label; }
-}
-
-function field(label: string, input: HTMLInputElement, hint?: string) {
-  return h('label', { class: 'field' }, h('span', {}, label), input, hint ? h('small', {}, hint) : null);
-}
-
-function input(attrs: Record<string, string>) {
-  return h('input', { autocomplete: 'off', spellcheck: 'false', ...attrs });
-}
-
-function swatches(name: string, selected: string) {
-  const box = h('div', { class: 'swatches', role: 'radiogroup', 'aria-label': 'Colour' });
-  for (const c of CALENDAR_COLORS) {
-    const radio = h('input', { type: 'radio', name, value: c, checked: c.toLowerCase() === selected.toLowerCase(), 'aria-label': c });
-    const lab = h('label', { class: 'swatch' }, radio, h('span', {}));
-    lab.style.setProperty('--c', c);
-    box.append(lab);
-  }
-  return { el: box, value: () => (box.querySelector('input:checked') as HTMLInputElement | null)?.value ?? CALENDAR_COLORS[0] };
-}
-
-function copyRow(value: string, label = 'Copy') {
-  const btn = h('button', { class: 'ghost small', type: 'button' }, label);
-  btn.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(value); toast('Copied.'); } catch { toast('Could not copy. Select the text instead.', 'error'); }
-  });
-  return h('div', { class: 'copyrow' }, h('code', {}, value), btn);
-}
-
-function testResult(r: ConnectionTest) {
-  if (!r.ok) return h('p', { class: 'result bad' }, `✕ ${r.error ?? 'Could not read it.'}`);
-  if (!r.events && !r.tasks) return h('p', { class: 'result good' }, '✓ The calendar works, but has nothing in the next three weeks.');
-  const counts = [`${r.events} event${r.events === 1 ? '' : 's'}`];
-  if (r.tasks) counts.push(`${r.tasks} task${r.tasks === 1 ? '' : 's'}`);
-  return h('p', { class: 'result good' }, `✓ Read ${counts.join(' and ')} in the next three weeks.`,
-    r.upcoming.length ? h('span', { class: 'upcoming' }, ` Next: ${r.upcoming.join(' · ')}`) : null);
-}
 
 // ── login ───────────────────────────────────────────────────────────────────
 
@@ -124,836 +39,92 @@ function renderLogin(message?: string) {
   pw.focus();
 }
 
-// ── main view ───────────────────────────────────────────────────────────────
-
 async function load() {
   try {
-    state = await api<AdminState>('/api/admin/state');
+    setState(await api<AdminState>('/api/admin/state'));
   } catch (err) {
     if (err instanceof HttpError && err.status === 401) return renderLogin();
     app.replaceChildren(h('div', { class: 'card' }, h('p', { class: 'result bad' }, (err as Error).message)));
     return;
   }
   logoutBtn.hidden = false;
+  onRender(render);
   render();
 }
 
-function setSettings(s: Settings) {
-  state.settings = s;
-  render();
+// ── routes ──────────────────────────────────────────────────────────────────
+
+/** Links from before the pages existed (the Google sign-in used to come back to #calendars). */
+const OLD_ANCHORS: Record<string, string> = {
+  '#calendars': '#/accounts', '#google': '#/accounts', '#sky': '#/places', '#photos': '#/screens/photos', '#display': '#/', '#status': '#/about',
+};
+
+function page(route: string): Node[] {
+  const screen = /^#\/screens\/(\w+)$/.exec(route);
+  if (screen) {
+    const def = SCREENS.find(s => s.id === screen[1]);
+    if (def) return screenPage(def);
+  }
+  switch (route) {
+    case '#/places': return placesPage();
+    case '#/accounts': return accountsPage();
+    case '#/night': return nightPage();
+    case '#/motion': return motionPage();
+    case '#/about': return aboutPage();
+    default: return listPage();
+  }
 }
 
 function render() {
-  app.replaceChildren(statusCard(), displayCard(), calendarsCard(), photosCard(), skyCard(), laterCard());
-  if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
+  if (!state) return;
+  app.replaceChildren(...page(location.hash));
 }
 
-function statusCard() {
-  const s = state.status;
-  const item = (ok: boolean, title: string, detail: Node | string) =>
-    h('li', { class: ok ? 'ok' : 'todo' }, h('span', { class: 'mark', 'aria-hidden': 'true' }, ok ? '✓' : '!'), h('div', {}, h('b', {}, title), h('div', { class: 'detail' }, detail)));
-  return h('section', { class: 'card', id: 'status' },
-    h('h2', {}, 'This hub'),
-    h('ul', { class: 'checklist' },
-      item(s.kv, 'Settings storage', s.kv ? 'KV namespace connected.' : 'No KV namespace bound. Run npm run setup.'),
-      item(!!s.displayPairing, 'Add another screen', s.displayPairing
-        ? h('div', {}, h('p', {}, 'Open the hub’s address on the other device and sign in with the admin password. Or, to let someone use a screen without the admin password, send them this link instead. Anyone with it can view the hub, so treat it like a password.'), copyRow(s.displayPairing, 'Copy link'))
-        : 'DISPLAY_TOKEN is not set. Run npm run setup.'),
-      item(s.photos, 'Photo storage', s.photos ? 'R2 bucket connected, ready for the photo frame.' : 'No R2 bucket yet. Optional: the photo frame needs it.'),
-    ),
-  );
-}
+window.addEventListener('hashchange', () => {
+  if (OLD_ANCHORS[location.hash]) return location.replace(OLD_ANCHORS[location.hash]);
+  render();
+  window.scrollTo(0, 0);
+  // Move focus to the new page's title, so a screen reader announces where it landed.
+  (app.querySelector('h2[tabindex]') as HTMLElement | null)?.focus({ preventScroll: true });
+});
 
-function laterCard() {
-  return h('section', { class: 'card muted-card' },
-    h('h2', {}, 'Coming next'),
-    h('p', { class: 'lede' }, 'Watchlist and alerts, and screen order will be set up here too.'),
-  );
-}
+// ── the list ────────────────────────────────────────────────────────────────
 
-// ── calendars ───────────────────────────────────────────────────────────────
+const HUB_ICONS = {
+  places: '<path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  accounts: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',
+  night: '<path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10Z"/><path d="M17 4v3M15.5 5.5h3"/>',
+  motion: '<path d="M3 12c2.5-5 5.5-5 8 0s5.5 5 8 0"/><path d="M3 18c2.5-3 5.5-3 8 0"/>',
+  about: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+};
 
-function calendarsCard() {
+function accountsSummary() {
   const conns = state.settings.connections;
-  const google = conns.find((c): c is GoogleConnection => c.kind === 'google');
-  const card = h('section', { class: 'card', id: 'calendars' },
-    h('h2', {}, 'Calendars and tasks'),
-    h('p', { class: 'lede' }, 'Everything here is read-only: the hub can show your calendars but never change them.'),
-  );
-  if (state.status.envFeed) card.append(h('p', { class: 'note' }, 'An agenda feed is also set as a deployment variable (AGENDA_FEED_URL). It is shown alongside these.'));
-
-  const list = h('div', { class: 'conns' });
-  conns.filter(c => c.kind !== 'google').forEach(c => list.append(connRow(c as IcsConnection | FeedConnection)));
-  if (google) list.append(googleRow(google));
-  if (!conns.length) list.append(h('p', { class: 'empty' }, 'Nothing connected yet. Add a calendar below.'));
-  card.append(list);
-
-  const choose = (panel: typeof openPanel, label: string, hint: string) => {
-    const b = h('button', { type: 'button', class: `choice${openPanel === panel ? ' on' : ''}`, 'aria-expanded': String(openPanel === panel) }, h('b', {}, label), h('small', {}, hint));
-    b.addEventListener('click', () => {
-      if (panel === 'google' && openPanel !== 'google') googleDraft = null;
-      openPanel = openPanel === panel ? null : panel;
-      render();
-    });
-    return b;
-  };
-  card.append(h('h3', {}, 'Add a calendar'), h('div', { class: 'choices' },
-    choose('ics', 'Calendar link', 'Google, iCloud, Outlook (iCal)'),
-    google ? null : choose('google', 'Google account', 'Google Calendar and Tasks'),
-    choose('feed', 'Agenda feed', 'Your own server (JSON)'),
-  ));
-  if (openPanel === 'ics') card.append(icsForm());
-  if (openPanel === 'feed') card.append(feedForm());
-  if (openPanel === 'google' || google) card.append(googlePanel(google));
-  return card;
+  const google = googleConnection();
+  const links = conns.filter(c => c.kind === 'ics').length;
+  const feeds = conns.filter(c => c.kind === 'feed').length;
+  const parts = [
+    google?.account ? 'Google' : google ? 'Google (not finished)' : '',
+    links ? `${links} calendar link${links === 1 ? '' : 's'}` : '',
+    feeds ? `${feeds} feed${feeds === 1 ? '' : 's'}` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Nothing connected';
 }
 
-function rowShell(color: string | null, title: string, sub: string, conn: Connection) {
-  const row = h('div', { class: 'conn' });
-  if (color) row.style.setProperty('--own', color);
-  const toggle = h('input', { type: 'checkbox', checked: conn.enabled, 'aria-label': `Show ${title}` });
-  toggle.addEventListener('change', async () => {
-    try { setSettings(await api<Settings>('/api/admin/connections/update', { id: conn.id, enabled: toggle.checked })); }
-    catch (err) { toast((err as Error).message, 'error'); toggle.checked = !toggle.checked; }
-  });
-  const result = h('div', { class: 'conn-result' });
-  const test = h('button', { type: 'button', class: 'ghost small' }, 'Test');
-  test.addEventListener('click', () => busy(test, async () => {
-    result.replaceChildren(testResult(await api<ConnectionTest>('/api/admin/connections/test', { id: conn.id })));
-  }));
-  const remove = h('button', { type: 'button', class: 'ghost small danger' }, 'Remove');
-  remove.addEventListener('click', () => {
-    if (!confirm(`Remove ${title}? The hub will stop showing it.`)) return;
-    busy(remove, async () => { setSettings(await api<Settings>('/api/admin/connections/delete', { id: conn.id })); toast('Removed.'); });
-  });
-  const actions = h('div', { class: 'actions' }, h('label', { class: 'switch' }, toggle, h('span', {}, 'Show')), test);
-  row.append(
-    h('span', { class: 'ring', 'aria-hidden': 'true' }),
-    h('div', { class: 'meta' }, h('b', {}, title), h('small', {}, sub)),
-    actions,
-    result,
-  );
-  return { row, actions, remove, result };
-}
-
-function connRow(conn: IcsConnection | FeedConnection) {
-  const { row, actions, remove } = rowShell(conn.kind === 'ics' ? conn.color : null, conn.name,
-    conn.kind === 'ics' ? `Calendar link · ${conn.host}` : `Agenda feed · ${new URL(conn.url).host}${conn.hasToken ? ' · token set' : ''}`, conn);
-  const edit = h('button', { type: 'button', class: 'ghost small' }, 'Edit');
-  edit.addEventListener('click', () => {
-    const existing = row.querySelector('.editform');
-    if (existing) { existing.remove(); return; }
-    row.append(conn.kind === 'ics' ? icsEdit(conn) : feedEdit(conn));
-  });
-  actions.append(edit, remove);
-  return row;
-}
-
-function icsEdit(conn: IcsConnection) {
-  const name = input({ type: 'text', value: conn.name, maxlength: '60' });
-  const link = input({ type: 'url', placeholder: 'Leave empty to keep the current link', inputmode: 'url' });
-  const pick = swatches(`color-${conn.id}`, conn.color);
-  const save = h('button', { type: 'submit', class: 'primary small' }, 'Save');
-  const form = h('form', { class: 'editform' }, field('Name', name), h('div', { class: 'field' }, h('span', {}, 'Colour'), pick.el), field('Replace link', link), save);
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    busy(save, async () => {
-      setSettings(await api<Settings>('/api/admin/connections/update', { id: conn.id, name: name.value, color: pick.value(), url: link.value || undefined }));
-      toast('Saved.');
-    });
-  });
-  return form;
-}
-
-function feedEdit(conn: FeedConnection) {
-  const name = input({ type: 'text', value: conn.name, maxlength: '60' });
-  const url = input({ type: 'url', value: conn.url, inputmode: 'url' });
-  const token = input({ type: 'password', placeholder: conn.hasToken ? 'Leave empty to keep the current token' : 'Optional' });
-  const save = h('button', { type: 'submit', class: 'primary small' }, 'Save');
-  const form = h('form', { class: 'editform' }, field('Name', name), field('Feed URL', url), field('Bearer token', token), save);
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    busy(save, async () => {
-      setSettings(await api<Settings>('/api/admin/connections/update', { id: conn.id, name: name.value, url: url.value, ...(token.value ? { token: token.value } : {}) }));
-      toast('Saved.');
-    });
-  });
-  return form;
-}
-
-// ── add: calendar link ──────────────────────────────────────────────────────
-
-function guide(title: string, ...steps: Array<string | Node>) {
-  return h('details', { class: 'guide' }, h('summary', {}, title), h('ol', {}, ...steps.map(s => h('li', {}, s))));
-}
-
-function icsForm() {
-  const used = state.settings.connections.filter((c): c is IcsConnection => c.kind === 'ics').map(c => c.color);
-  const name = input({ type: 'text', placeholder: 'e.g. Family', maxlength: '60', required: 'true' });
-  const link = input({ type: 'url', placeholder: 'https://… or webcal://…', inputmode: 'url', required: 'true' });
-  const pick = swatches('color-new', CALENDAR_COLORS.find(c => !used.includes(c)) ?? CALENDAR_COLORS[0]);
-  const result = h('div', {});
-  const test = h('button', { type: 'button', class: 'ghost' }, 'Test link');
-  const add = h('button', { type: 'submit', class: 'primary' }, 'Add calendar');
-
-  test.addEventListener('click', () => busy(test, async () => {
-    result.replaceChildren(testResult(await api<ConnectionTest>('/api/admin/connections/test', { kind: 'ics', url: link.value })));
-  }));
-  const form = h('form', { class: 'panel' },
-    h('h3', {}, 'Add a calendar link'),
-    h('p', { class: 'lede' }, 'Most calendar apps can give you a private iCal link. Anyone with the link can read the calendar, so it is stored encrypted and never shown again.'),
-    guide('Google Calendar',
-      'On a computer, open calendar.google.com.',
-      'Click the gear (top right) → Settings.',
-      'Under “Settings for my calendars” on the left, click the calendar.',
-      'Scroll to “Integrate calendar” and copy “Secret address in iCal format”.',
-      'You can reset that address from the same place at any time; then paste the new one here.'),
-    guide('iCloud (iPhone, iPad or Mac)',
-      'iPhone/iPad: open Calendar → Calendars → tap ⓘ next to the calendar.',
-      'Turn on “Public Calendar”, tap “Share Link…” → Copy.',
-      'Mac: in Calendar, Control-click the calendar → Share Calendar → tick “Public Calendar” and copy the link.',
-      '“Public” means anyone with the link can view it; the link itself is long and unguessable.'),
-    guide('Outlook.com or Microsoft 365',
-      'Open Outlook on the web → Settings (gear) → Calendar → Shared calendars.',
-      'Under “Publish a calendar”, choose the calendar and “Can view all details”, then Publish.',
-      'Copy the ICS link (not the HTML one).'),
-    guide('Anything else',
-      'Look for “Subscribe”, “iCal”, “ICS” or “webcal” in the app’s sharing or export options.',
-      'School, club and sports fixture calendars often offer one.'),
-    field('Name on the display', name),
-    h('div', { class: 'field' }, h('span', {}, 'Colour'), pick.el),
-    field('Calendar link', link),
-    result,
-    h('div', { class: 'buttons' }, test, add),
-  );
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    busy(add, async () => {
-      setSettings(await api<Settings>('/api/admin/connections/add', { kind: 'ics', name: name.value, url: link.value, color: pick.value() }));
-      openPanel = null;
-      render();
-      toast('Calendar added.');
-    });
-  });
-  return form;
-}
-
-// ── add: agenda feed ────────────────────────────────────────────────────────
-
-function feedForm() {
-  const name = input({ type: 'text', placeholder: 'e.g. Household board', maxlength: '60', required: 'true' });
-  const url = input({ type: 'url', placeholder: 'https://…', inputmode: 'url', required: 'true' });
-  const token = input({ type: 'password', placeholder: 'Optional' });
-  const result = h('div', {});
-  const test = h('button', { type: 'button', class: 'ghost' }, 'Test feed');
-  const add = h('button', { type: 'submit', class: 'primary' }, 'Add feed');
-  test.addEventListener('click', () => busy(test, async () => {
-    result.replaceChildren(testResult(await api<ConnectionTest>('/api/admin/connections/test', { kind: 'feed', url: url.value, token: token.value })));
-  }));
-  const form = h('form', { class: 'panel' },
-    h('h3', {}, 'Add an agenda feed'),
-    h('p', { class: 'lede' }, 'For your own system: any HTTPS endpoint that returns events and tasks in the hub’s agenda feed format (docs/feed-contract.md in the project). The hub sends the token as “Authorization: Bearer …”.'),
-    field('Name', name),
-    field('Feed URL', url),
-    field('Bearer token', token, 'Stored encrypted. Leave empty if the feed needs none.'),
-    result,
-    h('div', { class: 'buttons' }, test, add),
-  );
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    busy(add, async () => {
-      setSettings(await api<Settings>('/api/admin/connections/add', { kind: 'feed', name: name.value, url: url.value, token: token.value }));
-      openPanel = null;
-      render();
-      toast('Feed added.');
-    });
-  });
-  return form;
-}
-
-// ── Google ──────────────────────────────────────────────────────────────────
-
-const PART_NAMES: Record<GooglePart, string> = { calendar: 'Calendars', tasks: 'Tasks', photos: 'Photos' };
-const grantedParts = (conn: GoogleConnection) => (Object.keys(PART_NAMES) as GooglePart[]).filter(p => googleGranted(conn, p));
-
-function googleRow(conn: GoogleConnection) {
-  const sub = conn.account ? `${conn.account} · ${grantedParts(conn).map(p => PART_NAMES[p]).join(', ')}` : 'Not connected yet';
-  const { row, actions, remove } = rowShell(null, 'Google', sub, conn);
-  actions.append(remove);
-  return row;
-}
-
-/** The person's choice of what to use Google for, while they're setting it up. */
-let googleDraft: GoogleWants | null = null;
-
-function googleWantsNow(conn: GoogleConnection | undefined): GoogleWants {
-  return googleDraft ?? conn?.wants ?? { calendar: true, tasks: true, photos: false };
-}
-
-/** "What would you like to use from Google?" Three independent choices. */
-function googleQuestion(conn: GoogleConnection | undefined, onChange: () => void) {
-  const wants = googleWantsNow(conn);
-  const options: Array<[GooglePart, string, string]> = [
-    ['calendar', 'Calendars', 'Your Google calendars on the Home screen.'],
-    ['tasks', 'Tasks', 'Google Tasks that are due, on the Home screen.'],
-    ['photos', 'Photos', 'Pick photos for the photo frame.'],
+function listPage() {
+  const problems = hubProblems();
+  const neutral = '#64748B';
+  return [
+    h('h2', { class: 'listtitle', tabindex: '-1' }, 'Settings'),
+    group('Screens', SCREENS.map(screenRow), 'Switched-off screens leave the display’s rotation within five minutes. A screen with nothing to show yet stays out until it has.'),
+    group('Hub', [
+      row({ icon: tile(HUB_ICONS.places, '#0EA5E9'), title: 'Places', summary: placeName(), href: '#/places' }),
+      row({ icon: tile(HUB_ICONS.accounts, '#2563FF'), title: 'Accounts', summary: accountsSummary(), href: '#/accounts' }),
+      row({ icon: tile(HUB_ICONS.night, '#4F46E5'), title: 'Night', summary: nightSummary(), href: '#/night' }),
+      row({ icon: tile(HUB_ICONS.motion, neutral), title: 'Motion', summary: MOTION_LABELS[displaySettings().motion][0], href: '#/motion' }),
+      row({ icon: tile(HUB_ICONS.about, neutral), title: 'This hub', summary: problems ? 'Needs attention' : 'Storage, add another screen', needs: problems > 0, href: '#/about' }),
+    ]),
   ];
-  const box = h('div', { class: 'gparts', role: 'group', 'aria-label': 'What to use Google for' });
-  for (const [part, title, sub] of options) {
-    const check = h('input', { type: 'checkbox', checked: wants[part] });
-    check.addEventListener('change', () => { googleDraft = { ...googleWantsNow(conn), [part]: check.checked }; onChange(); });
-    box.append(h('label', { class: 'gpart' }, check, h('span', {}, h('b', {}, title), h('small', {}, sub))));
-  }
-  return h('div', {}, h('h4', {}, 'What would you like to use from Google?'), box);
-}
-
-async function connectGoogle(btn: HTMLButtonElement, wants: GoogleWants) {
-  await busy(btn, async () => {
-    const { url } = await api<{ url: string }>('/api/admin/google/start', { wants });
-    googleDraft = null;
-    location.href = url;
-  });
-}
-
-function googlePanel(conn: GoogleConnection | undefined) {
-  const panel = h('div', { class: 'panel', id: 'google' }, h('h3', {}, 'Google'));
-  if (conn?.account) {
-    panel.append(h('p', { class: 'lede' }, 'Connected as ', h('b', {}, conn.account), '. Choose what the display shows.'));
-    panel.append(googleSelection(conn));
-    // Change which parts Google is used for: reconnects, asking only for what's ticked.
-    const change = h('details', { class: 'guide' }, h('summary', {}, 'Change what Google is used for'));
-    const update = h('button', { type: 'button', class: 'ghost' }, 'Reconnect with these');
-    update.addEventListener('click', () => connectGoogle(update, googleWantsNow(conn)));
-    change.append(googleQuestion(conn, () => { /* the box keeps its own state */ }), h('div', { class: 'buttons' }, update));
-    panel.append(change);
-    return panel;
-  }
-  panel.append(googleQuestion(conn, render));
-  const wants = googleWantsNow(conn);
-
-  const redirect = state.status.googleRedirectUri;
-  const link = (href: string, text: string) => h('a', { href, target: '_blank', rel: 'noopener' }, text);
-  panel.append(
-    h('p', { class: 'lede' }, 'Google only lets a hub read your account through a sign-in “client” that you create in your own free Google Cloud project. It takes about ten minutes, once. The hub only ever gets read-only access, and for photos it only sees the ones you pick.'),
-    h('ol', { class: 'steps' },
-      h('li', {}, h('b', {}, 'Create a project. '), link('https://console.cloud.google.com/projectcreate', 'Open Google Cloud'), ', give it any name (e.g. “Home and Sky Hub”) and press Create. Make sure it’s the project selected at the top of the page for the next steps.'),
-      serviceStep(wants, link),
-      h('li', {}, h('b', {}, 'Set up the sign-in screen. '), link('https://console.cloud.google.com/auth/overview', 'Open Google Auth Platform'), ' and press Get started. App name: anything. Support email: yours. Audience: ', h('b', {}, 'External'), '. Contact email: yours. Then Create.'),
-      h('li', {}, h('b', {}, 'Fill in Branding. '), link('https://console.cloud.google.com/auth/branding', 'Open Branding'), '. Google won’t publish until the required fields are filled in: app name, user support email and developer contact email. The logo and website links are optional; leave them empty. Press Save.'),
-      h('li', {}, h('b', {}, 'Publish it. '), link('https://console.cloud.google.com/auth/audience', 'Open Audience'), ', press ', h('b', {}, 'Publish app'), ' and confirm, so it says “In production”. Skip this and Google blocks the sign-in (“Access blocked … has not completed the Google verification process”), or disconnects the hub after 7 days. If Google says to complete Branding first, go back to step 4.'),
-      h('li', {}, h('b', {}, 'Create the client. '), link('https://console.cloud.google.com/auth/clients', 'Open Clients'), ', press Create client, choose ', h('b', {}, 'Web application'), '. Under “Authorised redirect URIs” press Add URI and paste exactly:', copyRow(redirect), 'Then press Create.'),
-      h('li', {}, h('b', {}, 'Paste the two codes below. '), 'Google shows a Client ID and a Client secret. Copy both into the boxes below, press Save client, then Connect Google.'),
-    ),
-    googleTroubleshooting(redirect),
-  );
-  const clientId = input({ type: 'text', placeholder: '…apps.googleusercontent.com', value: conn?.clientId ?? '' });
-  const secret = input({ type: 'password', placeholder: conn ? 'Saved. Leave empty to keep it.' : 'GOCSPX-…' });
-  const save = h('button', { type: 'submit', class: conn ? 'ghost' : 'primary' }, conn ? 'Update client' : 'Save client');
-  const form = h('form', { class: 'editform' }, field('Client ID', clientId), field('Client secret', secret, 'Stored encrypted.'), h('div', { class: 'buttons' }, save));
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    busy(save, async () => {
-      setSettings(await api<Settings>('/api/admin/google/client', { clientId: clientId.value, clientSecret: secret.value }));
-      openPanel = 'google';
-      render();
-      toast('Saved. Now press Connect Google.');
-    });
-  });
-  panel.append(form);
-
-  if (conn) {
-    const connect = h('button', { type: 'button', class: 'primary' }, 'Connect Google');
-    const nothing = !wants.calendar && !wants.tasks && !wants.photos;
-    if (nothing) connect.setAttribute('disabled', '');
-    connect.addEventListener('click', () => connectGoogle(connect, wants));
-    panel.append(h('div', { class: 'buttons' }, connect));
-    if (nothing) panel.append(h('p', { class: 'hint' }, 'Tick at least one thing to use Google for.'));
-  }
-  return panel;
-}
-
-/** Step 2: only the Google services for what was chosen. */
-function serviceStep(wants: GoogleWants, link: (href: string, text: string) => HTMLElement) {
-  const services: Array<[GooglePart, string, string]> = [
-    ['calendar', 'https://console.cloud.google.com/apis/library/calendar-json.googleapis.com', 'Calendar'],
-    ['tasks', 'https://console.cloud.google.com/apis/library/tasks.googleapis.com', 'Tasks'],
-    ['photos', 'https://console.cloud.google.com/apis/library/photospicker.googleapis.com', 'Photos Picker'],
-  ];
-  const chosen = services.filter(([part]) => wants[part]);
-  if (!chosen.length) return h('li', {}, h('b', {}, 'Turn on services. '), 'Tick at least one option above first.');
-  const words = ['', 'one service', 'two services', 'three services'];
-  const parts: Array<Node | string> = [];
-  chosen.forEach(([, href, name], i) => { if (i) parts.push(', '); parts.push(link(href, name)); });
-  return h('li', {}, h('b', {}, `Turn on ${words[chosen.length]}. `), 'Open each and press Enable: ', ...parts, '.');
-}
-
-/** What Google shows during Connect, and what to do about each screen. */
-function googleTroubleshooting(redirect: string) {
-  return h('details', { class: 'guide' },
-    h('summary', {}, 'What you’ll see when you press Connect Google'),
-    h('ol', {},
-      h('li', {}, h('b', {}, '“Google hasn’t verified this app”. '), 'Expected: the app is yours and only you use it. Press ', h('b', {}, 'Advanced'), ', then ', h('b', {}, 'Go to … (unsafe)'), ', then Continue.'),
-      h('li', {}, h('b', {}, 'A list of permissions. '), 'Tick them all (calendars, tasks and photos you pick) and press Continue. It’s read-only.'),
-      h('li', {}, h('b', {}, '“Access blocked: … has not completed the Google verification process”. '), 'The app is still in Testing. Do steps 4 and 5 (Branding, then Publish app), then press Connect Google again.'),
-      h('li', {}, h('b', {}, '“Error 400: redirect_uri_mismatch”. '), 'The redirect URI in step 6 doesn’t match exactly. It must be:', copyRow(redirect)),
-      h('li', {}, h('b', {}, '“Google refused photo access”. '), 'The Photos Picker service isn’t turned on (step 2). Enable it, then press Reconnect Google.'),
-    ),
-  );
-}
-
-function googleSelection(conn: GoogleConnection) {
-  const wrap = h('div', {});
-  const rows = (items: GoogleItem[], kind: 'cal' | 'list') => items.map(item => {
-    const box = h('input', { type: 'checkbox', checked: item.enabled, 'data-id': item.id, 'data-kind': kind });
-    const pick = swatches(`g-${kind}-${item.id}`, item.color);
-    pick.el.dataset.for = item.id;
-    const row = h('div', { class: 'gitem' }, h('label', { class: 'gcheck' }, box, h('span', {}, item.name)), pick.el);
-    row.style.setProperty('--own', item.color);
-    return row;
-  });
-  const save = h('button', { type: 'button', class: 'primary' }, 'Save selection');
-  const refresh = h('button', { type: 'button', class: 'ghost' }, 'Refresh list');
-  const disconnect = h('button', { type: 'button', class: 'ghost danger' }, 'Disconnect');
-
-  const collect = (kind: 'cal' | 'list') => [...wrap.querySelectorAll<HTMLInputElement>(`input[type=checkbox][data-kind="${kind}"]`)].map(b => ({
-    id: b.dataset.id!,
-    enabled: b.checked,
-    color: (b.closest('.gitem')!.querySelector('.swatches input:checked') as HTMLInputElement | null)?.value,
-  }));
-  save.addEventListener('click', () => busy(save, async () => {
-    setSettings(await api<Settings>('/api/admin/google/selection', { calendars: collect('cal'), taskLists: collect('list') }));
-    toast('Saved. The display picks this up within five minutes.');
-  }));
-  refresh.addEventListener('click', () => busy(refresh, async () => { setSettings(await api<Settings>('/api/admin/google/choices', {})); }));
-  disconnect.addEventListener('click', () => {
-    if (!confirm('Disconnect Google? The display stops showing Google calendars until you connect again.')) return;
-    busy(disconnect, async () => { setSettings(await api<Settings>('/api/admin/google/disconnect', {})); toast('Disconnected.'); });
-  });
-
-  wrap.append(
-    ...(googleGranted(conn, 'calendar') ? [h('h4', {}, 'Calendars'),
-      ...(conn.calendars.length ? rows(conn.calendars, 'cal') : [h('p', { class: 'empty' }, 'No calendars found.')])] : []),
-    ...(googleGranted(conn, 'tasks') ? [h('h4', {}, 'Task lists'),
-      ...(conn.taskLists.length ? rows(conn.taskLists, 'list') : [h('p', { class: 'empty' }, 'No task lists found (or the Tasks API is not enabled).')])] : []),
-    ...(!googleGranted(conn, 'calendar') && !googleGranted(conn, 'tasks') ? [h('p', { class: 'empty' }, 'Google is used for photos only. To show Google calendars or tasks too, open “Change what Google is used for” below.')] : []),
-    h('div', { class: 'buttons' }, save, refresh, disconnect),
-  );
-  return wrap;
-}
-
-// ── photos ──────────────────────────────────────────────────────────────────
-
-const PHOTOS_SCOPE = 'https://www.googleapis.com/auth/photospicker.mediaitems.readonly';
-let photoLibrary: PhotoInfo[] | null = null;
-let picking: { sessionId: string; pickerUri: string; status: PickStatus | null } | null = null;
-
-function photosCard() {
-  const card = h('section', { class: 'card', id: 'photos' },
-    h('h2', {}, 'Photos'),
-    h('p', { class: 'lede' }, 'Pick photos in Google Photos and the hub keeps a copy at screen size for the photo frame. You can open an album in the picker and select everything in it.'),
-  );
-  const google = state.settings.connections.find((c): c is GoogleConnection => c.kind === 'google');
-
-  if (!state.status.photos) {
-    card.append(h('p', { class: 'note' }, 'Photo storage isn’t set up. Run npm run setup again and choose to create the photo bucket (Cloudflare R2, free up to 10 GB).'));
-    return card;
-  }
-  // Adding photos needs Google; the library below doesn't, so it can always be tidied.
-  card.append(h('h3', {}, 'Add photos'));
-  if (!google?.account) {
-    const go = h('button', { type: 'button', class: 'primary' }, 'Set up Google for photos');
-    go.addEventListener('click', () => {
-      // Photos only, unless they tick more; calendars and tasks are separate choices.
-      googleDraft = { ...(google?.wants ?? { calendar: false, tasks: false, photos: false }), photos: true };
-      openPanel = 'google';
-      render();
-      document.getElementById('google')?.scrollIntoView({ behavior: 'smooth' });
-    });
-    card.append(h('p', { class: 'note' }, 'Photos come from your Google account. Setting it up takes about ten minutes, once; calendars and tasks are optional.'), h('div', { class: 'buttons' }, go));
-  } else if (google.scopes && !google.scopes.includes(PHOTOS_SCOPE)) {
-    const add = h('button', { type: 'button', class: 'primary' }, 'Add photos to Google');
-    add.addEventListener('click', () => connectGoogle(add, { ...(google.wants ?? { calendar: googleGranted(google, 'calendar'), tasks: googleGranted(google, 'tasks'), photos: false }), photos: true }));
-    card.append(
-      h('p', { class: 'note' }, 'Google is connected without photos. First turn on the ',
-        h('a', { href: 'https://console.cloud.google.com/apis/library/photospicker.googleapis.com', target: '_blank', rel: 'noopener' }, 'Photos Picker service'),
-        ' in your Google Cloud project, then press below. Google will ask you to allow photo access.'),
-      h('div', { class: 'buttons' }, add));
-  } else {
-    card.append(picking ? pickingPanel() : pickForm());
-  }
-
-  libraryInto(card);
-  return card;
-}
-
-function pickForm() {
-  const collections = [...new Set((photoLibrary ?? []).map(p => p.collection))];
-  const collection = input({ type: 'text', value: collections[0] ?? 'Family', maxlength: '40', list: 'collections' });
-  const datalist = h('datalist', { id: 'collections' }, ...collections.map(c => h('option', { value: c })));
-  const pick = h('button', { type: 'submit', class: 'primary' }, 'Pick photos');
-  const form = h('form', { class: 'editform' }, field('Add them to collection', collection, 'Collections help you tidy up later, e.g. “Summer 2026”.'), datalist, h('div', { class: 'buttons' }, pick));
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    busy(pick, async () => {
-      const s = await api<{ sessionId: string; pickerUri: string }>('/api/admin/photos/pick', { collection: collection.value || 'Photos' });
-      picking = { ...s, status: null };
-      render();
-      window.open(`${s.pickerUri}/autoclose`, '_blank', 'noopener');
-      pollPick();
-    });
-  });
-  return form;
-}
-
-function libraryInto(card: HTMLElement) {
-  card.append(h('h3', {}, 'Library'));
-  if (!photoLibrary) {
-    card.append(h('p', { class: 'empty' }, 'Loading…'));
-    api<PhotoInfo[]>('/api/admin/photos').then(list => { photoLibrary = list; render(); }).catch(err => toast((err as Error).message, 'error'));
-    return;
-  }
-  if (!photoLibrary.length) {
-    card.append(h('p', { class: 'empty' }, 'No photos yet.'));
-    return;
-  }
-  const groups = new Map<string, PhotoInfo[]>();
-  for (const p of photoLibrary) groups.set(p.collection, [...(groups.get(p.collection) ?? []), p]);
-  for (const [name, photos] of groups) {
-    const removeAll = h('button', { type: 'button', class: 'ghost small danger' }, 'Remove collection');
-    removeAll.addEventListener('click', () => {
-      if (!confirm(`Remove all ${photos.length} photos in “${name}” from the frame? They stay in Google Photos.`)) return;
-      busy(removeAll, async () => { photoLibrary = await api<PhotoInfo[]>('/api/admin/photos/delete', { collection: name }); render(); toast('Removed.'); });
-    });
-    // A place for the whole collection. Google's picker never shares where a photo was taken,
-    // so the frame's label is whatever is typed here (or per photo, by tapping it).
-    const shared = photos.every(p => p.caption === photos[0].caption) ? photos[0].caption ?? '' : '';
-    const place = input({ type: 'text', value: shared, maxlength: '60', placeholder: 'e.g. St Ives, Cornwall', 'aria-label': `Place for ${name}` });
-    const savePlace = h('button', { type: 'submit', class: 'ghost small' }, 'Label all');
-    const placeForm = h('form', { class: 'searchrow placerow' }, place, savePlace);
-    placeForm.addEventListener('submit', e => {
-      e.preventDefault();
-      busy(savePlace, async () => {
-        photoLibrary = await api<PhotoInfo[]>('/api/admin/photos/caption', { collection: name, caption: place.value });
-        render();
-        toast(place.value.trim() ? `All of “${name}” labelled “${place.value.trim()}”.` : 'Labels cleared.');
-      });
-    });
-
-    const grid = h('div', { class: 'thumbs' });
-    for (const p of photos.slice(0, 48)) {
-      const del = h('button', { type: 'button', class: 'thumb-del', 'aria-label': 'Remove this photo' });
-      del.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-      del.addEventListener('click', () => busy(del, async () => { photoLibrary = await api<PhotoInfo[]>('/api/admin/photos/delete', { ids: [p.id] }); render(); }));
-      const edit = h('button', { type: 'button', class: 'thumb-edit', 'aria-label': p.caption ? `Label: ${p.caption}. Change it` : 'Add a label to this photo' },
-        h('img', { src: `/api/admin/photos/thumb/${p.id}`, alt: '', loading: 'lazy' }));
-      edit.addEventListener('click', async () => {
-        const next = prompt('Label for this photo (a place, or who’s in it). Leave empty to remove.', p.caption ?? '');
-        if (next === null) return;
-        try {
-          photoLibrary = await api<PhotoInfo[]>('/api/admin/photos/caption', { ids: [p.id], caption: next });
-          render();
-        } catch (err) { toast((err as Error).message, 'error'); }
-      });
-      grid.append(h('figure', { class: 'thumb' }, edit, del, p.caption ? h('figcaption', {}, p.caption) : null));
-    }
-    card.append(h('div', { class: 'collection' },
-      h('div', { class: 'collection-head' }, h('b', {}, name), h('small', {}, `${photos.length} photo${photos.length === 1 ? '' : 's'}`), removeAll),
-      placeForm,
-      grid,
-      h('p', { class: 'hint' }, 'Tap a photo to label it on its own.'),
-      photos.length > 48 ? h('p', { class: 'hint' }, `Showing 48 of ${photos.length}.`) : null,
-    ));
-  }
-}
-
-function pickingPanel() {
-  const p = picking!;
-  const s = p.status;
-  const line = !s || s.state === 'waiting'
-    ? 'Waiting for you to choose photos in Google Photos. Press Done there when you’ve finished.'
-    : s.state === 'importing' ? `Copying photos… ${s.imported} of ${s.total}`
-    : s.state === 'done' ? `Done: ${s.imported} photo${s.imported === 1 ? '' : 's'} added${s.skipped ? ` (${s.skipped} skipped: videos or unreadable)` : ''}.`
-    : 'That picking session expired. Start again.';
-  const open = h('a', { class: 'ghost button-link', href: `${p.pickerUri}/autoclose`, target: '_blank', rel: 'noopener' }, 'Open Google Photos');
-  const cancel = h('button', { type: 'button', class: 'ghost' }, s && (s.state === 'done' || s.state === 'expired') ? 'Close' : 'Cancel');
-  cancel.addEventListener('click', () => { picking = null; render(); });
-  const progress = s?.state === 'importing' && s.total ? h('progress', { max: String(s.total), value: String(s.imported) }) : null;
-  return h('div', { class: 'panel' },
-    h('p', { class: `result ${s?.state === 'expired' ? 'bad' : 'good'}` }, line),
-    progress,
-    h('div', { class: 'buttons' }, !s || s.state === 'waiting' ? open : null, cancel),
-  );
-}
-
-async function pollPick() {
-  while (picking && (!picking.status || picking.status.state === 'waiting' || picking.status.state === 'importing')) {
-    const current = picking;
-    try {
-      current.status = await api<PickStatus>('/api/admin/photos/poll', { sessionId: current.sessionId });
-    } catch (err) {
-      toast((err as Error).message, 'error');
-      await new Promise(r => setTimeout(r, 5000));
-      continue;
-    }
-    if (picking !== current) return; // cancelled
-    if (current.status.state === 'done') photoLibrary = null; // reload the library
-    render();
-    const wait = current.status.state === 'waiting' ? current.status.pollMs : 300;
-    await new Promise(r => setTimeout(r, wait));
-  }
-}
-
-// ── display ─────────────────────────────────────────────────────────────────
-
-function displaySettings(): DisplaySettings {
-  return state.settings.display ?? DEFAULT_DISPLAY;
-}
-
-async function saveDisplay(next: DisplaySettings) {
-  setSettings(await api<Settings>('/api/admin/display', next));
-  toast('Saved. The display picks this up within five minutes.');
-}
-
-const MOTION_LABELS: Record<MotionLevel, [string, string]> = {
-  full: ['Full', 'Letters flip, photos drift, the radar pings when new planes arrive.'],
-  gentle: ['Gentle', 'Changes fade softly. Nothing flips, drifts or pings.'],
-  still: ['Still', 'No animation at all. Only the aircraft keep moving, because that’s live data.'],
-};
-
-function displayCard() {
-  const d = displaySettings();
-  const card = h('section', { class: 'card', id: 'display' },
-    h('h2', {}, 'Display'),
-    h('p', { class: 'lede' }, 'How the clock looks, how much the screens move, and what happens at night.'),
-  );
-
-  card.append(h('h3', {}, 'Clock'));
-  const clocks = h('div', { class: 'clockpicker', role: 'radiogroup', 'aria-label': 'Clock style' });
-  for (const style of CLOCK_STYLES) {
-    const [title, sub] = CLOCK_LABELS[style];
-    const radio = h('input', { type: 'radio', name: 'clock-style', value: style, checked: d.clock === style });
-    radio.addEventListener('change', () => saveDisplay({ ...d, clock: style }).catch(err => toast((err as Error).message, 'error')));
-    clocks.append(h('label', { class: 'clockopt' }, radio, clockPreview(style), h('b', {}, title), h('small', {}, sub)));
-  }
-  card.append(clocks);
-
-  card.append(h('h3', {}, 'Motion'));
-  const motion = h('div', { class: 'places', role: 'radiogroup', 'aria-label': 'Motion' });
-  for (const level of MOTION_LEVELS) {
-    const [title, sub] = MOTION_LABELS[level];
-    const radio = h('input', { type: 'radio', name: 'motion-level', value: level, checked: d.motion === level });
-    radio.addEventListener('change', () => saveDisplay({ ...d, motion: level }).catch(err => toast((err as Error).message, 'error')));
-    motion.append(h('div', { class: 'place' }, h('label', { class: 'gcheck' }, radio, h('span', {}, h('b', {}, title), h('small', {}, sub)))));
-  }
-  card.append(motion, h('p', { class: 'hint' }, 'A tablet set to “Reduce Motion” in its accessibility settings never goes above Gentle.'));
-
-  card.append(h('h3', {}, 'Clothing advice'));
-  const warmth = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Clothing advice' });
-  const WARMTH_LABELS = { cold: 'I run cold', normal: 'Typical', warm: 'I run warm' } as const;
-  for (const w of WARMTH_LEVELS) {
-    const r = h('input', { type: 'radio', name: 'warmth', value: w, checked: (d.warmth ?? 'normal') === w });
-    r.addEventListener('change', () => saveDisplay({ ...d, warmth: w }).catch(err => toast((err as Error).message, 'error')));
-    warmth.append(h('label', {}, r, h('span', {}, WARMTH_LABELS[w])));
-  }
-  card.append(warmth, h('p', { class: 'hint' }, 'The weather screen’s “What to wear” dresses you for about 3° colder or warmer than it feels.'));
-
-  card.append(h('h3', {}, 'Photo frame'));
-  const photoStyle = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Photo frame style' });
-  const PHOTO_LABELS = { fill: 'Full screen', framed: 'Framed prints', instant: 'Instant prints', float: 'Borderless' } as const;
-  for (const style of PHOTO_STYLES) {
-    const r = h('input', { type: 'radio', name: 'photo-style', value: style, checked: (d.photoStyle ?? 'fill') === style });
-    r.addEventListener('change', () => saveDisplay({ ...d, photoStyle: style }).catch(err => toast((err as Error).message, 'error')));
-    photoStyle.append(h('label', {}, r, h('span', {}, PHOTO_LABELS[style])));
-  }
-  card.append(photoStyle, h('p', { class: 'hint' }, 'Framed hangs each photo as a mounted print, Instant drops instant-camera prints on a table with a handwritten caption, and Borderless floats them over a blur of their own colours. All three show the place and date. Portrait photos are always shown in pairs.'));
-
-  card.append(h('h3', {}, 'Wikipedia'));
-  const wiki = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Wikipedia article' });
-  for (const [value, label] of [[true, 'With its picture'], [false, 'Words only']] as const) {
-    const r = h('input', { type: 'radio', name: 'wiki-pictures', value: String(value), checked: (d.wikiPictures ?? true) === value });
-    r.addEventListener('change', () => saveDisplay({ ...d, wikiPictures: value }).catch(err => toast((err as Error).message, 'error')));
-    wiki.append(h('label', {}, r, h('span', {}, label)));
-  }
-  card.append(wiki, h('p', { class: 'hint' }, 'The featured article changes daily, and so does its picture, which can be any painting or photograph. Choose Words only if children watch the display on their own.'));
-
-  card.append(h('h3', {}, 'At night'));
-  const night = d.night ?? DEFAULT_NIGHT;
-  const saveNight = (next: Partial<typeof night>) => saveDisplay({ ...d, night: { ...night, ...next } }).catch(err => toast((err as Error).message, 'error'));
-  const modes = h('div', { class: 'places', role: 'radiogroup', 'aria-label': 'At night' });
-  for (const mode of NIGHT_MODES) {
-    const [title, sub] = NIGHT_LABELS[mode];
-    const radio = h('input', { type: 'radio', name: 'night-mode', value: mode, checked: night.mode === mode });
-    radio.addEventListener('change', () => saveNight({ mode }));
-    modes.append(h('div', { class: 'place' }, h('label', { class: 'gcheck' }, radio, h('span', {}, h('b', {}, title), h('small', {}, sub)))));
-  }
-  card.append(modes);
-  if (night.mode === 'quiet') {
-    const time = (value: string, label: string, key: 'from' | 'to') => {
-      const el = h('input', { type: 'time', value, step: '300', 'aria-label': label, required: true });
-      el.addEventListener('change', () => { if (el.value) saveNight({ [key]: el.value.slice(0, 5) }); });
-      return el;
-    };
-    card.append(h('div', { class: 'quiethours' },
-      h('span', {}, 'Quiet hours'), time(night.from, 'Quiet hours start', 'from'), h('span', {}, 'to'), time(night.to, 'Quiet hours end', 'to')));
-    card.append(h('p', { class: 'hint' }, 'A touch brings the display back to full brightness for two minutes. A screen you’ve pinned stays on through the night.'));
-  }
-  return card;
-}
-
-const NIGHT_LABELS: Record<NightMode, [string, string]> = {
-  quiet: ['Dark evenings and quiet hours', 'From sunset, nothing is brighter than the dark screens. In quiet hours it also dims and shows only the clock, Home and Tonight.'],
-  evening: ['Dark evenings only', 'From sunset the cream board, the street map and pictures go dark. Nothing dims.'],
-  off: ['Off', 'The display looks the same day and night.'],
-};
-
-// ── sky ─────────────────────────────────────────────────────────────────────
-
-function skySettings(): SkySettings {
-  return state.settings.sky ?? { places: [], active: 'default', radiusNm: 25 };
-}
-
-async function saveSky(next: SkySettings, message = 'Saved.') {
-  setSettings(await api<Settings>('/api/admin/sky', next));
-  toast(message);
-}
-
-function skyCard() {
-  const sky = skySettings();
-  const card = h('section', { class: 'card', id: 'sky' },
-    h('h2', {}, 'Sky'),
-    h('p', { class: 'lede' }, 'Where the radar and the overhead board are centred, and how far they look. On the display, tap the middle of the radar to step through your places.'),
-  );
-
-  // Centre
-  card.append(h('h3', {}, 'Centre on'));
-  const list = h('div', { class: 'places', role: 'radiogroup', 'aria-label': 'Centre the sky screens on' });
-  const option = (id: string, title: string, sub: string, removable: boolean) => {
-    const radio = h('input', { type: 'radio', name: 'sky-active', value: id, checked: sky.active === id });
-    radio.addEventListener('change', () => saveSky({ ...sky, active: id }).catch(err => toast((err as Error).message, 'error')));
-    const row = h('div', { class: 'place' }, h('label', { class: 'gcheck' }, radio, h('span', {}, h('b', {}, title), h('small', {}, sub))));
-    if (removable) {
-      const remove = h('button', { type: 'button', class: 'ghost small danger' }, 'Remove');
-      remove.addEventListener('click', () => busy(remove, () => saveSky({ ...sky, places: sky.places.filter(p => p.id !== id) }, 'Removed.')));
-      row.append(remove);
-    }
-    return row;
-  };
-  for (const p of sky.places) list.append(option(p.id, p.name, `${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}`, true));
-  list.append(option('device', 'Each display’s own location', 'Uses the tablet’s GPS or Wi-Fi location. The tablet asks permission the first time.', false));
-  if (!sky.places.length) list.prepend(h('p', { class: 'empty' }, 'No places saved yet, so each display uses its own location, or roughly where its internet connection is.'));
-  card.append(list);
-
-  // Add a place
-  const query = input({ type: 'text', placeholder: 'Town, city or postcode', 'aria-label': 'Search for a place' });
-  const search = h('button', { type: 'submit', class: 'ghost' }, 'Search');
-  const results = h('div', { class: 'results' });
-  const add = (p: Omit<Place, 'id'>) => busy(search, async () => {
-    // The first place saved becomes the active one.
-    const places = [...sky.places, { id: '', ...p }];
-    await saveSky({ ...sky, places, active: sky.places.length ? sky.active : '' }, `${p.name} added.`);
-  });
-  const form = h('form', { class: 'searchrow' }, query, search);
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    if (!query.value.trim()) return;
-    busy(search, async () => {
-      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=5&name=${encodeURIComponent(query.value.trim())}`).then(r => r.json()).catch(() => null);
-      const found: Array<{ name: string; latitude: number; longitude: number; admin1?: string; admin2?: string; country?: string }> = res?.results ?? [];
-      results.replaceChildren(...(found.length ? found.map(r => {
-        const label = [r.name, r.admin2 ?? r.admin1, r.country].filter(Boolean).join(', ');
-        const b = h('button', { type: 'button', class: 'choice' }, h('b', {}, r.name), h('small', {}, label));
-        b.addEventListener('click', () => { results.replaceChildren(); query.value = ''; add({ name: r.name, lat: r.latitude, lon: r.longitude }); });
-        return b;
-      }) : [h('p', { class: 'empty' }, 'No matches. Try a nearby town.')]));
-    });
-  });
-  const here = h('button', { type: 'button', class: 'ghost' }, 'Use where I am now');
-  here.addEventListener('click', () => {
-    if (!('geolocation' in navigator)) return toast('This browser can’t share its location.', 'error');
-    here.disabled = true;
-    navigator.geolocation.getCurrentPosition(pos => {
-      here.disabled = false;
-      const name = prompt('Name for this place', 'Home')?.trim();
-      if (name) add({ name: name.slice(0, 40), lat: pos.coords.latitude, lon: pos.coords.longitude });
-    }, () => { here.disabled = false; toast('Location permission was refused or unavailable.', 'error'); }, { timeout: 15_000 });
-  });
-  card.append(h('h3', {}, 'Add a place'), form, results, h('div', { class: 'buttons' }, here),
-    h('p', { class: 'hint' }, 'Places are rounded to about 1 km. That’s plenty for a radar, and your exact address is never stored.'));
-
-  // Range
-  const radius = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Radar range' });
-  for (const nm of RADIUS_CHOICES) {
-    const r = h('input', { type: 'radio', name: 'sky-radius', value: String(nm), checked: sky.radiusNm === nm });
-    r.addEventListener('change', () => saveSky({ ...sky, radiusNm: nm }).catch(err => toast((err as Error).message, 'error')));
-    radius.append(h('label', {}, r, h('span', {}, `${Math.round(nm * 1.852)} km`)));
-  }
-  card.append(h('h3', {}, 'Range'), radius, h('p', { class: 'hint' }, '46 km suits most places. Near a big airport, 19 or 28 km keeps the radar calm.'));
-
-  // What's under the radar
-  const maps = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Radar background' });
-  const labels: Record<RadarMap, string> = { plain: 'Plain', map: 'Map', satellite: 'Satellite' };
-  for (const m of RADAR_MAPS) {
-    const r = h('input', { type: 'radio', name: 'sky-map', value: m, checked: (sky.map ?? DEFAULT_RADAR_MAP) === m });
-    r.addEventListener('change', () => saveSky({ ...sky, map: m }).catch(err => toast((err as Error).message, 'error')));
-    maps.append(h('label', {}, r, h('span', {}, labels[m])));
-  }
-  card.append(h('h3', {}, 'Radar background'), maps,
-    h('p', { class: 'hint' }, 'A street map or satellite view under the radar shows where the planes are. Satellite and Plain are labelled with nearby towns. Maps: OpenStreetMap; satellite: Sentinel-2 cloudless by EOX; town names: GeoNames.'));
-  airportsInto(card, sky);
-  return card;
-}
-
-/** [icao, iata, name, city, country, lat, lon], biggest airports first (scripts/build-airports.mjs). */
-type AirportRow = [string, string, string, string, string, number, number];
-let airportList: Promise<AirportRow[]> | null = null;
-
-function searchAirports(list: AirportRow[], q: string): AirportRow[] {
-  const query = q.trim().toLowerCase();
-  const code = query.toUpperCase();
-  const exact = list.filter(a => a[0] === code || a[1] === code);
-  const named = list.filter(a => !exact.includes(a) && (a[2].toLowerCase().includes(query) || a[3].toLowerCase().includes(query)));
-  return [...exact, ...named].slice(0, 6);
-}
-
-function airportsInto(card: HTMLElement, sky: SkySettings) {
-  const airports = sky.airports ?? [];
-  const save = (next: SavedAirport[], message: string) => saveSky({ ...sky, airports: next }, message);
-
-  card.append(h('h3', {}, 'Airport boards'),
-    h('p', { class: 'hint' }, 'Each airport gets a split-flap arrivals and departures board on the display, showing flights within 100 nm of it. Tap the middle of the board to switch between arrivals, departures and your other airports.'));
-  const list = h('div', { class: 'places' });
-  airports.forEach((a, i) => {
-    const remove = h('button', { type: 'button', class: 'ghost small danger' }, 'Remove');
-    remove.addEventListener('click', () => busy(remove, () => save(airports.filter((_, n) => n !== i), `${a.city} removed.`)));
-    list.append(h('div', { class: 'place' }, h('span', { class: 'gcheck' }, h('span', {}, h('b', {}, `${a.city} ${a.iata || a.icao}`), h('small', {}, a.name))), remove));
-  });
-  if (!airports.length) list.append(h('p', { class: 'empty' }, 'No airports yet, so the board stays out of the rotation.'));
-  card.append(list);
-  if (airports.length >= MAX_AIRPORTS) return;
-
-  const query = input({ type: 'text', placeholder: 'Airport, city or code (e.g. MAN)', 'aria-label': 'Search for an airport' });
-  const search = h('button', { type: 'submit', class: 'ghost' }, 'Search');
-  const results = h('div', { class: 'results' });
-  const form = h('form', { class: 'searchrow' }, query, search);
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    if (query.value.trim().length < 2) return;
-    busy(search, async () => {
-      airportList ??= fetch('/airports.json').then(r => (r.ok ? r.json() : Promise.reject(new Error(`airports.json answered ${r.status}`))));
-      const found = searchAirports(await airportList.catch(err => { airportList = null; throw err; }), query.value);
-      results.replaceChildren(...(found.length ? found.map(([icao, iata, name, city, country, lat, lon]) => {
-        const b = h('button', { type: 'button', class: 'choice' }, h('b', {}, `${city || name} ${iata || icao}`), h('small', {}, `${name}, ${country}`));
-        b.addEventListener('click', () => {
-          results.replaceChildren();
-          query.value = '';
-          if (airports.some(a => a.icao === icao)) return toast('That airport is already on the list.');
-          busy(search, () => save([...airports, { icao, iata, name, city: city || name, lat, lon }], `${city || name} added.`));
-        });
-        return b;
-      }) : [h('p', { class: 'empty' }, 'No airport with scheduled flights matches. Try its city or three-letter code.')]));
-    });
-  });
-  card.append(form, results, h('p', { class: 'hint' }, 'Airports: OurAirports. Flights come from the same open ADS-B data as the radar, with routes from adsbdb, so only flights already in the air or taxiing are shown, and arrival times are estimates.'));
 }
 
 // ── boot ────────────────────────────────────────────────────────────────────
@@ -963,11 +134,13 @@ logoutBtn.addEventListener('click', async () => {
   renderLogin();
 });
 
+if (OLD_ANCHORS[location.hash]) history.replaceState(null, '', `${location.pathname}${location.search}${OLD_ANCHORS[location.hash]}`);
+
 const params = new URLSearchParams(location.search);
 const googleResult = params.get('google');
 if (googleResult) {
   const messages: Record<string, [string, 'ok' | 'error']> = {
-    connected: ['Google connected. Choose which calendars to show.', 'ok'],
+    connected: ['Google connected. Choose which calendars to show on the Home page.', 'ok'],
     expired: ['That Google sign-in took too long. Press Connect Google again.', 'error'],
     failed: ['Google sign-in did not finish. Check the client ID, secret and redirect URI.', 'error'],
     access_denied: ['Google didn’t allow the connection. If it said “Access blocked”, fill in Branding and publish the app (steps 4 and 5), then try again.', 'error'],

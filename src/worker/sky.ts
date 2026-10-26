@@ -69,6 +69,7 @@ export async function hubConfig(env: Env, request?: Request): Promise<HubConfig>
     airports: sky?.airports ?? [],
     night: settings.display?.night ?? DEFAULT_NIGHT,
     wikiPictures: settings.display?.wikiPictures ?? true,
+    screensOff: settings.display?.screensOff ?? [],
     features: { agenda: !!env.AGENDA_FEED_URL || settings.connections.some(c => c.enabled), photos: (await listPhotos(env)).length > 0, trending: false },
   };
 }

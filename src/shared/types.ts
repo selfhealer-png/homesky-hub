@@ -1,6 +1,6 @@
 // Shapes shared by the Worker API and the web app.
 
-import type { ClockStyle, MotionLevel, NightSettings, PhotoStyle, Place, RadarMap, SavedAirport } from './settings';
+import type { ClockStyle, MotionLevel, NightSettings, PhotoStyle, Place, RadarMap, SavedAirport, ScreenId } from './settings';
 import type { AirInfo } from './air';
 import type { Warmth, WeatherHour, WeatherNow } from './wear';
 
@@ -22,6 +22,8 @@ export interface HubConfig {
   airports: SavedAirport[];
   night: NightSettings;
   wikiPictures: boolean;
+  /** Screens switched off in /setup; they never join the rotation. */
+  screensOff: ScreenId[];
   features: { agenda: boolean; photos: boolean; trending: boolean };
 }
 

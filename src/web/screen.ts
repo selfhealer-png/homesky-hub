@@ -1,8 +1,9 @@
+import type { ScreenId } from '../shared/settings';
 import type { HubConfig } from '../shared/types';
 
 // Every screen implements this. To add one, create a module in screens/ and list it in main.ts.
 export interface Screen {
-  id: string;
+  id: ScreenId;
   title: string;
   /** Seconds to stay on this screen before the rotator moves on. */
   durationSec: number;
