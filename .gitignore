@@ -10,4 +10,5 @@ wrangler.toml
 .claude/
 .homesky.json
 .test-build/
+src/web/public/places/
 homesky-secrets.txt

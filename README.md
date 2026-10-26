@@ -56,6 +56,7 @@ npm run dev          # web app on :5173, proxies /api to the Worker
 * Aircraft radar background: [OpenStreetMap](https://www.openstreetmap.org/copyright) tiles, or [Sentinel-2 cloudless 2024 by EOX](https://s2maps.eu) satellite imagery (contains modified Copernicus Sentinel data; free for non-commercial use). Both are fine for this open-source hub; a commercial build should switch to a licensed provider in `src/web/mapTiles.ts`.
 * Aurora: Kp forecast from the [NOAA Space Weather Prediction Center](https://www.swpc.noaa.gov).
 * Space Station orbit: [CelesTrak](https://celestrak.org), with [satellite.js](https://github.com/shashwatak/satellite-js) (MIT). Sun and moon are calculated on the hub.
+* Town names on the radar: [GeoNames](https://www.geonames.org) (CC BY 4.0), built into small files with the app by `scripts/build-places.mjs`.
 * Article of the day: [Wikipedia](https://en.wikipedia.org) via the Wikimedia feed API (text CC BY-SA).
 * Calendar parsing: [ical.js](https://github.com/kewisch/ical.js) (MPL-2.0).
 * Inspired by [esp32flight](https://github.com/theqkash/esp32flight) (MIT), and by word clocks and airport split-flap boards.

@@ -631,13 +631,7 @@ body.pinned #dots button.active { box-shadow: 0 0 0 3px rgba(90, 180, 255, 0.35)
   .tn-iss li:nth-child(n+3) { display: none; }
 }
 
-/* Radar map: tiles in a circle under the canvas, credited, with a small switch. */
+/* Radar map: tiles in a circle under the canvas, with a small credit. */
 .radar-map { position: absolute; border-radius: 50%; overflow: hidden; background: #0B1220; pointer-events: none; }
 .radar-map img { position: absolute; max-width: none; }
-.radar-credit { position: absolute; right: 6px; bottom: 2px; font-size: 10px; color: rgba(148, 163, 184, 0.75); pointer-events: none; }
-.radar-mapbtn {
-  position: absolute; left: 6px; top: 4px; z-index: 2; min-height: 44px; padding: 0 14px;
-  border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 22px; background: rgba(15, 23, 42, 0.8);
-  color: #E2E8F0; font: 600 14px -apple-system, "Segoe UI", sans-serif;
-}
-.radar-mapbtn::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: #5AB4FF; vertical-align: 1px; }
+.radar-credit { position: absolute; right: 6px; bottom: 2px; font-size: 9px; color: rgba(148, 163, 184, 0.4); pointer-events: none; }

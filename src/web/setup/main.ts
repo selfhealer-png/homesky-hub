@@ -859,7 +859,7 @@ function skyCard() {
     maps.append(h('label', {}, r, h('span', {}, labels[m])));
   }
   card.append(h('h3', {}, 'Radar background'), maps,
-    h('p', { class: 'hint' }, 'A street map or satellite view under the radar shows where planes are. Each display can also switch its own with the button on the radar. Maps: OpenStreetMap; satellite: Sentinel-2 cloudless by EOX.'));
+    h('p', { class: 'hint' }, 'A street map or satellite view under the radar shows where the planes are. Satellite and Plain are labelled with nearby towns. Maps: OpenStreetMap; satellite: Sentinel-2 cloudless by EOX; town names: GeoNames.'));
   return card;
 }
 

@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite",
     "dev:worker": "wrangler dev",
-    "build": "vite build",
+    "build": "node scripts/build-places.mjs && vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worker.json",
     "deploy": "npm run build && wrangler deploy",
     "setup": "node scripts/setup.mjs",

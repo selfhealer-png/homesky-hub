@@ -1,7 +1,8 @@
-import { RADAR_MAPS, type RadarMap } from '../../shared/settings';
-import type { Aircraft, AircraftResponse, HubConfig, RouteSummary } from '../../shared/types';
+import type { RadarMap } from '../../shared/settings';
+import type { Aircraft, AircraftResponse, HubConfig, PlaceName, RouteSummary } from '../../shared/types';
 import { getJson } from '../api';
 import { tileDisc, TILE_SOURCES } from '../mapTiles';
+import { placesAround } from '../placeNames';
 import { nextPlace, skyHome, skyQuery, type SkyHome } from '../location';
 import { motionLevel } from '../motion';
 import { ageLabel, recall, Refresher, remember, type Outcome } from '../skyCache';
@@ -53,6 +54,8 @@ interface State {
   error: string | null;
   /** What the map layer was last built for; it's rebuilt when this changes. */
   mapKey: string;
+  /** Towns and cities around home, biggest first, for labelling. */
+  places: PlaceName[];
 }
 
 let refresher: Refresher | undefined;
@@ -60,21 +63,8 @@ let frame: number | undefined;
 let retarget: (() => void) | undefined;
 let currentConfig: HubConfig | undefined;
 
-// Each display can pick its own background with the button on the radar; otherwise /setup's choice.
-const MAP_KEY = 'hub.radarMap';
-const MAP_LABEL: Record<RadarMap, string> = { plain: 'Plain', map: 'Map', satellite: 'Satellite' };
-
-function mapChoice(config: HubConfig): RadarMap {
-  try {
-    const own = localStorage.getItem(MAP_KEY) as RadarMap | null;
-    if (own && RADAR_MAPS.includes(own)) return own;
-  } catch { /* storage unavailable */ }
-  return config.radarMap ?? 'plain';
-}
-
-function setMapChoice(map: RadarMap) {
-  try { localStorage.setItem(MAP_KEY, map); } catch { /* not remembered */ }
-}
+// What's under the radar is chosen in /setup (Sky › Radar background).
+const mapChoice = (config: HubConfig): RadarMap => config.radarMap ?? 'plain';
 
 /** Over a map, everything drawn needs a dark edge to stand out from busy, bright ground. */
 let onMap = false;
@@ -101,6 +91,19 @@ function featured(data: AircraftResponse): Set<string> {
   return new Set([...airborne.filter(a => a.emergency), ...airborne.slice(0, listed())].map(a => a.hex));
 }
 
+/** Where the range rings' distance labels go: along the 135° bearing, where traffic is rarely drawn. */
+function ringLabels(cx: number, cy: number, r: number, radiusNm: number): Array<{ nm: number; x: number; y: number }> {
+  const step = radiusNm <= 30 ? 5 : radiusNm <= 60 ? 10 : 25;
+  const out = [];
+  const a = (135 * Math.PI) / 180;
+  for (let nm = step; nm < radiusNm; nm += step) {
+    if (nm % (step * 2) !== 0 && radiusNm / step > 4) continue;
+    const rr = (nm / radiusNm) * r;
+    out.push({ nm, x: cx + Math.sin(a) * rr, y: cy - Math.cos(a) * rr });
+  }
+  return out;
+}
+
 function drawScope(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, radiusNm: number) {
   // The disc: barely lighter than the page, so it reads as an instrument, not a sticker.
   // Over a map it becomes a soft dark wash instead, so the planes stay the brightest thing.
@@ -121,19 +124,16 @@ function drawScope(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: num
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (let nm = step; nm < radiusNm; nm += step) {
-    const rr = (nm / radiusNm) * r;
-    ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke();
-    if (nm % (step * 2) === 0 || radiusNm / step <= 4) {
-      const a = (135 * Math.PI) / 180;
-      const [lx, ly] = [cx + Math.sin(a) * rr, cy - Math.cos(a) * rr];
-      if (onMap) {
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-        ctx.beginPath(); ctx.roundRect(lx - 11, ly - 9, 22, 18, 5); ctx.fill();
-        ctx.fillStyle = '#E2E8F0';
-      }
-      ctx.fillText(`${nm}`, lx, ly);
-      ctx.fillStyle = '#94A3B8';
+    ctx.beginPath(); ctx.arc(cx, cy, (nm / radiusNm) * r, 0, Math.PI * 2); ctx.stroke();
+  }
+  for (const { nm, x: lx, y: ly } of ringLabels(cx, cy, r, radiusNm)) {
+    if (onMap) {
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+      ctx.beginPath(); ctx.roundRect(lx - 11, ly - 9, 22, 18, 5); ctx.fill();
+      ctx.fillStyle = '#E2E8F0';
     }
+    ctx.fillText(`${nm}`, lx, ly);
+    ctx.fillStyle = '#94A3B8';
   }
   ctx.restore();
 
@@ -175,6 +175,61 @@ function drawHome(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: numb
   ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, Math.PI * 2); ctx.fill();
 }
 
+const PLACE_FONT: Record<PlaceName['kind'], string> = {
+  city: '700 14px -apple-system, "Segoe UI", sans-serif',
+  town: '600 12.5px -apple-system, "Segoe UI", sans-serif',
+  village: '500 11.5px -apple-system, "Segoe UI", sans-serif',
+};
+
+/**
+ * Town names: the biggest places first, then the villages nearest home, each only if it fits
+ * without touching another. Returns the boxes used, so aircraft labels can avoid them.
+ */
+function drawPlaces(ctx: CanvasRenderingContext2D, state: State, cx: number, cy: number, r: number, scale: number, radiusNm: number): Label[] {
+  if (!state.places.length) return [];
+  const max = listed() === FEATURED ? 12 : 5;
+  const dist = (p: PlaceName) => Math.hypot(...offsetNm(state.home, p.lat, p.lon));
+  const villages = state.places.filter(p => p.kind === 'village' && dist(p) < radiusNm * 0.25).sort((a, b) => dist(a) - dist(b)).slice(0, 3);
+  const candidates = [...state.places.filter(p => p.kind !== 'village'), ...villages];
+  const sat = onMap;
+  const boxes: Label[] = [];
+  // Home and the ring distances stay clear.
+  const taken: Label[] = [{ x: cx - 14, y: cy - 14, w: 28, h: 28 }, ...ringLabels(cx, cy, r, radiusNm).map(l => ({ x: l.x - 13, y: l.y - 10, w: 26, h: 20 }))];
+  const clear = (l: Label) =>
+    !taken.some(o => l.x < o.x + o.w && l.x + l.w > o.x && l.y < o.y + o.h && l.y + l.h > o.y) &&
+    [[l.x, l.y], [l.x + l.w, l.y], [l.x, l.y + l.h], [l.x + l.w, l.y + l.h]].every(([x, y]) => Math.hypot(x - cx, y - cy) < r - 6);
+
+  ctx.save();
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  for (const p of candidates) {
+    if (boxes.length >= max) break;
+    const [e, n] = offsetNm(state.home, p.lat, p.lon);
+    const x = cx + e * scale, y = cy - n * scale;
+    if (Math.hypot(x - cx, y - cy) > r - 10) continue;
+    ctx.font = PLACE_FONT[p.kind];
+    const w = ctx.measureText(p.name).width;
+    const right = { x: x + 6, y: y - 9, w, h: 18 }, left = { x: x - 6 - w, y: y - 9, w, h: 18 };
+    const box = clear(right) ? right : clear(left) ? left : null;
+    if (!box) continue;
+    taken.push(box);
+    boxes.push(box);
+    // A soft dark halo keeps names legible over fields, sea and town alike.
+    ctx.fillStyle = sat ? 'rgba(241, 245, 249, 0.9)' : 'rgba(148, 163, 184, 0.75)';
+    ctx.beginPath(); ctx.arc(x, y, p.kind === 'city' ? 3 : 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.textAlign = 'left';
+    if (sat) {
+      ctx.strokeStyle = 'rgba(2, 6, 23, 0.8)';
+      ctx.lineWidth = 3.5;
+      ctx.strokeText(p.name, box.x, y);
+    }
+    ctx.fillStyle = sat ? '#F8FAFC' : p.kind === 'village' ? 'rgba(148, 163, 184, 0.7)' : 'rgba(203, 213, 225, 0.85)';
+    ctx.fillText(p.name, box.x, y);
+  }
+  ctx.restore();
+  return boxes;
+}
+
 function placeLabel(state: State, hex: string, x: number, y: number, w: number, hgt: number, taken: Label[], bounds: { cx: number; cy: number; r: number }): Label {
   // Near slots first, then the same four directions further out (the leader line covers the gap).
   const slots: Array<[number, number]> = [
@@ -206,6 +261,8 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
   const scale = r / radiusNm;
   syncMap(canvas, config, state, cx, cy, r, scale);
   drawScope(ctx, cx, cy, r, radiusNm);
+  // The street map has its own names; the satellite view and the plain radar get ours.
+  const placeBoxes = mapChoice(config) === 'map' ? [] : drawPlaces(ctx, state, cx, cy, r, scale, radiusNm);
 
   const data = state.data;
   if (data) {
@@ -266,7 +323,7 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
     // Labels for featured aircraft only, placed so they don't collide.
     // Home and every featured aircraft are reserved first, so no label covers a plane.
     const nearestFirst = visible.filter(a => feature.has(a.hex));
-    const taken: Label[] = [{ x: cx - 12, y: cy - 12, w: 24, h: 24 }, ...nearestFirst.map(a => {
+    const taken: Label[] = [{ x: cx - 12, y: cy - 12, w: 24, h: 24 }, ...placeBoxes, ...nearestFirst.map(a => {
       const [x, y] = pos.get(a.hex)!;
       return { x: x - 10, y: y - 10, w: 20, h: 20 };
     })];
@@ -313,36 +370,14 @@ function syncMap(canvas: HTMLCanvasElement, config: HubConfig, state: State, cx:
   state.mapKey = key;
   const stage = canvas.parentElement!;
   stage.querySelectorAll('.radar-map, .radar-credit').forEach(e => e.remove());
+  // The map's credit is a condition of using it free; it's kept short and faint.
   if (choice === 'plain' || r < 20) return;
-  const source = TILE_SOURCES[choice];
-  const disc = tileDisc(source, state.home.lat, state.home.lon, r, scale);
+  stage.append(h('span', 'radar-credit', TILE_SOURCES[choice].credit));
+  const disc = tileDisc(TILE_SOURCES[choice], state.home.lat, state.home.lon, r, scale);
   disc.style.left = `${cx - r}px`;
   disc.style.top = `${cy - r}px`;
   disc.style.width = disc.style.height = `${2 * r}px`;
   stage.prepend(disc);
-  stage.append(h('span', 'radar-credit', source.credit));
-}
-
-/** A small switch on the radar: Plain, Map, Satellite. Remembered on this display. */
-function mapButton(config: HubConfig, state: State) {
-  const btn = h('button', 'radar-mapbtn');
-  btn.type = 'button';
-  const paint = () => {
-    const now = mapChoice(config);
-    btn.textContent = MAP_LABEL[now];
-    btn.setAttribute('aria-label', `Background: ${MAP_LABEL[now]}. Tap to change.`);
-  };
-  // Its own tap only: don't let it switch screens or start the long press.
-  for (const ev of ['pointerdown', 'pointerup'] as const) btn.addEventListener(ev, e => e.stopPropagation());
-  btn.addEventListener('click', e => {
-    e.stopPropagation();
-    const now = mapChoice(config);
-    setMapChoice(RADAR_MAPS[(RADAR_MAPS.indexOf(now) + 1) % RADAR_MAPS.length]);
-    state.mapKey = '';
-    paint();
-  });
-  paint();
-  return btn;
 }
 
 function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
@@ -404,8 +439,9 @@ export const radarScreen: Screen = {
     const panel = h('aside', 'radar-panel');
     el.append(stage, panel);
 
-    const state: State = { home: config.home, data: null, receivedAt: 0, trails: new Map(), placement: new Map(), pingAt: -1e9, error: null, mapKey: '' };
-    stage.append(mapButton(config, state));
+    const state: State = { home: config.home, data: null, receivedAt: 0, trails: new Map(), placement: new Map(), pingAt: -1e9, error: null, mapKey: '', places: [] };
+    // Displays used to keep their own choice; it's in /setup now.
+    try { localStorage.removeItem('hub.radarMap'); } catch { /* storage unavailable */ }
 
     const poll = async (): Promise<Outcome> => {
       try {
@@ -449,6 +485,15 @@ export const radarScreen: Screen = {
         state.trails.clear();
         state.placement.clear();
         renderPanel(panel, config, state);
+        state.places = recall<{ fetchedAt: number; places: PlaceName[] }>('places', home)?.places ?? [];
+        placesAround(home.lat, home.lon, config.radarRadiusNm)
+          .then(places => {
+            if (state.home !== home || !places.length) return;
+            state.places = places;
+            const known = { fetchedAt: Date.now(), places };
+            remember('places', home, known);
+          })
+          .catch(() => { /* names are a nicety; the radar works without them */ });
         refresher?.stop();
         refresher = new Refresher(poll);
         refresher.now();

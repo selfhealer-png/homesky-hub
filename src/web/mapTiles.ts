@@ -16,12 +16,12 @@ export const TILE_SOURCES: Record<Exclude<RadarMap, 'plain'>, TileSource> = {
   map: {
     url: (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
     maxZoom: 18,
-    credit: '© OpenStreetMap contributors',
+    credit: '© OpenStreetMap',
   },
   satellite: {
     url: (z, x, y) => `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/${z}/${y}/${x}.jpg`,
     maxZoom: 15,
-    credit: 'Sentinel-2 cloudless 2024 by EOX · Copernicus data',
+    credit: '© EOX · Copernicus',
   },
 };
 

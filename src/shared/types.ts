@@ -129,3 +129,6 @@ export interface TonightResponse {
   cloud?: number;
   iss?: IssPass[];
 }
+
+/** A town or city name for labelling the radar (OpenStreetMap). */
+export interface PlaceName { name: string; lat: number; lon: number; kind: 'city' | 'town' | 'village'; population?: number }
