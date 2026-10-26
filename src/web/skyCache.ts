@@ -27,12 +27,40 @@ export function recall<T extends { fetchedAt: number }>(kind: string, home: SkyH
   }
 }
 
-/** "updated 3 min ago" once positions are over a minute old; otherwise nothing. */
+/** Sky data older than this is shown as old: the screen fades and says since when, plainly. */
+export const STALE_MS = 10 * 60_000;
+export const isStale = (fetchedAt: number) => Date.now() - fetchedAt > STALE_MS;
+
+/** "updated 3 min ago" between a minute and STALE_MS; nothing when fresh, and nothing once the
+ *  screen's own old-data note (watchAge) has taken over. */
 export function ageLabel(fetchedAt: number): string | null {
   const s = (Date.now() - fetchedAt) / 1000;
-  if (s < 60) return null;
-  if (s < 3600) return `updated ${Math.round(s / 60)} min ago`;
-  return `updated ${Math.round(s / 3600)} h ago`;
+  if (s < 60 || isStale(fetchedAt)) return null;
+  return `updated ${Math.round(s / 60)} min ago`;
+}
+
+/**
+ * Watches how old a sky screen's data is. Once it's older than STALE_MS the screen gets the
+ * class "stale" (styles.css fades it) and a line at headline size saying since when, so a
+ * glance never takes an hour-old landing time for a live one. Checks every 30 s, and whenever
+ * check() is called after new data. onTick lets a screen redraw what depends on the time.
+ */
+export function watchAge(el: HTMLElement, timeZone: string, fetchedAt: () => number | null, onTick?: () => void) {
+  const note = document.createElement('p');
+  note.className = 'stale-note';
+  note.setAttribute('role', 'status');
+  el.append(note);
+  const check = () => {
+    const t = fetchedAt();
+    const stale = t !== null && isStale(t);
+    el.classList.toggle('stale', stale);
+    note.textContent = stale
+      ? `No new flight data since ${new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit' }).format(t!)}. Still trying.`
+      : '';
+  };
+  check();
+  const timer = window.setInterval(() => { check(); onTick?.(); }, 30_000);
+  return { check, stop: () => clearInterval(timer) };
 }
 
 export type Outcome = 'found' | 'empty' | 'failed';

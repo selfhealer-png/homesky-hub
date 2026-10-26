@@ -5,7 +5,7 @@ import { tileDisc, TILE_SOURCES } from '../mapTiles';
 import { placesAround } from '../placeNames';
 import { nextPlace, skyHome, skyQuery, type SkyHome } from '../location';
 import { motionLevel } from '../motion';
-import { ageLabel, recall, Refresher, remember, type Outcome } from '../skyCache';
+import { ageLabel, recall, Refresher, remember, watchAge, type Outcome } from '../skyCache';
 import { h, type Screen } from '../screen';
 
 // An ambient radar for a room: calm at a glance, detailed on a closer look.
@@ -64,6 +64,7 @@ interface State {
 }
 
 let refresher: Refresher | undefined;
+let stopAge: (() => void) | undefined;
 let frame: number | undefined;
 let retarget: (() => void) | undefined;
 let currentConfig: HubConfig | undefined;
@@ -454,6 +455,8 @@ export const radarScreen: Screen = {
     el.append(stage, panel);
 
     const state: State = { home: config.home, data: null, receivedAt: 0, trails: new Map(), placement: new Map(), pingAt: -1e9, error: null, mapKey: '', places: [] };
+    const age = watchAge(el, config.timezone, () => state.data?.fetchedAt ?? null, () => renderPanel(panel, config, state));
+    stopAge = age.stop;
     // Displays used to keep their own choice; it's in /setup now.
     try { localStorage.removeItem('hub.radarMap'); } catch { /* storage unavailable */ }
 
@@ -476,6 +479,7 @@ export const radarScreen: Screen = {
         Object.assign(state, { data, receivedAt: Date.now(), error: null, pingAt: performance.now() });
         if (!data.stale) remember('aircraft', state.home, data);
         renderPanel(panel, config, state);
+        age.check();
         return data.stale ? 'failed' : data.aircraft.length ? 'found' : 'empty';
       } catch {
         // The free sources often refuse a request; what's on screen stays, and we try again soon.
@@ -524,6 +528,8 @@ export const radarScreen: Screen = {
     return `Centred on ${next === 'device' ? 'this display' : currentConfig!.places.find(p => p.id === next)?.name ?? 'home'}`;
   },
   unmount() {
+    stopAge?.();
+    stopAge = undefined;
     refresher?.stop();
     refresher = undefined;
     if (frame) cancelAnimationFrame(frame);

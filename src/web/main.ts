@@ -1,7 +1,7 @@
 import './styles.css';
 import type { HubConfig } from '../shared/types';
 import { getJson, NotPairedError } from './api';
-import { flash, type Screen } from './screen';
+import { flash, setCaption, type Screen } from './screen';
 import { setMotionLevel } from './motion';
 import { currentNight, startNight, updateNight } from './night';
 import { showWelcome } from './welcome';
@@ -43,6 +43,10 @@ function show(i: number) {
   const el = document.createElement('section');
   el.className = `screen screen-${screens[index].id}`;
   stage.append(el);
+  // The shared strip along the bottom: what this is (the screen can say more) and the time,
+  // on every screen that doesn't show the time itself.
+  document.body.classList.toggle('own-clock', !!screens[index].ownClock);
+  setCaption(screens[index].title);
   screens[index].mount(el, config);
   dots.querySelectorAll('button').forEach((b, n) => b.classList.toggle('active', n === index));
   schedule();
@@ -90,8 +94,21 @@ function buildRotation() {
   dots.append(gear);
 }
 
+/** The strip along the bottom, either side of the dots: a caption on the left, the time on the right. */
+function buildStrip() {
+  const caption = document.createElement('div');
+  caption.id = 'caption';
+  const time = document.createElement('div');
+  time.id = 'strip-time';
+  const tick = () => { time.textContent = new Intl.DateTimeFormat('en-GB', { timeZone: config.timezone, hour: '2-digit', minute: '2-digit' }).format(new Date()); };
+  tick();
+  window.setInterval(tick, 10_000);
+  document.body.append(caption, time);
+}
+
 function wireGestures() {
   buildRotation();
+  buildStrip();
 
   // Tap the left or right third to step; long-press anywhere for the menu (pin, settings).
   let pressTimer: number | undefined;

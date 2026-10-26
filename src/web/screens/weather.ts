@@ -4,7 +4,7 @@ import { getJson } from '../api';
 import { wearIcon, weatherIcon } from '../icons';
 import { mountRainRadar } from '../rainRadar';
 import { skyHome, skyQuery } from '../location';
-import { h, type Screen } from '../screen';
+import { h, setCaption, type Screen } from '../screen';
 
 // Weather now and what to wear for it on the left; the next hours and days on the right, with
 // the rain radar under them only when rain is around. What to wear is a few pictures, not a
@@ -45,7 +45,7 @@ function render(el: HTMLElement, data: WeatherResponse, home: { name: string; la
 
   // Now
   const left = h('section', 'wx-now');
-  left.append(h('p', 'wx-place', home.name));
+  setCaption(`Weather · ${home.name}`);
   const big = h('div', 'wx-big');
   big.append(weatherIcon(info.icon, 'wx-icon wx-icon-big'), h('span', 'wx-temp', deg(now.temp)));
   left.append(big);

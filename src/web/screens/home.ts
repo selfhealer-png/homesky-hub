@@ -133,6 +133,7 @@ export const homeScreen: Screen = {
   title: 'Home',
   durationSec: 60,
   quiet: true,
+  ownClock: true,
   mount(el: HTMLElement, config: HubConfig) {
     const clock = h('div', 'clock');
     clock.append(h('div', 'time-now'), h('div', 'date-now'));

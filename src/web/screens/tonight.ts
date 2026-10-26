@@ -1,7 +1,7 @@
 import type { HubConfig, IssPass, TonightResponse } from '../../shared/types';
 import { getJson } from '../api';
 import { skyHome, skyQuery } from '../location';
-import { h, type Screen } from '../screen';
+import { h, setCaption, type Screen } from '../screen';
 
 // Tonight's sky: is it worth looking up? A one-line verdict first (cloud and moon decide
 // most of it), then the moon, the night's times, the aurora, and the space station.
@@ -56,7 +56,7 @@ const AURORA: Record<string, [string, string]> = {
 
 function render(el: HTMLElement, d: TonightResponse, home: { name: string; lat: number }, config: HubConfig) {
   const tz = config.timezone || undefined;
-  const time = (iso?: string) => (iso ? new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(new Date(iso)) : '');
+  const time = (iso?: string) => (iso ? new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(new Date(iso)) : '');
   const dayKey = (t: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(t);
   const hourOf = (t: Date) => Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: tz }).format(t));
   /** "Tonight" runs from 5pm to 6am; otherwise today, tomorrow, or the weekday. */
@@ -67,17 +67,20 @@ function render(el: HTMLElement, d: TonightResponse, home: { name: string; lat: 
     if ((sameDay && hourOf(t) >= 17) || (sameDay && hourOf(t) < 6) || (nextDay && hourOf(t) < 6 && hourOf(now) >= 17)) return 'Tonight';
     if (sameDay) return 'Today';
     if (nextDay) return 'Tomorrow';
-    return new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: tz }).format(t);
+    return new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: tz }).format(t);
   };
 
   // Left: the verdict, the moon, the night's times.
   const left = h('section', 'tn-main');
-  left.append(h('p', 'tn-kicker', `Tonight · ${home.name}`), h('h1', 'tn-verdict', verdict(d)));
+  setCaption(`Tonight · ${home.name}`);
+  left.append(h('h1', 'tn-verdict', verdict(d)));
 
   const moon = h('div', 'tn-moon-row');
   const words = h('div');
   words.append(h('p', 'tn-moon-name', d.moon.name), h('p', 'tn-moon-lit-pct', `${Math.round(d.moon.fraction * 100)}% lit`));
-  const rs = [d.moon.rise && `Rises ${time(d.moon.rise)}`, d.moon.set && `sets ${time(d.moon.set)}`].filter(Boolean).join(' · ');
+  // A moonrise or moonset on another day says so: "sets 08:58 tomorrow".
+  const moonTime = (iso: string) => `${time(iso)}${dayKey(new Date(iso)) === dayKey(new Date()) ? '' : ' tomorrow'}`;
+  const rs = [d.moon.rise && `Rises ${moonTime(d.moon.rise)}`, d.moon.set && `sets ${moonTime(d.moon.set)}`].filter(Boolean).join(' · ');
   if (rs) words.append(h('p', 'tn-moon-times', rs.charAt(0).toUpperCase() + rs.slice(1)));
   moon.append(moonDisc(d.moon.phase, d.moon.fraction, home.lat < 0), words);
   left.append(moon);

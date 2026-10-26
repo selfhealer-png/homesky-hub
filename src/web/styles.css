@@ -41,6 +41,23 @@ body {
 body.pinned #dots button.active::before { box-shadow: 0 0 0 2px #0F172A, 0 0 0 4px var(--accent); }
 #dots button:not(.gear):focus-visible { outline: 2px solid #2563FF; outline-offset: -4px; border-radius: 8px; }
 
+/* The shared strip along the bottom, either side of the dots: what this screen is showing on the
+   left, the time on the right. Off on screens that show the time themselves (body.own-clock). */
+#caption, #strip-time { position: fixed; bottom: 0; z-index: 5; height: 36px; display: flex; align-items: center; pointer-events: none; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
+#caption { left: 32px; max-width: calc(50% - 210px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #94A3B8; font: 500 16px/1 -apple-system, "Segoe UI", sans-serif; }
+#strip-time { right: 32px; color: #E2E8F0; font: 600 22px/1 "Gabarito", -apple-system, sans-serif; font-variant-numeric: tabular-nums; }
+body.own-clock #caption, body.own-clock #strip-time { display: none; }
+/* On the cream board by day, the strip takes the board's ink. */
+html:not([data-night]) body:has(.screen[data-theme="minimal"]) #caption { color: #655f57; text-shadow: none; }
+html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { color: #161514; text-shadow: none; }
+
+/* Old sky data (skyCache.watchAge): past ten minutes the screen fades back and says, in amber at
+   headline size, since when. Amber is the display's one raised voice, as for Overdue. */
+.screen.stale { position: relative; }
+.screen.stale > :not(.stale-note) { opacity: 0.4; transition: opacity 1s; }
+.stale-note { display: none; }
+.screen.stale .stale-note { display: block; position: absolute; top: 22px; left: 50%; z-index: 4; transform: translateX(-50%); margin: 0; padding: 10px 20px; border-radius: 999px; background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(251, 191, 36, 0.45); color: #FDE68A; font: 600 22px/1.2 -apple-system, "Segoe UI", sans-serif; white-space: nowrap; }
+
 /* What a tap did, for a moment: the screen's name, a board theme, a place. */
 #flash { position: fixed; left: 50%; bottom: 44px; z-index: 16; transform: translate(-50%, 6px); padding: 8px 16px; border-radius: 999px; background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(148, 163, 184, 0.25); color: #F1F5F9; font: 600 17px/1.2 -apple-system, "Segoe UI", sans-serif; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s cubic-bezier(.16, 1, .3, 1); }
 #flash.on { opacity: 1; transform: translate(-50%, 0); }
@@ -59,8 +76,8 @@ body.pinned #dots button.active::before { box-shadow: 0 0 0 2px #0F172A, 0 0 0 4
   --rowbg: #24334A; --timebg: #1E3A5F; --family: #94A3B8; --faint: #64748B; --border2: #475569;
   --amber: #FBBF24; --amberbg: #3F2D12;
   --timetext: #A9BDD8; --daytext: #CBD5E1; /* pill text, both ≥ 6:1 on their pill */
-  --sam: #2563FF; --personal: #7C3AED;
-  --aurora: linear-gradient(90deg, var(--sam), var(--personal));
+  --blue: #2563FF; --violet: #7C3AED;
+  --aurora: linear-gradient(90deg, var(--blue), var(--violet));
   --font-display: "Gabarito", system-ui, sans-serif;
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg); color: var(--ink); font-family: var(--font-ui);
@@ -421,7 +438,6 @@ body.pinned #dots button.active::before { box-shadow: 0 0 0 2px #0F172A, 0 0 0 4
 .wx-icon { width: 30px; height: 30px; color: #CBD5E1; flex: 0 0 auto; }
 .wx-icon.wx-sun, .wx-icon.wx-partly { color: #FBBF24; }
 .wx-icon.wx-rain, .wx-icon.wx-storm { color: #7DD3FC; }
-.wx-place { margin: 0; color: var(--muted); font-size: 16px; }
 .wx-big { display: flex; align-items: center; gap: 18px; margin-top: 2px; }
 .wx-icon-big { width: 88px; height: 88px; stroke-width: 1.4; }
 .wx-temp { font: 600 116px/1 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
@@ -484,6 +500,10 @@ body.pinned #dots button.active::before { box-shadow: 0 0 0 2px #0F172A, 0 0 0 4
   #dots button:not(.gear) { width: 24px; height: 30px; }
   #dots button:not(.gear)::before { width: 8px; height: 8px; }
   #flash { bottom: 34px; font-size: 14px; padding: 6px 12px; }
+  #caption, #strip-time { height: 30px; }
+  #caption { left: 20px; max-width: calc(50% - 150px); font-size: 12px; }
+  #strip-time { right: 20px; font-size: 16px; }
+  .screen.stale .stale-note { top: 10px; padding: 6px 14px; font-size: 14px; }
 
   /* Home: a smaller clock; today and overdue only (the next days need the room) */
   .screen-home { grid-template-columns: 0.7fr 1.3fr; gap: 22px; }
@@ -503,7 +523,6 @@ body.pinned #dots button.active::before { box-shadow: 0 0 0 2px #0F172A, 0 0 0 4
 
   /* Weather: now and the next hours on the left; the clothing list in two columns */
   .screen-weather { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr); gap: 20px; }
-  .wx-place { font-size: 13px; }
   .wx-big { gap: 10px; }
   .wx-icon-big { width: 52px; height: 52px; }
   .wx-temp { font-size: 64px; }
@@ -678,7 +697,6 @@ body.pinned #dots button.active::before { box-shadow: 0 0 0 2px #0F172A, 0 0 0 4
   display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 40px; align-items: center;
 }
 .tn-loading { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 20px; }
-.tn-kicker { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .tn-verdict { margin: 10px 0 0; font: 600 44px/1.08 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.02em; text-wrap: balance; max-width: 16ch; }
 .tn-moon-row { display: flex; align-items: center; gap: 24px; margin-top: 30px; }
 .tn-moon { width: 132px; height: 132px; flex: 0 0 auto; filter: drop-shadow(0 0 24px rgba(226, 232, 255, 0.22)); }
@@ -706,7 +724,6 @@ body.pinned #dots button.active::before { box-shadow: 0 0 0 2px #0F172A, 0 0 0 4
 
 @media (max-height: 520px) {
   .screen-tonight { gap: 20px; }
-  .tn-kicker { font-size: 11px; }
   .tn-verdict { font-size: 26px; margin-top: 4px; }
   .tn-moon-row { margin-top: 12px; gap: 14px; }
   .tn-moon { width: 64px; height: 64px; }

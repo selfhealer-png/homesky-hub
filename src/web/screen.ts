@@ -15,6 +15,15 @@ export interface Screen {
   isAvailable?(config: HubConfig): boolean;
   /** Optional: stays in the rotation during quiet hours, when the display dims for the night. */
   quiet?: boolean;
+  /** Optional: the screen shows the time itself, so the shared strip (caption and time) stays off. */
+  ownClock?: boolean;
+}
+
+/** Says what a screen is showing in the shared strip along the bottom ("Weather · Langwathby").
+ *  The rotation sets it to the screen's title; a screen can be more specific once it knows. */
+export function setCaption(text: string) {
+  const el = document.getElementById('caption');
+  if (el) el.textContent = text;
 }
 
 let flashEl: HTMLElement | undefined;

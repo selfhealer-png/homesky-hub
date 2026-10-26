@@ -2,7 +2,7 @@ import type { Aircraft, BoardTheme, HubConfig, OverheadResponse, RouteInfo } fro
 import { getJson } from '../api';
 import { FlapRow, setFlapMotion, type FlapMotion } from '../flap';
 import { skyHome, skyQuery } from '../location';
-import { ageLabel, recall, Refresher, remember, type Outcome } from '../skyCache';
+import { ageLabel, recall, Refresher, remember, watchAge, type Outcome } from '../skyCache';
 import { h, type Screen } from '../screen';
 
 const MIN_HOLD_MS = 30000; // stay on one aircraft at least this long
@@ -12,6 +12,7 @@ export const MOTION: Record<BoardTheme, FlapMotion> = { splitflap: 'flip', led: 
 const THEME_KEY = 'hub.boardTheme';
 
 let refresher: Refresher | undefined;
+let stopAge: (() => void) | undefined;
 let root: HTMLElement | undefined;
 let theme: BoardTheme = 'splitflap';
 
@@ -158,11 +159,14 @@ export const boardScreen: Screen = {
     let held: string | null = null;
     let heldSince = 0;
     let shown: OverheadResponse | null = null;
+    const age = watchAge(el, config.timezone, () => shown?.fetchedAt ?? null);
+    stopAge = age.stop;
     const show = (data: OverheadResponse) => {
       shown = data;
       render(ui, data);
-      const age = ageLabel(data.fetchedAt);
-      if (age) ui.footer.textContent = [ui.footer.textContent, age].filter(Boolean).join(' · ');
+      const ago = ageLabel(data.fetchedAt);
+      if (ago) ui.footer.textContent = [ui.footer.textContent, ago].filter(Boolean).join(' · ');
+      age.check();
     };
 
     const poll = async (): Promise<Outcome> => {
@@ -197,6 +201,8 @@ export const boardScreen: Screen = {
     return THEME_NAMES[theme];
   },
   unmount() {
+    stopAge?.();
+    stopAge = undefined;
     refresher?.stop();
     refresher = undefined;
     root = undefined;

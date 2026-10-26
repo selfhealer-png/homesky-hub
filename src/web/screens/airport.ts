@@ -2,8 +2,8 @@ import type { SavedAirport } from '../../shared/settings';
 import type { AirportBoardResponse, AirportFlight, HubConfig } from '../../shared/types';
 import { getJson } from '../api';
 import { FlapRow, setFlapMotion } from '../flap';
-import { ageLabel, recall, Refresher, remember, type Outcome } from '../skyCache';
-import { h, type Screen } from '../screen';
+import { ageLabel, isStale, recall, Refresher, remember, watchAge, type Outcome } from '../skyCache';
+import { h, setCaption, type Screen } from '../screen';
 import { MOTION, storedTheme } from './board';
 
 // An airport arrivals board, split-flap style, for each airport chosen in /setup. Each visit
@@ -38,12 +38,16 @@ const COLUMNS: Record<Kind, Column[]> = {
 let view = -1;
 let refresher: Refresher | undefined;
 let rebuild: (() => void) | undefined;
+let stopAge: (() => void) | undefined;
+/** An arrival whose estimate passed this long ago has landed or gone elsewhere: it leaves the board. */
+const PASSED_MS = 2 * 60_000;
+const kindName = (kind: Kind) => (kind === 'arrivals' ? 'Arrivals' : 'Departures');
 
 const views = (config: HubConfig) => config.airports.flatMap(a => (['arrivals', 'departures'] as Kind[]).map(kind => ({ airport: a, kind })));
 
 function cells(f: AirportFlight, kind: Kind, tz: string, fetchedAt: number): Record<string, string> {
   const time = kind === 'arrivals'
-    ? f.status === 'landed' ? '' : new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' }).format(new Date(fetchedAt + (f.etaMin ?? 0) * 60_000))
+    ? f.status === 'landed' ? '' : isStale(fetchedAt) ? '—' : new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' }).format(new Date(fetchedAt + (f.etaMin ?? 0) * 60_000))
     : f.altFt === null ? '' : String(Math.round(f.distanceNm * 1.852));
   return {
     city: f.city,
@@ -92,8 +96,12 @@ function build(el: HTMLElement): BoardUi {
 
 function render(ui: BoardUi, data: AirportBoardResponse, kind: Kind, config: HubConfig) {
   const columns = COLUMNS[kind];
-  const flights = data[kind];
-  ui.title.replaceChildren(planeIcon(kind), h('span', undefined, kind === 'arrivals' ? 'Arrivals' : 'Departures'));
+  const now = Date.now();
+  const flights = kind === 'arrivals'
+    ? data.arrivals.filter(f => f.status === 'landed' || f.etaMin === null || data.fetchedAt + f.etaMin * 60_000 > now - PASSED_MS)
+    : data.departures;
+  ui.title.replaceChildren(planeIcon(kind), h('span', undefined, kindName(kind)));
+  setCaption(`${kindName(kind)} · ${data.airport.city}`);
   ui.place.set(data.airport.city, 'right');
   ui.code.textContent = data.airport.iata || data.airport.icao;
   columns.forEach((c, i) => { ui.labels[i].textContent = c.label; });
@@ -126,7 +134,7 @@ const placeOf = (a: SavedAirport) => ({ lat: a.lat, lon: a.lon, name: a.icao });
 
 export const airportScreen: Screen = {
   id: 'airport',
-  title: 'Arrivals',
+  title: 'Airports',
   durationSec: 60,
   isAvailable: config => config.airports.length > 0,
   mount(el: HTMLElement, config: HubConfig) {
@@ -155,6 +163,7 @@ export const airportScreen: Screen = {
         if (mine !== generation) return 'failed';
         shown = data;
         show();
+        age.check();
         remember('airport', placeOf(airport), data);
         return data.arrivals.length || data.departures.length ? 'found' : 'empty';
       } catch {
@@ -162,6 +171,9 @@ export const airportScreen: Screen = {
         return 'failed';
       }
     };
+
+    const age = watchAge(el, config.timezone, () => shown?.fetchedAt ?? null, () => show());
+    stopAge = age.stop;
 
     rebuild = () => {
       generation++;
@@ -171,7 +183,7 @@ export const airportScreen: Screen = {
         shown = recall<AirportBoardResponse>('airport', placeOf(airport));
         if (!shown) {
           // Nothing known yet: name the board while the first answer loads.
-          ui.title.replaceChildren(planeIcon(kind), h('span', undefined, kind === 'arrivals' ? 'Arrivals' : 'Departures'));
+          ui.title.replaceChildren(planeIcon(kind), h('span', undefined, kindName(kind)));
           ui.place.set(airport.city, 'right');
           ui.code.textContent = airport.iata || airport.icao;
           ui.rows.forEach(row => Object.values(row).forEach(r => r.set('')));
@@ -179,6 +191,8 @@ export const airportScreen: Screen = {
         }
       }
       show();
+      age.check();
+      setCaption(`${kindName(kind)} · ${airport.city}`);
       refresher?.stop();
       refresher = new Refresher(poll);
       refresher.now();
@@ -186,12 +200,16 @@ export const airportScreen: Screen = {
     rebuild();
   },
   onCenterTap() {
+    if (!rebuild) return;
     view++;
-    rebuild?.();
+    rebuild();
+    return document.querySelector('#caption')?.textContent ?? undefined;
   },
   unmount() {
     refresher?.stop();
     refresher = undefined;
     rebuild = undefined;
+    stopAge?.();
+    stopAge = undefined;
   },
 };

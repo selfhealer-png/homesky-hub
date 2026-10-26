@@ -163,6 +163,7 @@ export const photosScreen: Screen = {
   title: 'Photos',
   durationSec: 90,
   isAvailable: config => config.features.photos,
+  ownClock: true,
   mount(el: HTMLElement, config: HubConfig) {
     mounted = true;
     const style = config.photoStyle ?? 'fill';
