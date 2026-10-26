@@ -1,12 +1,14 @@
 import type { HubConfig } from '../../shared/types';
-import type { PhotoInfo } from '../../shared/settings';
+import type { PhotoInfo, PhotoStyle } from '../../shared/settings';
 import { getJson } from '../api';
 import { h, type Screen } from '../screen';
 
-// The photo frame. Two styles, chosen in /setup:
-//   fill    edge to edge with a slow drift; the time and caption sit on a soft scrim
-//   framed  prints in a dark frame with a cream mount, hung on a dim wall, each with a small
-//           gallery label underneath (place or collection, and the date)
+// The photo frame. Four styles, chosen in /setup:
+//   fill     edge to edge with a slow drift; the time and caption sit on a soft scrim
+//   framed   prints in a dark frame with a cream mount, hung on a dim wall, each with a small
+//            gallery label underneath (place or collection, and the date)
+//   instant  instant-camera prints dropped on a table, a little askew, captioned by hand on the lip
+//   float    borderless, rounded photos over a blur of their own colours, each labelled underneath
 // Portrait photos are paired: a landscape screen holds two portraits side by side far better
 // than one portrait with empty space either side. The deck is shuffled once and carries on
 // where it left off each time the screen comes round.
@@ -66,6 +68,13 @@ function label(p: PhotoInfo, tz: string): string {
   return [placeOf(p), dateOf(p, tz)].filter(Boolean).join(' · ');
 }
 
+/** What you'd write on an instant print: "St Ives · May 2024". */
+function noteOf(p: PhotoInfo, tz: string): string {
+  const d = p.taken ? new Date(p.taken) : null;
+  const when = d && !Number.isNaN(d.getTime()) ? new Intl.DateTimeFormat('en-GB', { timeZone: tz, month: 'short', year: 'numeric' }).format(d) : '';
+  return [placeOf(p), when].filter(Boolean).join(' · ');
+}
+
 /** One caption for a whole slide: a shared place is said once ("St Ives · 3 May and 9 June 2024"). */
 function slideLabel(slide: PhotoInfo[], tz: string): string {
   const places = [...new Set(slide.map(placeOf))];
@@ -113,21 +122,36 @@ function fillLayer(slide: PhotoInfo[], imgs: HTMLImageElement[], screen: HTMLEle
   return layer;
 }
 
-function framedLayer(slide: PhotoInfo[], imgs: HTMLImageElement[], tz: string): HTMLElement {
-  const layer = h('div', `pf-layer pf-wall${slide.length === 2 ? ' two' : ''}`);
-  // The wall picks up the photo's colours, very dimly, so each print feels lit rather than pasted.
-  const wash = h('img', 'pf-wash');
-  wash.src = imgs[0].src;
-  wash.alt = '';
-  layer.append(wash);
+type WallStyle = Exclude<PhotoStyle, 'fill'>;
+
+const tilt = (from: number, to: number) => `${(from + Math.random() * (to - from)).toFixed(1)}deg`;
+
+/** Framed, instant and float: each photo is a separate print with its own label. */
+function wallLayer(style: WallStyle, slide: PhotoInfo[], imgs: HTMLImageElement[], tz: string): HTMLElement {
+  const layer = h('div', `pf-layer pf-wall pf-${style}${slide.length === 2 ? ' two' : ''}`);
+  if (style !== 'instant') {
+    // The wall picks up the photo's colours, very dimly, so each print feels lit rather than pasted.
+    const wash = h('img', 'pf-wash');
+    wash.src = imgs[0].src;
+    wash.alt = '';
+    layer.append(wash);
+  }
   slide.forEach((p, i) => {
     const print = h('figure', `pf-print${isPortrait(p) ? ' portrait' : ''}`);
-    const mount = h('div', 'pf-mount');
     imgs[i].className = 'pf-photo';
-    mount.append(imgs[i]);
-    print.append(mount);
-    const text = label(p, tz);
-    if (text) print.append(h('figcaption', 'pf-label', text));
+    if (style === 'framed') {
+      const mount = h('div', 'pf-mount');
+      mount.append(imgs[i]);
+      print.append(mount);
+    } else {
+      print.append(imgs[i]);
+    }
+    if (style === 'instant') {
+      // Put down by hand: a pair leans apart, a single print sits a little off square.
+      print.style.setProperty('--tilt', slide.length === 2 ? (i ? tilt(2, 5) : tilt(-6, -2)) : tilt(-3, 3));
+    }
+    const text = style === 'instant' ? noteOf(p, tz) : label(p, tz);
+    if (text || style === 'instant') print.append(h('figcaption', 'pf-label', text));
     layer.append(print);
   });
   return layer;
@@ -140,8 +164,10 @@ export const photosScreen: Screen = {
   isAvailable: config => config.features.photos,
   mount(el: HTMLElement, config: HubConfig) {
     mounted = true;
-    const framed = config.photoStyle === 'framed';
-    el.classList.add(framed ? 'pf-style-framed' : 'pf-style-fill');
+    const style = config.photoStyle ?? 'fill';
+    const wall = style !== 'fill';
+    el.classList.add(`pf-style-${style}`);
+    if (wall) el.classList.add('pf-style-wall');
     const frame = h('div', 'pf-frame');
     const caption = h('div', 'pf-caption');
     const time = h('div', 'pf-time');
@@ -172,7 +198,7 @@ export const photosScreen: Screen = {
       }
       if (!mounted) return;
 
-      const layer = framed ? framedLayer(slide, imgs, config.timezone) : fillLayer(slide, imgs, el);
+      const layer = wall ? wallLayer(style, slide, imgs, config.timezone) : fillLayer(slide, imgs, el);
       // Drift in a random direction, so consecutive photos don't all move the same way.
       layer.style.setProperty('--kx', `${(Math.random() * 2 - 1) * 2.5}%`);
       layer.style.setProperty('--ky', `${(Math.random() * 2 - 1) * 2}%`);
@@ -182,8 +208,8 @@ export const photosScreen: Screen = {
       const old = [...frame.children].filter(c => c !== layer);
       window.setTimeout(() => old.forEach(o => o.remove()), FADE_MS + 100);
 
-      // Framed prints carry their own labels; full-screen photos show theirs under the clock.
-      when.textContent = framed ? '' : slideLabel(slide, config.timezone);
+      // Prints carry their own labels; full-screen photos show theirs under the clock.
+      when.textContent = wall ? '' : slideLabel(slide, config.timezone);
       timer = window.setTimeout(show, PHOTO_MS);
     };
     show();

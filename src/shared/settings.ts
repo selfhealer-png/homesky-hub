@@ -72,12 +72,13 @@ export interface DisplaySettings {
   motion: MotionLevel;
   /** For clothing advice: someone who runs cold is told to dress for colder weather. */
   warmth?: Warmth;
-  /** fill: edge to edge. framed: prints in a mounted frame, with a small label. */
+  /** fill: edge to edge. framed: prints in a mounted frame. instant: instant-camera prints
+   *  on a table. float: borderless, over a blur of the photo's colours. */
   photoStyle?: PhotoStyle;
 }
 
-export type PhotoStyle = 'fill' | 'framed';
-export const PHOTO_STYLES: PhotoStyle[] = ['fill', 'framed'];
+export type PhotoStyle = 'fill' | 'framed' | 'instant' | 'float';
+export const PHOTO_STYLES: PhotoStyle[] = ['fill', 'framed', 'instant', 'float'];
 
 export const DEFAULT_DISPLAY: DisplaySettings = { clock: 'word', motion: 'full', warmth: 'normal', photoStyle: 'fill' };
 export const WARMTH_LEVELS: Warmth[] = ['cold', 'normal', 'warm'];

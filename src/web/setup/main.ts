@@ -108,6 +108,8 @@ function renderLogin(message?: string) {
     h('h2', {}, 'Sign in'),
     h('p', { class: 'lede' }, 'Use the admin password that ', h('code', {}, 'npm run setup'), ' printed.'),
     message ? h('p', { class: 'result bad' }, message) : null,
+    // A hidden username lets password managers save and fill the admin password.
+    input({ type: 'text', name: 'username', autocomplete: 'username', value: 'admin', hidden: 'true' }),
     field('Admin password', pw),
     submit,
   );
@@ -757,13 +759,13 @@ function displayCard() {
 
   card.append(h('h3', {}, 'Photo frame'));
   const photoStyle = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Photo frame style' });
-  const PHOTO_LABELS = { fill: 'Full screen', framed: 'Framed prints' } as const;
+  const PHOTO_LABELS = { fill: 'Full screen', framed: 'Framed prints', instant: 'Instant prints', float: 'Borderless' } as const;
   for (const style of PHOTO_STYLES) {
     const r = h('input', { type: 'radio', name: 'photo-style', value: style, checked: (d.photoStyle ?? 'fill') === style });
     r.addEventListener('change', () => saveDisplay({ ...d, photoStyle: style }).catch(err => toast((err as Error).message, 'error')));
     photoStyle.append(h('label', {}, r, h('span', {}, PHOTO_LABELS[style])));
   }
-  card.append(photoStyle, h('p', { class: 'hint' }, 'Framed shows each photo as a mounted print with its place and date underneath. Portrait photos are always shown in pairs.'));
+  card.append(photoStyle, h('p', { class: 'hint' }, 'Framed hangs each photo as a mounted print, Instant drops instant-camera prints on a table with a handwritten caption, and Borderless floats them over a blur of their own colours. All three show the place and date. Portrait photos are always shown in pairs.'));
   return card;
 }
 
