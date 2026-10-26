@@ -36,8 +36,13 @@ export function altitudeColor(ft: number | null, alpha = 1): string {
   return `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${alpha})`;
 }
 
-const fmtAlt = (a: Aircraft) => (a.altFt == null ? '' : a.altFt >= 10000 ? `FL${Math.round(a.altFt / 100)}` : `${a.altFt.toLocaleString('en-GB')} ft`);
+// Feet for height and kilometres for distance on every screen; the range is set in nautical
+// miles (as ADS-B reports it) but never shown in them.
+const NM_KM = 1.852;
+const fmtAlt = (a: Aircraft) => (a.altFt == null ? '' : `${a.altFt.toLocaleString('en-GB')} ft`);
 const name = (a: Aircraft) => a.callsign ?? a.registration ?? a.hex.toUpperCase();
+/** Light aircraft fly under their registration: G-VOAR's callsign is GVOAR, so don't say it twice. */
+const regRepeats = (a: Aircraft) => !!a.registration && a.callsign?.trim().toUpperCase() === a.registration.replace(/-/g, '').toUpperCase();
 
 // A small aircraft silhouette pointing up (north), about 16 px nose to tail at scale 1.
 const PLANE = new Path2D('M0 -8 L1.3 -5.6 L1.3 -2.2 L7.5 1.6 L7.5 3 L1.3 1.2 L1 5.3 L3 6.8 L3 7.8 L0 7 L-3 7.8 L-3 6.8 L-1 5.3 L-1.3 1.2 L-7.5 3 L-7.5 1.6 L-1.3 -2.2 L-1.3 -5.6 Z');
@@ -91,15 +96,19 @@ function featured(data: AircraftResponse): Set<string> {
   return new Set([...airborne.filter(a => a.emergency), ...airborne.slice(0, listed())].map(a => a.hex));
 }
 
+/** Range rings every so many kilometres, for a radius in nautical miles. */
+const ringStepKm = (radiusNm: number) => { const km = radiusNm * NM_KM; return km <= 60 ? 10 : km <= 120 ? 20 : 50; };
+
 /** Where the range rings' distance labels go: along the 135° bearing, where traffic is rarely drawn. */
-function ringLabels(cx: number, cy: number, r: number, radiusNm: number): Array<{ nm: number; x: number; y: number }> {
-  const step = radiusNm <= 30 ? 5 : radiusNm <= 60 ? 10 : 25;
+function ringLabels(cx: number, cy: number, r: number, radiusNm: number): Array<{ km: number; x: number; y: number }> {
+  const radiusKm = radiusNm * NM_KM;
+  const step = ringStepKm(radiusNm);
   const out = [];
   const a = (135 * Math.PI) / 180;
-  for (let nm = step; nm < radiusNm; nm += step) {
-    if (nm % (step * 2) !== 0 && radiusNm / step > 4) continue;
-    const rr = (nm / radiusNm) * r;
-    out.push({ nm, x: cx + Math.sin(a) * rr, y: cy - Math.cos(a) * rr });
+  for (let km = step; km < radiusKm; km += step) {
+    if (km % (step * 2) !== 0 && radiusKm / step > 4) continue;
+    const rr = (km / radiusKm) * r;
+    out.push({ km, x: cx + Math.sin(a) * rr, y: cy - Math.cos(a) * rr });
   }
   return out;
 }
@@ -114,7 +123,8 @@ function drawScope(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: num
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
 
   // Range rings: fine and dashed, with labels set along the 135° bearing where traffic is rarely drawn over them.
-  const step = radiusNm <= 30 ? 5 : radiusNm <= 60 ? 10 : 25;
+  const radiusKm = radiusNm * NM_KM;
+  const step = ringStepKm(radiusNm);
   ctx.save();
   ctx.setLineDash([2, 6]);
   ctx.strokeStyle = onMap ? 'rgba(241, 245, 249, 0.5)' : 'rgba(148, 163, 184, 0.22)';
@@ -123,18 +133,21 @@ function drawScope(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: num
   ctx.fillStyle = '#94A3B8'; // 6.3:1 on the disc
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (let nm = step; nm < radiusNm; nm += step) {
-    ctx.beginPath(); ctx.arc(cx, cy, (nm / radiusNm) * r, 0, Math.PI * 2); ctx.stroke();
+  for (let km = step; km < radiusKm; km += step) {
+    ctx.beginPath(); ctx.arc(cx, cy, (km / radiusKm) * r, 0, Math.PI * 2); ctx.stroke();
   }
-  for (const { nm, x: lx, y: ly } of ringLabels(cx, cy, r, radiusNm)) {
+  // The innermost label carries the unit; the rest are just numbers.
+  ringLabels(cx, cy, r, radiusNm).forEach(({ km, x: lx, y: ly }, i) => {
+    const text = i === 0 ? `${km} km` : `${km}`;
     if (onMap) {
+      const w = Math.ceil(ctx.measureText(text).width) + 10;
       ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-      ctx.beginPath(); ctx.roundRect(lx - 11, ly - 9, 22, 18, 5); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(lx - w / 2, ly - 9, w, 18, 5); ctx.fill();
       ctx.fillStyle = '#E2E8F0';
     }
-    ctx.fillText(`${nm}`, lx, ly);
+    ctx.fillText(text, lx, ly);
     ctx.fillStyle = '#94A3B8';
-  }
+  });
   ctx.restore();
 
   // Bezel: a hairline edge with compass ticks every 5°, longer every 30°.
@@ -374,6 +387,7 @@ function syncMap(canvas: HTMLCanvasElement, config: HubConfig, state: State, cx:
   if (choice === 'plain' || r < 20) return;
   stage.append(h('span', 'radar-credit', TILE_SOURCES[choice].credit));
   const disc = tileDisc(TILE_SOURCES[choice], state.home.lat, state.home.lon, r, scale);
+  disc.dataset.map = choice;
   disc.style.left = `${cx - r}px`;
   disc.style.top = `${cy - r}px`;
   disc.style.width = disc.style.height = `${2 * r}px`;
@@ -383,11 +397,11 @@ function syncMap(canvas: HTMLCanvasElement, config: HubConfig, state: State, cx:
 function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
   const data = state.data;
   const head = h('header', 'radar-head');
-  head.append(h('h2', undefined, 'Overhead'));
+  head.append(h('h2', undefined, 'Nearby'));
   const airborne = data ? data.aircraft.filter(a => a.altFt !== null) : [];
   const age = data ? ageLabel(data.fetchedAt) : null;
   head.append(h('p', 'radar-sub', data
-    ? `${airborne.length} aircraft within ${config.radarRadiusNm} nm of ${state.home.name}${age ? ` · ${age}` : ''}`
+    ? `${airborne.length} aircraft within ${Math.round(config.radarRadiusNm * NM_KM)} km of ${state.home.name}${age ? ` · ${age}` : ''}`
     : `Looking for aircraft near ${state.home.name}…`));
   const list = h('ol', 'radar-list');
 
@@ -401,9 +415,9 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
       const main = h('div', 'radar-main');
       main.append(h('b', undefined, name(a)));
       main.append(h('span', 'radar-route', a.emergency ? `Squawk ${a.squawk ?? 'emergency'}`
-        : route ? `${route.fromCity} → ${route.toCity}` : [a.type, a.registration].filter(Boolean).join(' · ') || '—'));
+        : route ? `${route.fromCity} → ${route.toCity}` : [a.type, regRepeats(a) ? null : a.registration].filter(Boolean).join(' · ') || '—'));
       const figs = h('div', 'radar-figs');
-      figs.append(h('span', undefined, fmtAlt(a)), h('span', undefined, `${(a.distanceNm * 1.852).toFixed(a.distanceNm < 5 ? 1 : 0)} km`));
+      figs.append(h('span', undefined, fmtAlt(a)), h('span', undefined, `${(a.distanceNm * NM_KM).toFixed(a.distanceNm < 5 ? 1 : 0)} km`));
       li.append(h('span', 'radar-dot'), main, figs);
       list.append(li);
     }
@@ -504,7 +518,10 @@ export const radarScreen: Screen = {
     frame = requestAnimationFrame(loop);
   },
   onCenterTap() {
-    if (retarget && nextPlace(currentConfig!)) retarget();
+    const next = retarget && nextPlace(currentConfig!);
+    if (!next) return;
+    retarget!();
+    return `Centred on ${next === 'device' ? 'this display' : currentConfig!.places.find(p => p.id === next)?.name ?? 'home'}`;
   },
   unmount() {
     refresher?.stop();

@@ -81,12 +81,24 @@ export interface DisplaySettings {
   /** fill: edge to edge. framed: prints in a mounted frame. instant: instant-camera prints
    *  on a table. float: borderless, over a blur of the photo's colours. */
   photoStyle?: PhotoStyle;
+  night?: NightSettings;
+  /** Show the featured article's picture. Off: words only, for a display children see unsupervised. */
+  wikiPictures?: boolean;
 }
 
 export type PhotoStyle = 'fill' | 'framed' | 'instant' | 'float';
 export const PHOTO_STYLES: PhotoStyle[] = ['fill', 'framed', 'instant', 'float'];
 
-export const DEFAULT_DISPLAY: DisplaySettings = { clock: 'word', motion: 'full', warmth: 'normal', photoStyle: 'fill' };
+/** quiet: bright screens go dark from sunset, and in quiet hours the display also dims and shows
+ *  only the clock, Home and Tonight. evening: only the sunset part. off: the same all day. */
+export type NightMode = 'quiet' | 'evening' | 'off';
+export const NIGHT_MODES: NightMode[] = ['quiet', 'evening', 'off'];
+/** Quiet hours as "HH:MM" in the hub's timezone; they can run past midnight. */
+export interface NightSettings { mode: NightMode; from: string; to: string }
+export const DEFAULT_NIGHT: NightSettings = { mode: 'quiet', from: '22:30', to: '06:30' };
+export const isClockTime = (v: unknown): v is string => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+
+export const DEFAULT_DISPLAY: DisplaySettings = { clock: 'word', motion: 'full', warmth: 'normal', photoStyle: 'fill', night: DEFAULT_NIGHT };
 export const WARMTH_LEVELS: Warmth[] = ['cold', 'normal', 'warm'];
 export const CLOCK_STYLES: ClockStyle[] = ['word', 'digital', 'analogue', 'flip'];
 export const MOTION_LEVELS: MotionLevel[] = ['full', 'gentle', 'still'];

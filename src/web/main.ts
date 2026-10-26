@@ -1,8 +1,9 @@
 import './styles.css';
 import type { HubConfig } from '../shared/types';
 import { getJson, NotPairedError } from './api';
-import type { Screen } from './screen';
+import { flash, type Screen } from './screen';
 import { setMotionLevel } from './motion';
+import { currentNight, startNight, updateNight } from './night';
 import { showWelcome } from './welcome';
 import { startKeepAwake } from './wakeLock';
 import { airportScreen } from './screens/airport';
@@ -19,6 +20,8 @@ const ALL_SCREENS: Screen[] = [homeScreen, weatherScreen, boardScreen, radarScre
 /** The screens in rotation: those with something to show (no photo frame until there are photos). */
 let screens: Screen[] = ALL_SCREENS;
 const CONFIG_REFRESH_MS = 5 * 60_000;
+/** An open menu closes itself after this long untouched, so it never sits on an unattended display. */
+const MENU_IDLE_MS = 15_000;
 
 const stage = document.getElementById('stage')!;
 const dots = document.getElementById('dots')!;
@@ -26,12 +29,16 @@ const notice = document.getElementById('notice')!;
 
 let config: HubConfig;
 let index = 0;
+/** The screen on the stage, which may have left the rotation since it was shown. */
+let mounted: Screen | undefined;
 let pinned = false;
 let timer: number | undefined;
+let offlineSince: Date | undefined;
 
 function show(i: number) {
-  screens[index]?.unmount();
+  mounted?.unmount();
   index = (i + screens.length) % screens.length;
+  mounted = screens[index];
   stage.replaceChildren();
   const el = document.createElement('section');
   el.className = `screen screen-${screens[index].id}`;
@@ -46,15 +53,24 @@ function schedule() {
   if (!pinned) timer = window.setTimeout(() => show(index + 1), screens[index].durationSec * 1000);
 }
 
+/** A screen someone chose (a tap or a dot), not the rotation: say which one it is. */
+function showChosen(i: number) {
+  show(i);
+  flash(screens[index].title);
+}
+
 function setPinned(value: boolean) {
   pinned = value;
   document.body.classList.toggle('pinned', pinned);
+  flash(pinned ? `Staying on ${screens[index].title}` : 'Rotating again');
   schedule();
 }
 
 function buildRotation() {
   const current = screens[index];
-  screens = ALL_SCREENS.filter(s => s.isAvailable?.(config) ?? true);
+  // In quiet hours only the calm screens stay, plus a screen someone has pinned.
+  const quiet = currentNight() === 'quiet';
+  screens = ALL_SCREENS.filter(s => (s.isAvailable?.(config) ?? true) && (!quiet || s.quiet || (pinned && s === current)));
   index = Math.max(0, screens.indexOf(current));
   dots.replaceChildren();
   screens.forEach((s, n) => {
@@ -62,7 +78,7 @@ function buildRotation() {
     b.title = s.title;
     b.setAttribute('aria-label', s.title);
     b.classList.toggle('active', n === index);
-    b.addEventListener('click', e => { e.stopPropagation(); show(n); });
+    b.addEventListener('click', e => { e.stopPropagation(); showChosen(n); });
     dots.append(b);
   });
   // Always visible, so Settings never depends on knowing about the long press.
@@ -88,9 +104,12 @@ function wireGestures() {
     clearTimeout(pressTimer);
     if (longPressed) return;
     const x = e.clientX / window.innerWidth;
-    if (x < 1 / 3) show(index - 1);
-    else if (x > 2 / 3) show(index + 1);
-    else screens[index].onCenterTap?.();
+    if (x < 1 / 3) showChosen(index - 1);
+    else if (x > 2 / 3) showChosen(index + 1);
+    else {
+      const changed = screens[index].onCenterTap?.();
+      if (changed) flash(changed);
+    }
   });
   stage.addEventListener('pointercancel', () => clearTimeout(pressTimer));
   // The long press is ours (pin), not the browser's menu.
@@ -101,6 +120,7 @@ function wireGestures() {
 
 /** The long-press menu: the way into Settings from the display. */
 function openMenu() {
+  if (document.querySelector('.menu-scrim')) return;
   const scrim = document.createElement('div');
   scrim.className = 'menu-scrim';
   const menu = document.createElement('div');
@@ -114,9 +134,19 @@ function openMenu() {
     b.type = 'button';
     b.textContent = text;
     if (primary) b.className = 'primary';
-    b.addEventListener('click', e => { e.stopPropagation(); scrim.remove(); action(); });
+    b.addEventListener('click', e => { e.stopPropagation(); close(); action(); });
     return b;
   };
+  // Escape, a tap outside, or 15 seconds untouched all close it.
+  let idle = window.setTimeout(close, MENU_IDLE_MS);
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+  function close() {
+    clearTimeout(idle);
+    document.removeEventListener('keydown', onKey);
+    scrim.remove();
+  }
+  document.addEventListener('keydown', onKey);
+  scrim.addEventListener('pointerdown', () => { clearTimeout(idle); idle = window.setTimeout(close, MENU_IDLE_MS); });
   menu.append(
     title,
     item(pinned ? 'Carry on rotating' : 'Stay on this screen', () => setPinned(!pinned), true),
@@ -124,7 +154,7 @@ function openMenu() {
     item('Close', () => {}),
   );
   scrim.append(menu);
-  scrim.addEventListener('click', e => { if (e.target === scrim) scrim.remove(); });
+  scrim.addEventListener('click', e => { if (e.target === scrim) close(); });
   document.body.append(scrim);
   (menu.querySelector('button') as HTMLButtonElement).focus();
 }
@@ -138,16 +168,22 @@ async function start() {
       showWelcome(notice, start);
       return;
     }
+    offlineSince ??= new Date();
     notice.hidden = false;
-    notice.textContent = 'Cannot reach the hub. Retrying…';
+    notice.textContent = `Can’t reach the hub since ${offlineSince.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. Trying again every 15 seconds.`;
     setTimeout(start, 15000);
     return;
   }
   notice.hidden = true;
+  offlineSince = undefined;
   setMotionLevel(config.motion);
   wireGestures();
   startKeepAwake();
-  show(0);
+  startNight(config, () => {
+    buildRotation();
+    if (mounted && screens[index] !== mounted) show(index);
+  });
+  show(index);
   window.setInterval(refreshConfig, CONFIG_REFRESH_MS);
 }
 
@@ -159,6 +195,7 @@ async function refreshConfig() {
     const rotationChanged = JSON.stringify([fresh.features, fresh.airports]) !== JSON.stringify([config.features, config.airports]);
     Object.assign(config, fresh);
     setMotionLevel(config.motion);
+    updateNight();
     if (rotationChanged) buildRotation();
     if (clockChanged && screens[index].id === 'clock') show(index);
   } catch {

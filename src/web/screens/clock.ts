@@ -99,6 +99,7 @@ export const clockScreen: Screen = {
   id: 'clock',
   title: 'Clock',
   durationSec: 45,
+  quiet: true,
   mount(el: HTMLElement, config: HubConfig) {
     el.classList.add(`clock-${config.clock}`);
     stop = config.clock === 'digital' ? mountDigital(el, config)

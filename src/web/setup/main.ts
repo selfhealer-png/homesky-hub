@@ -1,8 +1,8 @@
 import './setup.css';
 import { CLOCK_LABELS, clockPreview } from '../clockPreview';
 import {
-  CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, DEFAULT_RADAR_MAP, MAX_AIRPORTS, MOTION_LEVELS, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS,
-  type DisplaySettings, type MotionLevel, type RadarMap,
+  CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, DEFAULT_NIGHT, DEFAULT_RADAR_MAP, MAX_AIRPORTS, MOTION_LEVELS, NIGHT_MODES, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS,
+  type DisplaySettings, type MotionLevel, type NightMode, type RadarMap,
   googleGranted, type GooglePart, type GoogleWants,
   type AdminState, type PhotoInfo, type PickStatus, type Place, type SavedAirport, type SkySettings, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../../shared/settings';
@@ -167,7 +167,7 @@ function statusCard() {
 function laterCard() {
   return h('section', { class: 'card muted-card' },
     h('h2', {}, 'Coming next'),
-    h('p', { class: 'lede' }, 'Watchlist and alerts, and screen order and night mode will be set up here too.'),
+    h('p', { class: 'lede' }, 'Watchlist and alerts, and screen order will be set up here too.'),
   );
 }
 
@@ -724,7 +724,7 @@ function displayCard() {
   const d = displaySettings();
   const card = h('section', { class: 'card', id: 'display' },
     h('h2', {}, 'Display'),
-    h('p', { class: 'lede' }, 'How the clock looks, and how much the screens move.'),
+    h('p', { class: 'lede' }, 'How the clock looks, how much the screens move, and what happens at night.'),
   );
 
   card.append(h('h3', {}, 'Clock'));
@@ -766,8 +766,45 @@ function displayCard() {
     photoStyle.append(h('label', {}, r, h('span', {}, PHOTO_LABELS[style])));
   }
   card.append(photoStyle, h('p', { class: 'hint' }, 'Framed hangs each photo as a mounted print, Instant drops instant-camera prints on a table with a handwritten caption, and Borderless floats them over a blur of their own colours. All three show the place and date. Portrait photos are always shown in pairs.'));
+
+  card.append(h('h3', {}, 'Wikipedia'));
+  const wiki = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Wikipedia article' });
+  for (const [value, label] of [[true, 'With its picture'], [false, 'Words only']] as const) {
+    const r = h('input', { type: 'radio', name: 'wiki-pictures', value: String(value), checked: (d.wikiPictures ?? true) === value });
+    r.addEventListener('change', () => saveDisplay({ ...d, wikiPictures: value }).catch(err => toast((err as Error).message, 'error')));
+    wiki.append(h('label', {}, r, h('span', {}, label)));
+  }
+  card.append(wiki, h('p', { class: 'hint' }, 'The featured article changes daily, and so does its picture, which can be any painting or photograph. Choose Words only if children watch the display on their own.'));
+
+  card.append(h('h3', {}, 'At night'));
+  const night = d.night ?? DEFAULT_NIGHT;
+  const saveNight = (next: Partial<typeof night>) => saveDisplay({ ...d, night: { ...night, ...next } }).catch(err => toast((err as Error).message, 'error'));
+  const modes = h('div', { class: 'places', role: 'radiogroup', 'aria-label': 'At night' });
+  for (const mode of NIGHT_MODES) {
+    const [title, sub] = NIGHT_LABELS[mode];
+    const radio = h('input', { type: 'radio', name: 'night-mode', value: mode, checked: night.mode === mode });
+    radio.addEventListener('change', () => saveNight({ mode }));
+    modes.append(h('div', { class: 'place' }, h('label', { class: 'gcheck' }, radio, h('span', {}, h('b', {}, title), h('small', {}, sub)))));
+  }
+  card.append(modes);
+  if (night.mode === 'quiet') {
+    const time = (value: string, label: string, key: 'from' | 'to') => {
+      const el = h('input', { type: 'time', value, step: '300', 'aria-label': label, required: true });
+      el.addEventListener('change', () => { if (el.value) saveNight({ [key]: el.value.slice(0, 5) }); });
+      return el;
+    };
+    card.append(h('div', { class: 'quiethours' },
+      h('span', {}, 'Quiet hours'), time(night.from, 'Quiet hours start', 'from'), h('span', {}, 'to'), time(night.to, 'Quiet hours end', 'to')));
+    card.append(h('p', { class: 'hint' }, 'A touch brings the display back to full brightness for two minutes. A screen you’ve pinned stays on through the night.'));
+  }
   return card;
 }
+
+const NIGHT_LABELS: Record<NightMode, [string, string]> = {
+  quiet: ['Dark evenings and quiet hours', 'From sunset, nothing is brighter than the dark screens. In quiet hours it also dims and shows only the clock, Home and Tonight.'],
+  evening: ['Dark evenings only', 'From sunset the cream board, the street map and pictures go dark. Nothing dims.'],
+  off: ['Off', 'The display looks the same day and night.'],
+};
 
 // ── sky ─────────────────────────────────────────────────────────────────────
 
@@ -848,9 +885,9 @@ function skyCard() {
   for (const nm of RADIUS_CHOICES) {
     const r = h('input', { type: 'radio', name: 'sky-radius', value: String(nm), checked: sky.radiusNm === nm });
     r.addEventListener('change', () => saveSky({ ...sky, radiusNm: nm }).catch(err => toast((err as Error).message, 'error')));
-    radius.append(h('label', {}, r, h('span', {}, `${nm} nm`)));
+    radius.append(h('label', {}, r, h('span', {}, `${Math.round(nm * 1.852)} km`)));
   }
-  card.append(h('h3', {}, 'Range'), radius, h('p', { class: 'hint' }, '25 nm (46 km) suits most places. Near a big airport, 10–15 nm keeps the radar calm.'));
+  card.append(h('h3', {}, 'Range'), radius, h('p', { class: 'hint' }, '46 km suits most places. Near a big airport, 19 or 28 km keeps the radar calm.'));
 
   // What's under the radar
   const maps = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Radar background' });
@@ -918,7 +955,6 @@ function airportsInto(card: HTMLElement, sky: SkySettings) {
   });
   card.append(form, results, h('p', { class: 'hint' }, 'Airports: OurAirports. Flights come from the same open ADS-B data as the radar, with routes from adsbdb, so only flights already in the air or taxiing are shown, and arrival times are estimates.'));
 }
-
 
 // ── boot ────────────────────────────────────────────────────────────────────
 

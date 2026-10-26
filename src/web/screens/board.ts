@@ -7,6 +7,7 @@ import { h, type Screen } from '../screen';
 
 const MIN_HOLD_MS = 30000; // stay on one aircraft at least this long
 const THEMES: BoardTheme[] = ['splitflap', 'led', 'minimal'];
+const THEME_NAMES: Record<BoardTheme, string> = { splitflap: 'Split-flap board', led: 'LED board', minimal: 'Minimal board' };
 export const MOTION: Record<BoardTheme, FlapMotion> = { splitflap: 'flip', led: 'scramble', minimal: 'fade' };
 const THEME_KEY = 'hub.boardTheme';
 
@@ -64,13 +65,17 @@ function render(ui: BoardUi, data: OverheadResponse) {
     return;
   }
 
-  ui.airline.set(a.emergency ? `SQUAWK ${a.squawk ?? 'EMERGENCY'}` : r?.airline?.name ?? a.type ?? 'AIRCRAFT', 'center');
-  ui.callsign.set(a.callsign ?? a.registration ?? a.hex.toUpperCase(), 'center');
+  const airline = a.emergency ? `SQUAWK ${a.squawk ?? 'EMERGENCY'}` : r?.airline?.name ?? a.type ?? 'AIRCRAFT';
+  const callsign = a.callsign ?? a.registration ?? a.hex.toUpperCase();
+  ui.airline.set(airline, 'center');
+  ui.callsign.set(callsign, 'center');
   if (r) {
     ui.route.set(`${airportCode(r.origin)} → ${airportCode(r.destination)}`, 'center');
     ui.cities.set(`${r.origin.city} → ${r.destination.city}`, 'center');
   } else {
-    ui.route.set([a.type, a.registration].filter(Boolean).join(' '), 'center');
+    // Whatever the rows above already say (the type as the airline, a registration flown as the callsign) isn't said again.
+    const flat = (t: string) => t.replace(/-/g, '').toUpperCase();
+    ui.route.set([a.type !== airline && a.type, a.registration && flat(a.registration) !== flat(callsign) && a.registration].filter(Boolean).join(' '), 'center');
     ui.cities.set('ROUTE UNKNOWN', 'center');
   }
   ui.alt.set(altitude(a), 'right');
@@ -189,6 +194,7 @@ export const boardScreen: Screen = {
   },
   onCenterTap() {
     applyTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]);
+    return THEME_NAMES[theme];
   },
   unmount() {
     refresher?.stop();

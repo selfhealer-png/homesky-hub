@@ -142,9 +142,19 @@ export function recommend(now: WeatherNow, hours: WeatherHour[] = [], warmth: Wa
   return { headline: note ? `${band.headline} ${note}` : band.headline, items, effective, band: band.name };
 }
 
+// What decides how you leave the house comes first: the outer layer, what to carry, then the
+// extras you'd forget. The base layer, trousers and shoes are rarely in doubt.
+const GLANCE_ORDER: Slot[] = ['outer', 'carry', 'mid', 'hands', 'head', 'eyes', 'neck', 'base', 'feet', 'legs'];
+
+/** The few items worth showing at a glance (still in the screen's usual order), and the rest. */
+export function essentials(items: WearItem[], n = 4): { shown: WearItem[]; also: WearItem[] } {
+  const keep = new Set([...items].sort((a, b) => GLANCE_ORDER.indexOf(a.slot) - GLANCE_ORDER.indexOf(b.slot)).slice(0, n));
+  return { shown: items.filter(i => keep.has(i)), also: items.filter(i => !keep.has(i)) };
+}
+
 const hourLabel = (iso: string) => {
   const h = Number(iso.slice(11, 13));
-  return h === 0 ? 'midnight' : h === 12 ? 'midday' : h < 12 ? `${h}am` : `${h - 12}pm`;
+  return h === 0 ? 'midnight' : h === 12 ? 'midday' : iso.slice(11, 16);
 };
 
 /** One or two plain sentences about how the rest of the day differs from now. */

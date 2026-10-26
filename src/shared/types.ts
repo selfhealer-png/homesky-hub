@@ -1,6 +1,6 @@
 // Shapes shared by the Worker API and the web app.
 
-import type { ClockStyle, MotionLevel, PhotoStyle, Place, RadarMap, SavedAirport } from './settings';
+import type { ClockStyle, MotionLevel, NightSettings, PhotoStyle, Place, RadarMap, SavedAirport } from './settings';
 import type { AirInfo } from './air';
 import type { Warmth, WeatherHour, WeatherNow } from './wear';
 
@@ -20,6 +20,8 @@ export interface HubConfig {
   photoStyle: PhotoStyle;
   /** Airports with a board, in order. The board screen is left out of rotation when empty. */
   airports: SavedAirport[];
+  night: NightSettings;
+  wikiPictures: boolean;
   features: { agenda: boolean; photos: boolean; trending: boolean };
 }
 

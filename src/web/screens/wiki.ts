@@ -1,4 +1,4 @@
-import type { WikiResponse } from '../../shared/types';
+import type { HubConfig, WikiResponse } from '../../shared/types';
 import { getJson } from '../api';
 import { h, type Screen } from '../screen';
 
@@ -15,13 +15,13 @@ function recall(): WikiResponse | null {
   try { return JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null') as WikiResponse | null; } catch { return null; }
 }
 
-function render(el: HTMLElement, a: WikiResponse) {
+function render(el: HTMLElement, a: WikiResponse, pictures: boolean) {
   const text = h('article', 'wk-text');
   text.append(h('p', 'wk-kicker', 'Today’s featured article'), h('h1', 'wk-title', a.title));
   if (a.description) text.append(h('p', 'wk-desc', a.description));
   text.append(h('p', 'wk-extract', a.extract), h('p', 'wk-credit', 'From Wikipedia, the free encyclopedia · CC BY-SA'));
 
-  if (!a.image) {
+  if (!a.image || !pictures) {
     el.classList.add('wk-no-image');
     el.replaceChildren(text);
     return;
@@ -43,15 +43,16 @@ export const wikiScreen: Screen = {
   id: 'wiki',
   title: 'Wikipedia',
   durationSec: 40,
-  mount(el: HTMLElement) {
+  mount(el: HTMLElement, config: HubConfig) {
     alive = true;
+    const pictures = config.wikiPictures;
     const today = new Date().toISOString().slice(0, 10);
     const known = recall();
-    if (known) render(el, known);
+    if (known) render(el, known, pictures);
     else el.append(h('p', 'wk-loading', 'Finding today’s article…'));
     if (known?.date === today) return;
     getJson<WikiResponse>('/api/wiki')
-      .then(a => { remember(a); if (alive) render(el, a); })
+      .then(a => { remember(a); if (alive) render(el, a, pictures); })
       .catch(() => { if (alive && !known) el.replaceChildren(h('p', 'wk-loading', 'Wikipedia isn’t answering right now.')); });
   },
   unmount() {

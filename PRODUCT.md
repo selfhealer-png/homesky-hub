@@ -39,7 +39,8 @@ A free, open-source alternative to single-purpose paid devices and apps (photo-f
 - The repository must stay free of personal data (names, locations, account links). Everything deployment-specific is a variable, secret or `/setup` setting, so others can deploy their own.
 - Locations are rounded to about 1 km. The Flightradar24 "most tracked" source is unofficial, so it stays opt-in.
 - Target device: iPad mini 5 in Safari, 1024×768 CSS px in landscape. The Workers free plan allows about 10 ms of CPU per request.
-- Undecided: night mode behaviour, screen-order settings, alerts.
+- Night: from sunset nothing on screen is brighter than the dark screens; in quiet hours (default 22:30–06:30, set in `/setup`) the display also dims and rotates only the clock, Home and Tonight. A touch brightens it for two minutes.
+- Undecided: screen-order settings, alerts.
 
 ## Brand Commitments
 

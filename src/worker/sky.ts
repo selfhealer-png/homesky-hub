@@ -1,4 +1,4 @@
-import { DEFAULT_DISPLAY, DEFAULT_RADAR_MAP } from '../shared/settings';
+import { DEFAULT_DISPLAY, DEFAULT_NIGHT, DEFAULT_RADAR_MAP } from '../shared/settings';
 import type { HubConfig, BoardTheme } from '../shared/types';
 import type { Env } from './env';
 import { listPhotos } from './photos';
@@ -67,6 +67,8 @@ export async function hubConfig(env: Env, request?: Request): Promise<HubConfig>
     warmth: settings.display?.warmth ?? 'normal',
     photoStyle: settings.display?.photoStyle ?? 'fill',
     airports: sky?.airports ?? [],
+    night: settings.display?.night ?? DEFAULT_NIGHT,
+    wikiPictures: settings.display?.wikiPictures ?? true,
     features: { agenda: !!env.AGENDA_FEED_URL || settings.connections.some(c => c.enabled), photos: (await listPhotos(env)).length > 0, trending: false },
   };
 }

@@ -54,7 +54,7 @@ function layer(box: { w: number; h: number }, centre: { x: number; y: number }, 
   return el;
 }
 
-const clock = (unix: number) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(unix * 1000));
+const clock = (unix: number) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(unix * 1000));
 
 /** Fills the box with the radar. Returns a function that stops the animation. */
 export function mountRainRadar(box: HTMLElement, lat: number, lon: number): () => void {

@@ -1,6 +1,6 @@
 import {
-  CALENDAR_COLORS, CLOCK_STYLES, MAX_AIRPORTS, MOTION_LEVELS, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
-  type ClockStyle, type GoogleWants, type MotionLevel,
+  CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_NIGHT, MAX_AIRPORTS, MOTION_LEVELS, NIGHT_MODES, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
+  isClockTime, type ClockStyle, type GoogleWants, type MotionLevel, type NightSettings,
   type AdminState, type Place, type SavedAirport, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
 import { handleLogin, handleLogout, hmac, isAdmin, passesCsrfCheck, safeEqual } from './adminAuth';
@@ -351,5 +351,13 @@ async function saveDisplay(env: Env, b: Record<string, unknown>) {
   if (!clock || !motion) throw new BadRequest('Unknown clock style or motion level.');
   const warmth = WARMTH_LEVELS.find(w => w === b.warmth) ?? 'normal';
   const photoStyle = PHOTO_STYLES.find(p => p === b.photoStyle) ?? 'fill';
-  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle } }));
+  // Onboarding doesn't send night settings: whatever was there before stays.
+  const n = (b.night ?? {}) as Record<string, unknown>;
+  const night = (s: NightSettings = DEFAULT_NIGHT): NightSettings => b.night === undefined ? s : {
+    mode: NIGHT_MODES.find(m => m === n.mode) ?? s.mode,
+    from: isClockTime(n.from) ? n.from : s.from,
+    to: isClockTime(n.to) ? n.to : s.to,
+  };
+  const wikiPictures = (s: boolean | undefined) => typeof b.wikiPictures === 'boolean' ? b.wikiPictures : s;
+  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle, night: night(s.display?.night), wikiPictures: wikiPictures(s.display?.wikiPictures) } }));
 }

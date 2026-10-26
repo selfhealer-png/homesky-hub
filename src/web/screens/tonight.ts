@@ -92,7 +92,7 @@ function render(el: HTMLElement, d: TonightResponse, home: { name: string; lat: 
   };
   add('Sunset', n.sunset);
   add('Dark', n.dark);
-  add('Light', n.darkEnds);
+  add('Dawn', n.darkEnds);
   add('Sunrise', n.sunrise);
   if (n.sunset && !n.dark) times.append(Object.assign(h('div', 'tn-note'), { textContent: 'Never fully dark: summer twilight all night' }));
   left.append(times);
@@ -107,7 +107,7 @@ function render(el: HTMLElement, d: TonightResponse, home: { name: string; lat: 
   if (d.aurora) {
     const [label, tone] = AURORA[d.aurora.chance];
     const card = h('div', `tn-card tn-aurora tone-${tone}`);
-    card.append(h('h2', undefined, 'Aurora'), h('p', 'tn-big', label), h('p', 'tn-sub', `Kp ${d.aurora.kp} forecast · NOAA`));
+    card.append(h('h2', undefined, 'Aurora'), h('p', 'tn-big', label), h('p', 'tn-sub', `Activity ${d.aurora.kp} of 9 · NOAA forecast`));
     right.append(card);
   }
   if (d.iss) {
@@ -135,6 +135,7 @@ export const tonightScreen: Screen = {
   id: 'tonight',
   title: 'Tonight',
   durationSec: 35,
+  quiet: true,
   mount(el: HTMLElement, config: HubConfig) {
     el.append(h('p', 'tn-loading', 'Looking at tonight’s sky…'));
     const load = async () => {
