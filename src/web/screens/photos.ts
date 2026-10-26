@@ -33,6 +33,8 @@ function shuffle<T>(list: T[]): T[] {
 }
 
 const isPortrait = (p: PhotoInfo) => p.width > 0 && p.height > p.width * 1.05;
+/** An upright display already suits a portrait photo, so pairs are only for a landscape one. */
+const wideScreen = () => window.innerWidth > window.innerHeight;
 
 /** The next slide: one photo, or two portraits side by side. */
 async function nextSlide(): Promise<PhotoInfo[]> {
@@ -46,7 +48,7 @@ async function nextSlide(): Promise<PhotoInfo[]> {
   if (!library.photos.length) return [];
   if (!deck.length) deck = shuffle(library.photos);
   const first = deck.shift()!;
-  if (!isPortrait(first)) return [first];
+  if (!isPortrait(first) || !wideScreen()) return [first];
   const partner = deck.findIndex(isPortrait);
   if (partner < 0) {
     // Nothing left to pair with in this round; borrow one from the library if there is one.

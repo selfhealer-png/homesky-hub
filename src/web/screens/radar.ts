@@ -90,7 +90,7 @@ function projected(a: Aircraft, home: SkyHome, seconds: number): [number, number
 }
 
 /** How many planes get a label and a row in the list: fewer on a phone, where space is short. */
-const listed = () => (window.matchMedia('(max-height: 520px)').matches ? 3 : FEATURED);
+const listed = () => (window.matchMedia('(max-height: 520px), (max-width: 520px)').matches ? 3 : FEATURED);
 
 function featured(data: AircraftResponse): Set<string> {
   const airborne = data.aircraft.filter(a => a.altFt !== null);

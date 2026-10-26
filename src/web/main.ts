@@ -23,6 +23,7 @@ const ALL_SCREENS: Screen[] = [homeScreen, weatherScreen, rainScreen, boardScree
 /** The screens in rotation: those with something to show (no photo frame until there are photos). */
 let screens: Screen[] = ALL_SCREENS;
 const CONFIG_REFRESH_MS = 5 * 60_000;
+const GEAR_SHOWN_MS = 5000;
 /** An open menu closes itself after this long untouched, so it never sits on an unattended display. */
 const MENU_IDLE_MS = 15_000;
 
@@ -104,6 +105,19 @@ function buildStrip() {
 function wireGestures() {
   buildRotation();
   buildStrip();
+
+  // The gear stays out of the picture until someone touches the display, then shows for a few
+  // seconds: the screens stay clean, and Settings is still one touch away.
+  let gearTimer: number | undefined;
+  document.addEventListener('pointerdown', () => {
+    document.body.classList.add('show-gear');
+    clearTimeout(gearTimer);
+    gearTimer = window.setTimeout(() => document.body.classList.remove('show-gear'), GEAR_SHOWN_MS);
+  }, true);
+
+  // Turning the tablet redraws the current screen, so anything laid out in code (map tiles,
+  // paired photos) is laid out again for the new shape.
+  window.matchMedia('(orientation: portrait)').addEventListener('change', () => { if (mounted) show(index); });
 
   // Tap the left or right third to step; long-press anywhere for the menu (pin, settings).
   let pressTimer: number | undefined;

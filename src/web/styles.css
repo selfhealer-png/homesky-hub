@@ -1,4 +1,5 @@
-/* Designed for a landscape tablet at 1024×768 CSS px (iPad mini 5). Dark by default: it lives in a room. */
+/* Designed for a tablet at 1024×768 CSS px (iPad mini 5), either way up, and for phones. Dark by
+   default: it lives in a room. Portrait layouts are in the Portrait section further down. */
 :root {
   --bg: #070b16;
   --panel: #0f1628;
@@ -32,15 +33,14 @@ body {
 #stage img { pointer-events: none; -webkit-user-drag: none; }
 .screen { height: 100%; padding: 28px 32px 40px; }
 
-/* The dots: a 10px mark in a 30×36 target, so a finger finds them. Inactive dots are slate at
-   3.9:1 on the page (above the 3:1 a control needs); a pinned screen's dot gets a solid ring. */
+/* The bottom centre: the gear (see the end of the file). */
 #dots { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; align-items: center; padding: 0 4px; }
 
 /* The shared strip along the bottom: what this screen is showing on the left and, when chosen in
    /setup (body.strip-clock), the time on the right. Off on screens that show the time themselves
    (body.own-clock). */
 #caption, #strip-time { position: fixed; bottom: 0; z-index: 5; height: 36px; display: flex; align-items: center; pointer-events: none; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
-#caption { left: 32px; max-width: calc(50% - 210px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #94A3B8; font: 500 16px/1 -apple-system, "Segoe UI", sans-serif; }
+#caption { left: 32px; max-width: calc(50% - 64px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #94A3B8; font: 500 16px/1 -apple-system, "Segoe UI", sans-serif; }
 #strip-time { right: 32px; color: #E2E8F0; font: 600 22px/1 "Gabarito", -apple-system, sans-serif; font-variant-numeric: tabular-nums; }
 body.own-clock #caption, body.own-clock #strip-time, body:not(.strip-clock) #strip-time { display: none; }
 /* On the cream board by day, the strip takes the board's ink. */
@@ -354,9 +354,10 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 }
 @supports (width: 1cqw) {
   .ab { --s: min(1.5px, calc(96cqw / 1240), calc(94cqh / 520)); }
-  /* Portrait: type and altitude drop out so the rest can stay large. */
+  /* Portrait: type and altitude drop out so the rest can stay large, and there are 14 rows
+     (airport.ts) instead of 8 to use the height. */
   @container (aspect-ratio < 1) {
-    .ab { --s: min(1.5px, calc(96cqw / 960), calc(94cqh / 520)); }
+    .ab { --s: min(1.5px, calc(96cqw / 960), calc(94cqh / 760)); }
     .ab .ab-col-type, .ab .ab-col-alt { display: none; }
   }
 }
@@ -507,7 +508,7 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
   .screen { padding: 14px 20px 26px; }
   #flash { bottom: 34px; font-size: 14px; padding: 6px 12px; }
   #caption, #strip-time { height: 30px; }
-  #caption { left: 20px; max-width: calc(50% - 150px); font-size: 12px; }
+  #caption { left: 20px; max-width: calc(50% - 44px); font-size: 12px; }
   #strip-time { right: 20px; font-size: 16px; }
   .screen.stale .stale-note { top: 10px; padding: 6px 14px; font-size: 14px; }
 
@@ -649,10 +650,13 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 .screen-home.clock-only .date-now { font-size: 28px; }
 @media (max-height: 520px) { .screen-home.clock-only .time-now { font-size: 120px; } }
 
-/* The gear, bottom centre: quiet, but always there. 44px target around an 18px icon. A pinned
-   screen shows it in the accent colour. */
+/* The gear, bottom centre: 44px target around an 18px icon, in the accent colour while a screen
+   is pinned. */
 #dots { align-items: center; }
-#dots .gear { width: 44px; height: 44px; margin: -4px -8px -4px 2px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: rgba(148, 163, 184, 0.75); cursor: pointer; }
+#dots .gear { width: 44px; height: 44px; margin: -4px 0; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: rgba(148, 163, 184, 0.75); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
+/* Hidden until the display is touched (main.ts), then there for a few seconds. */
+body.show-gear #dots .gear { opacity: 1; pointer-events: auto; }
+[data-motion="still"] #dots .gear { transition: none; }
 #dots .gear:focus-visible { outline: 2px solid #2563FF; }
 body.pinned #dots .gear { color: var(--accent); }
 
@@ -782,3 +786,136 @@ body.pinned #dots .gear { color: var(--accent); }
 /* Pictures stay pictures, a step down; the photo frame's clock stays at full strength. */
 [data-night] .pf-frame::after { content: ""; position: absolute; inset: 0; z-index: 1; background: rgba(0, 0, 0, 0.28); pointer-events: none; }
 [data-night] .wk-figure img { filter: brightness(0.72); }
+
+/* ── Portrait ───────────────────────────────────────────────────────────────
+   The tablet stood upright (768×1024) or a phone held normally. Side-by-side layouts stack: what
+   matters most on top, and the boards and clocks already rescale themselves to the space. */
+@media (orientation: portrait) {
+  /* Home: the clock over today, the coming days straight after; the block sits in the middle
+     and today gives way first if a busy day runs long. */
+  .screen-home { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, max-content) auto; align-content: center; row-gap: 26px; }
+  .clock { align-self: end; }
+  .clock .time-now { font-size: 116px; }
+  .agenda { align-self: start; }
+
+  /* Weather: now and what to wear, then the forecast. */
+  .screen-weather { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; gap: 44px; }
+  .wx-side { align-self: auto; gap: 34px; }
+
+  /* Rain map: the map on top, the outlook under it. */
+  .screen-rain { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 24px; }
+  .rain-panel { gap: 16px; }
+  .rain-panel h2 { font-size: 30px; }
+  .rain-hours { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 28px; }
+
+  /* Flight radar: the scope on top, the nearest planes in two columns under it. */
+  .screen-radar { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 14px; padding-right: 32px; }
+  .radar-panel { padding: 0; }
+  .radar-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; margin-top: 12px; }
+  .radar-row:last-child, .radar-row:has(+ .radar-more) { border-bottom: 0; }
+  .radar-more { grid-column: 1 / -1; }
+  .radar-legend { margin-top: 0; padding-top: 14px; }
+
+  /* Tonight: the verdict and the moon, then the cards side by side. */
+  .screen-tonight { grid-template-columns: minmax(0, 1fr); align-content: center; gap: 40px; }
+  .tn-verdict { max-width: 18ch; }
+  .tn-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+
+  /* Wikipedia: the picture above the article. */
+  .screen-wiki { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; align-items: stretch; gap: 30px; }
+  .screen-wiki.wk-no-image { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; align-content: center; }
+  .wk-figure { max-height: none; }
+  .wk-extract { -webkit-line-clamp: 8; }
+
+  .screen.stale .stale-note { max-width: calc(100% - 40px); white-space: normal; text-align: center; }
+}
+
+/* A phone held upright (about 390×800): the same stacks, sized for a hand-held screen. */
+@media (orientation: portrait) and (max-width: 520px) {
+  .screen { padding: 18px 18px 38px; }
+  #caption { left: 18px; font-size: 13px; }
+  #strip-time { right: 18px; font-size: 17px; }
+  #flash { font-size: 15px; }
+  .screen.stale .stale-note { top: 10px; padding: 8px 14px; font-size: 15px; }
+
+  .screen-home { row-gap: 14px; }
+  .clock .time-now { font-size: 78px; }
+  .clock .date-now { font-size: 17px; margin-top: 8px; }
+  .screen-home.clock-only .time-now { font-size: 96px; }
+  .screen-home.clock-only .date-now { font-size: 19px; }
+  .agenda { gap: 10px; }
+  .screen-home .days { display: none; }
+  .card { padding: 12px 14px; border-radius: 16px; }
+  .todayhead { font-size: 20px; margin-bottom: 8px; }
+  .ev, .ev.next { padding: 8px 11px; margin-bottom: 6px; border-radius: 12px; }
+  .ev .t { font-size: 16px; }
+  .ev.next .t { font-size: 21px; }
+  .ev .time, .ev.next .time { font-size: 12px; padding: 1px 6px; vertical-align: 2px; margin-right: 8px; }
+  .evloc { font-size: 14px; }
+  .ev .tick, .ev.next .tick { flex-basis: 18px; width: 18px; height: 18px; }
+  .overdue .overdueheading { font-size: 16px; }
+
+  .screen-weather { gap: 24px; }
+  .wx-icon-big { width: 60px; height: 60px; }
+  .wx-temp { font-size: 76px; }
+  .wx-cond { font-size: 18px; }
+  .wx-range { font-size: 14px; }
+  .wx-wear { margin-top: 14px; }
+  .wx-kit { gap: 6px; }
+  .wx-kit li { padding: 8px 2px; font-size: 12px; gap: 5px; border-radius: 10px; }
+  .wx-wear-icon { width: 30px; height: 30px; }
+  .wx-also { font-size: 13px; }
+  .wx-later { font-size: 14px; }
+  .wx-side { gap: 20px; }
+  .wx-side .wx-icon { width: 26px; height: 26px; }
+  .wx-h-time, .wx-d-name { font-size: 13px; }
+  .wx-h-temp, .wx-d-temp { font-size: 18px; }
+  .wx-d-min { font-size: 13px; }
+  .wx-rain { font-size: 11px; }
+  .wx-days { padding-top: 18px; }
+  .wx-chips { flex-wrap: wrap; gap: 6px; }
+  .wx-chip { padding: 6px 10px; font-size: 13px; }
+
+  .screen-rain { gap: 16px; }
+  .wx-radar { border-radius: 14px; }
+  .rain-panel { gap: 10px; }
+  .rain-panel h2 { font-size: 22px; }
+  .rain-hours { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .rain-hours li { grid-template-columns: 44px minmax(0, 1fr) 38px; gap: 8px; }
+  .rain-time, .rain-pct { font-size: 13px; }
+
+  .screen-radar { padding-right: 18px; gap: 8px; }
+  .radar-head h2 { font-size: 20px; }
+  .radar-sub { font-size: 12px; }
+  .radar-list { grid-template-columns: minmax(0, 1fr); margin-top: 6px; }
+  .radar-row { padding: 7px 0; }
+  .radar-main b { font-size: 15px; }
+  .radar-route, .radar-figs { font-size: 12px; }
+  .radar-legend { display: none; }
+
+  .screen-tonight { gap: 20px; align-content: start; }
+  .tn-verdict { font-size: 30px; margin-top: 6px; }
+  .tn-moon-row { margin-top: 16px; gap: 16px; }
+  .tn-moon { width: 84px; height: 84px; }
+  .tn-moon-name { font-size: 19px; }
+  .tn-moon-lit-pct, .tn-moon-times { font-size: 14px; }
+  .tn-times { grid-template-columns: repeat(2, auto); margin-top: 16px; padding-top: 12px; gap: 4px 28px; }
+  .tn-times dd { font-size: 19px; }
+  .tn-side { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .tn-card { padding: 10px 14px; border-radius: 12px; }
+  .tn-big { font-size: 17px; }
+  .tn-sub { font-size: 12px; }
+  .tn-iss b { font-size: 15px; }
+  .tn-iss span { font-size: 12px; }
+  .tn-iss li:nth-child(n+3) { display: none; }
+
+  .screen-wiki { padding: 18px 18px 40px; gap: 16px; }
+  .wk-kicker { font-size: 12px; }
+  .wk-title { font-size: 30px; margin-top: 6px; }
+  .wk-desc { font-size: 15px; }
+  .wk-extract { font-size: 16px; margin-top: 12px; padding-top: 12px; -webkit-line-clamp: 7; }
+  .wk-credit { font-size: 11px; margin-top: 10px; }
+
+  .pf-caption { left: 20px; bottom: 26px; }
+  .pf-time { font-size: 40px; }
+}

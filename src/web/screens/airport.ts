@@ -12,6 +12,9 @@ import { MOTION, storedTheme } from './board';
 // worked out from where the plane is, not taken from a timetable.
 
 const ROWS = 8;
+/** Upright, the board is as wide as it can be, so the extra height goes to more flights. */
+const PORTRAIT_ROWS = 14;
+const rowCount = () => (window.matchMedia('(orientation: portrait)').matches ? PORTRAIT_ROWS : ROWS);
 type Kind = 'arrivals' | 'departures';
 
 interface Column { key: string; label: string; width: number; align?: 'left' | 'right' }
@@ -79,7 +82,7 @@ function build(el: HTMLElement): BoardUi {
   const grid = h('div', 'ab-grid');
   const labels = COLUMNS.arrivals.map(c => h('div', `ab-label ab-col-${c.key}${c.align === 'right' ? ' right' : ''}`, c.label));
   grid.append(...labels);
-  const rows = Array.from({ length: ROWS }, () => {
+  const rows = Array.from({ length: rowCount() }, () => {
     const row: Record<string, FlapRow> = {};
     for (const c of COLUMNS.arrivals) {
       row[c.key] = new FlapRow(c.width, 'sm');
@@ -113,7 +116,8 @@ function render(ui: BoardUi, data: AirportBoardResponse, kind: Kind, config: Hub
     row.status.el.dataset.status = f?.status ?? '';
   });
 
-  const more = flights.length > ROWS ? `+${flights.length - ROWS} more` : '';
+  const shown = ui.rows.length;
+  const more = flights.length > shown ? `+${flights.length - shown} more` : '';
   const what = kind === 'arrivals'
     ? flights.length ? `${flights.length} inbound within ${data.radiusNm} nm` : `No arrivals within ${data.radiusNm} nm just now`
     : flights.length ? `${flights.length} outbound within ${data.radiusNm} nm` : 'No departures seen just now';
