@@ -28,6 +28,14 @@ export const TILE_SOURCES: Record<Exclude<RadarMap, 'plain'>, TileSource> = {
   },
 };
 
+/** The whole Earth from space, for the Space Station: NASA's Blue Marble (public domain, via
+ *  GIBS), made for world-scale views; the 10 m satellite tiles have gaps when zoomed this far out. */
+export const BLUE_MARBLE: TileSource = {
+  url: (z, x, y) => `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/${z}/${y}/${x}.jpeg`,
+  maxZoom: 8,
+  credit: 'NASA Blue Marble',
+};
+
 const TILE = 256;
 
 /** Home's position in world pixels at a zoom (Web Mercator). */

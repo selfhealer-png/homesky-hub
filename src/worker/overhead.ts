@@ -2,11 +2,14 @@ import type { Aircraft, OverheadResponse } from '../shared/types';
 import { getAircraft, type AircraftUnavailable } from './aircraft';
 import { json, type Env } from './env';
 import { lookupRoute, withProgress } from './routes';
+import { loadSettings } from './settings';
 import { skyContext } from './sky';
+import { followMatcher } from './track';
 
 // Picks the one aircraft the overhead board should show.
-// Priority: an emergency squawk in range, then the aircraft the display is holding (so the
-// board doesn't flip between two planes at similar distances), then the nearest one.
+// Priority: an emergency squawk in range, then the flight the Flight tracker follows if it's
+// passing, then the aircraft the display is holding (so the board doesn't flip between two
+// planes at similar distances), then the nearest one.
 
 const AIRLINE_CALLSIGN = /^[A-Z]{3}\d[0-9A-Z]{0,4}$/; // ICAO airline prefix + flight number
 const ROUTE_LOOKUPS = 4; // at most this many adsbdb lookups per request; they're cached for 24 h
@@ -37,6 +40,11 @@ export async function handleOverhead(url: URL, env: Env, request: Request): Prom
   };
   // Emergencies are shown even when they don't pass the airliner filter.
   add(data.aircraft.find(a => a.emergency && a.distanceNm <= radiusNm), 'emergency');
+  const follow = (await loadSettings(env)).sky?.follow;
+  if (follow) {
+    const isFollowed = await followMatcher(env, follow);
+    add(data.aircraft.find(a => a.distanceNm <= radiusNm && a.altFt !== null && isFollowed(a)), 'followed');
+  }
   add(candidates.find(a => a.hex === hold), 'held');
   candidates.forEach(a => add(a, 'nearest'));
 

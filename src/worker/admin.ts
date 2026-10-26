@@ -1,6 +1,6 @@
 import {
   CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_NIGHT, MAX_AIRPORTS, MOTION_LEVELS, NIGHT_MODES, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
-  ROTATE_CHOICES, SCREEN_IDS, isClockTime, type ClockStyle, type GoogleWants, type ScreenId, type MotionLevel, type NightSettings,
+  ROTATE_CHOICES, SCREEN_IDS, cleanFollow, isClockTime, isFollow, type ClockStyle, type GoogleWants, type ScreenId, type MotionLevel, type NightSettings,
   type AdminState, type Place, type SavedAirport, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
 import { screenOrder } from '../shared/rotation';
@@ -316,17 +316,24 @@ async function googleDisconnect(env: Env, remove = false) {
 async function saveSky(env: Env, b: Record<string, unknown>) {
   const raw = Array.isArray(b.places) ? (b.places as Array<Partial<Place>>) : [];
   if (raw.length > 12) throw new BadRequest('Up to 12 places.');
-  const places: Place[] = raw.map(p => {
-    const lat = Number(p.lat), lon = Number(p.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new BadRequest('A place has invalid coordinates.');
-    // Two decimal places (~1 km) is all a radar needs, and it keeps exact addresses out of storage.
-    return { id: typeof p.id === 'string' && /^[\w-]{1,20}$/.test(p.id) ? p.id : newId(), name: str(p.name, 'Place name', 40), lat: Math.round(lat * 100) / 100, lon: Math.round(lon * 100) / 100 };
-  });
+  const places: Place[] = raw.map(cleanPlace);
   const active = b.active === 'device' ? 'device' : places.find(p => p.id === b.active)?.id ?? places[0]?.id ?? 'default';
   const radiusNm = RADIUS_CHOICES.includes(Number(b.radiusNm)) ? Number(b.radiusNm) : 25;
   const map = RADAR_MAPS.find(m => m === b.map);
   const airports = Array.isArray(b.airports) ? cleanAirports(b.airports as Array<Partial<SavedAirport>>) : undefined;
-  return mutate(env, s => ({ ...s, sky: { places, active, radiusNm, map: map ?? s.sky?.map, airports: airports ?? s.sky?.airports } }));
+  // Like the map and airports, left as they were when not sent; an empty value clears them.
+  const followed = cleanFollow(b.follow);
+  if (followed && !isFollow(followed)) throw new BadRequest('That doesn’t look like a flight number, callsign, registration or hex code.');
+  const follow = (s: string | undefined) => b.follow === undefined ? s : followed || undefined;
+  const tidePlace = (s: Place | undefined) => b.tidePlace === undefined ? s : b.tidePlace ? cleanPlace(b.tidePlace as Partial<Place>) : undefined;
+  return mutate(env, s => ({ ...s, sky: { places, active, radiusNm, map: map ?? s.sky?.map, airports: airports ?? s.sky?.airports, follow: follow(s.sky?.follow), tidePlace: tidePlace(s.sky?.tidePlace) } }));
+}
+
+function cleanPlace(p: Partial<Place>): Place {
+  const lat = Number(p.lat), lon = Number(p.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new BadRequest('A place has invalid coordinates.');
+  // Two decimal places (~1 km) is all a radar needs, and it keeps exact addresses out of storage.
+  return { id: typeof p.id === 'string' && /^[\w-]{1,20}$/.test(p.id) ? p.id : newId(), name: str(p.name, 'Place name', 40), lat: Math.round(lat * 100) / 100, lon: Math.round(lon * 100) / 100 };
 }
 
 function cleanAirports(raw: Array<Partial<SavedAirport>>): SavedAirport[] {

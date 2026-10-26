@@ -10,16 +10,19 @@ import { startKeepAwake } from './wakeLock';
 import { airportScreen } from './screens/airport';
 import { boardScreen } from './screens/board';
 import { clockScreen } from './screens/clock';
+import { flightScreen } from './screens/flight';
 import { homeScreen } from './screens/home';
+import { issScreen } from './screens/iss';
 import { photosScreen } from './screens/photos';
 import { radarScreen } from './screens/radar';
 import { rainScreen } from './screens/rain';
+import { tidesScreen } from './screens/tides';
 import { tonightScreen } from './screens/tonight';
 import { weatherScreen } from './screens/weather';
 import { wikiScreen } from './screens/wiki';
 
 /** In the default order (SCREEN_IDS); the saved order in config.order rearranges them. */
-const ALL_SCREENS: Screen[] = [homeScreen, weatherScreen, rainScreen, boardScreen, radarScreen, airportScreen, tonightScreen, clockScreen, photosScreen, wikiScreen];
+const ALL_SCREENS: Screen[] = [homeScreen, weatherScreen, rainScreen, tidesScreen, boardScreen, radarScreen, airportScreen, flightScreen, tonightScreen, issScreen, clockScreen, photosScreen, wikiScreen];
 /** The screens in rotation: those with something to show (no photo frame until there are photos). */
 let screens: Screen[] = ALL_SCREENS;
 const CONFIG_REFRESH_MS = 5 * 60_000;
@@ -216,7 +219,7 @@ async function refreshConfig() {
     const fresh = await getJson<HubConfig>('/api/config');
     const clockChanged = fresh.clock !== config.clock;
     const paceChanged = fresh.rotateSec !== config.rotateSec;
-    const rotationChanged = JSON.stringify([fresh.features, fresh.airports, fresh.screensOff, fresh.order]) !== JSON.stringify([config.features, config.airports, config.screensOff, config.order]);
+    const rotationChanged = JSON.stringify([fresh.features, fresh.airports, fresh.screensOff, fresh.order, fresh.follow, fresh.tidePlace]) !== JSON.stringify([config.features, config.airports, config.screensOff, config.order, config.follow, config.tidePlace]);
     Object.assign(config, fresh);
     setMotionLevel(config.motion);
     document.body.classList.toggle('strip-clock', config.stripClock);

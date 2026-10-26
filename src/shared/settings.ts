@@ -63,6 +63,11 @@ export interface SkySettings {
   map?: RadarMap;
   /** Airports with an arrivals and departures board, in the order the display shows them. */
   airports?: SavedAirport[];
+  /** The one flight the Flight tracker follows anywhere in the world: a flight number (BA117),
+   *  callsign (BAW117), registration (G-XLEA) or ICAO hex code (4CA8B1). */
+  follow?: string;
+  /** Where the Tides screen reads the tide: a place by the sea, since inland places have none. */
+  tidePlace?: Place;
 }
 
 export type RadarMap = 'plain' | 'map' | 'satellite';
@@ -99,9 +104,14 @@ export interface DisplaySettings {
 /** How often the display can be set to change screens, in seconds. */
 export const ROTATE_CHOICES = [15, 30, 60, 120, 300, 600];
 
-export type ScreenId = 'home' | 'weather' | 'rain' | 'board' | 'radar' | 'airport' | 'tonight' | 'clock' | 'photos' | 'wiki';
+export type ScreenId = 'home' | 'weather' | 'rain' | 'tides' | 'board' | 'radar' | 'airport' | 'flight' | 'tonight' | 'iss' | 'clock' | 'photos' | 'wiki';
 /** Every screen, in the default rotation order. */
-export const SCREEN_IDS: ScreenId[] = ['home', 'weather', 'rain', 'board', 'radar', 'airport', 'tonight', 'clock', 'photos', 'wiki'];
+export const SCREEN_IDS: ScreenId[] = ['home', 'weather', 'rain', 'tides', 'board', 'radar', 'airport', 'flight', 'tonight', 'iss', 'clock', 'photos', 'wiki'];
+
+/** What the Flight tracker accepts, as typed in /setup: spaces dropped, then (isFollow) up to ten
+ *  letters, digits and dashes. Nothing is cut off, so a typo is refused rather than half-saved. */
+export const cleanFollow = (v: unknown) => typeof v === 'string' ? v.toUpperCase().replace(/\s+/g, '') : '';
+export const isFollow = (v: string) => /^[A-Z0-9][A-Z0-9-]{2,9}$/.test(v);
 
 export type PhotoStyle = 'fill' | 'framed' | 'instant' | 'float';
 export const PHOTO_STYLES: PhotoStyle[] = ['fill', 'framed', 'instant', 'float'];

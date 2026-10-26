@@ -31,7 +31,7 @@ class SourceRefused extends Error {
 }
 const EMERGENCY_SQUAWKS = new Set(['7500', '7600', '7700']);
 
-interface ReadsbAircraft {
+export interface ReadsbAircraft {
   hex: string; flight?: string; r?: string; t?: string;
   lat?: number; lon?: number; alt_baro?: number | 'ground'; gs?: number; track?: number;
   baro_rate?: number; geom_rate?: number; squawk?: string; emergency?: string;
@@ -49,7 +49,7 @@ export function distanceAndBearing(lat0: number, lon0: number, lat: number, lon:
   return { distanceNm, bearingDeg };
 }
 
-function normalize(raw: ReadsbAircraft, lat0: number, lon0: number): Aircraft | null {
+export function normalize(raw: ReadsbAircraft, lat0: number, lon0: number): Aircraft | null {
   if (typeof raw.lat !== 'number' || typeof raw.lon !== 'number') return null;
   const squawk = raw.squawk ?? null;
   return {

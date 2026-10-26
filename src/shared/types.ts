@@ -31,6 +31,10 @@ export interface HubConfig {
   /** Show the time in the bottom corner of screens without their own clock. */
   stripClock: boolean;
   features: { agenda: boolean; photos: boolean; trending: boolean };
+  /** The flight the Flight tracker follows, or null (the screen then sits out of the rotation). */
+  follow: string | null;
+  /** Where the Tides screen reads the tide, or null (the screen sits out until one is chosen). */
+  tidePlace: Place | null;
 }
 
 export interface Aircraft {
@@ -84,7 +88,7 @@ export interface OverheadResponse {
   aircraft: Aircraft | null;
   route: RouteInfo | null;
   /** Why this aircraft was chosen. */
-  reason: 'emergency' | 'held' | 'nearest' | null;
+  reason: 'emergency' | 'followed' | 'held' | 'nearest' | null;
 }
 
 export type ArrivalStatus = 'en route' | 'descending' | 'approach' | 'landing' | 'landed';
@@ -177,3 +181,38 @@ export interface TonightResponse {
 
 /** A town or city name for labelling the radar (OpenStreetMap). */
 export interface PlaceName { name: string; lat: number; lon: number; kind: 'city' | 'town' | 'village'; population?: number }
+
+/** The flight the Flight tracker follows. */
+export interface TrackResponse {
+  /** As chosen in /setup ("BA117"). */
+  query: string;
+  fetchedAt: number;
+  source?: string;
+  /** Live, with distance and bearing from the display's place; null when it isn't flying. */
+  aircraft: Aircraft | null;
+  route: RouteInfo | null;
+  /** The last sighting, when it isn't in the air now. */
+  lastSeen?: { at: number; callsign: string | null; lat: number; lon: number };
+}
+
+/** Someone aboard the International Space Station. */
+export interface CrewMember { name: string; agency: string; role: string; country: string; spacecraft: string; launched: number }
+
+export interface IssResponse {
+  /** The two orbit lines; the display works out where the station is, second by second. */
+  tle: [string, string];
+  crew: CrewMember[];
+  expedition?: number;
+  /** Visible passes from the display's place, soonest first. */
+  passes?: IssPass[];
+}
+
+export interface TideTurn { time: string; height: number; type: 'high' | 'low' }
+
+/** The tide at a place by the sea. Heights are metres from mean sea level. */
+export interface TideResponse {
+  place: string;
+  /** Every 15 minutes, from a few hours ago to a day and a half ahead. */
+  heights: Array<[string, number]>;
+  turns: TideTurn[];
+}

@@ -15,7 +15,7 @@ const HOUR = 3_600_000;
 const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const compass = (az: number) => COMPASS[Math.round((((az * 180) / Math.PI + 360) % 360) / 45) % 8];
 
-async function getText(url: string): Promise<string> {
+export async function getText(url: string): Promise<string> {
   const res = await fetch(url, { headers: { 'user-agent': USER_AGENT }, signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new Error(`${new URL(url).host} answered ${res.status}`);
   return res.text();
@@ -37,12 +37,28 @@ function sunlit(pos: { x: number; y: number; z: number }, t: number): boolean {
   return across > EARTH_KM;
 }
 
-/** Visible passes over the next three days: the station sunlit, the observer's sky dark. */
-function issPasses(tle: string, lat: number, lon: number, now: number): IssPass[] {
+/** The station's orbit, shared by Tonight and the Space Station screen. */
+export const issTle = (env: Env) => cached(env, 'tonight:iss-tle', 6 * 3600, () => getText('https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'));
+
+/** The two element lines of a TLE, or null if it's malformed. */
+export function tleLines(tle: string): [string, string] | null {
   const lines = tle.trim().split(/\r?\n/).map(l => l.trim());
   const l1 = lines.find(l => l.startsWith('1 ')), l2 = lines.find(l => l.startsWith('2 '));
-  if (!l1 || !l2) return [];
-  const sat = twoline2satrec(l1, l2);
+  return l1 && l2 ? [l1, l2] : null;
+}
+
+/** Visible passes over the next three days, cached an hour per place; ones already over are dropped. */
+export async function visiblePasses(env: Env, tle: string, lat: number, lon: number): Promise<IssPass[]> {
+  const now = Date.now();
+  const passes = await cached(env, `tonight:iss:${lat}:${lon}`, 3600, async () => issPasses(tle, lat, lon, now));
+  return passes.filter(p => Date.parse(p.end) > now);
+}
+
+/** Visible passes over the next three days: the station sunlit, the observer's sky dark. */
+function issPasses(tle: string, lat: number, lon: number, now: number): IssPass[] {
+  const lines = tleLines(tle);
+  if (!lines) return [];
+  const sat = twoline2satrec(...lines);
   const observer = { latitude: degreesToRadians(lat), longitude: degreesToRadians(lon), height: 0.1 };
 
   const passes: IssPass[] = [];
@@ -122,19 +138,18 @@ export async function handleTonight(env: Env, url: URL, request: Request): Promi
 
   // Each part is optional: one service being down shouldn't blank the screen.
   const [tle, kp, cloud] = await Promise.all([
-    cached(env, 'tonight:iss-tle', 6 * 3600, () => getText('https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE')).catch(() => undefined),
+    issTle(env).catch(() => undefined),
     kpTonight(env, from, to).catch(() => undefined),
     cloudTonight(env, home.lat, home.lon, from, to).catch(() => undefined),
   ]);
-  const iss = tle ? await cached(env, `tonight:iss:${home.lat}:${home.lon}`, 3600, async () => issPasses(tle, home.lat, home.lon, now)) : undefined;
+  const iss = tle ? await visiblePasses(env, tle, home.lat, home.lon) : undefined;
 
   const body: TonightResponse = {
     night: { sunset: iso(night.sunset), dark: iso(night.dark), darkEnds: iso(night.darkEnds), sunrise: iso(night.sunrise), allDay: night.allDay, allNight: night.allNight },
     moon: { name: phaseName(phase), phase, fraction, rise: iso(moon.rise), set: iso(moon.set) },
     aurora: kp === undefined ? undefined : auroraChance(kp, home.lat, home.lon),
     cloud,
-    // Passes already over are dropped, even from a cached list.
-    iss: iss?.filter(p => Date.parse(p.end) > now),
+    iss,
   };
   return json(body);
 }

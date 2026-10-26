@@ -41,18 +41,18 @@ test('screens rotate in the saved order', () => {
 });
 
 test('the default order is every screen once', () => {
-  assert.deepEqual(screenOrder(), ['home', 'weather', 'rain', 'board', 'radar', 'airport', 'tonight', 'clock', 'photos', 'wiki']);
+  assert.deepEqual(screenOrder(), ['home', 'weather', 'rain', 'tides', 'board', 'radar', 'airport', 'flight', 'tonight', 'iss', 'clock', 'photos', 'wiki']);
 });
 
 test('a screen missing from a saved order goes in after the one it follows by default', () => {
   // Saved before the rain map existed, with weather moved to the end.
   const saved = ['home', 'board', 'radar', 'airport', 'tonight', 'clock', 'photos', 'wiki', 'weather'];
-  assert.deepEqual(screenOrder(saved), ['home', 'board', 'radar', 'airport', 'tonight', 'clock', 'photos', 'wiki', 'weather', 'rain']);
+  assert.deepEqual(screenOrder(saved), ['home', 'board', 'radar', 'airport', 'flight', 'tonight', 'iss', 'clock', 'photos', 'wiki', 'weather', 'rain', 'tides']);
 });
 
 test('unknown and repeated ids are dropped from a saved order', () => {
   const order = screenOrder(['clock', 'nonsense', 'clock', 42]);
-  assert.equal(order.length, 10);
+  assert.equal(order.length, 13);
   assert.equal(order.filter(id => id === 'clock').length, 1);
   assert.ok(!order.includes('nonsense' as ScreenId));
 });

@@ -6,7 +6,7 @@ import {
 import type { Warmth } from '../../shared/wear';
 import { calendarChoices, calendarCount } from './accounts';
 import { PHOTO_LABELS, photoCount, photoSections } from './photos';
-import { airportCards, airportCodes, locationRow, MAP_LABELS, mapCard, rangeCard } from './sky';
+import { airportCards, airportCodes, followCard, locationRow, MAP_LABELS, mapCard, rangeCard, tideCards, tidePlaceName } from './sky';
 import { displaySettings, isScreenOn, km, placeName, saveDisplay, setScreenOn, skySettings, state } from './store';
 import { screenOrder } from '../../shared/rotation';
 import { api, busy, card, choiceList, copyRow, h, iosSwitch, pageHead, quietly, row, segmented, svg, tile } from './ui';
@@ -79,6 +79,16 @@ export const SCREENS: ScreenDef[] = [
     body: () => [locationRow(), card(null, h('p', { class: 'hint' }, 'The map is about 300 km across, so it shows the rain that’s on its way. Radar: RainViewer; map: OpenStreetMap.'))],
   },
   {
+    id: 'tides', name: 'Tides', category: 'weather', color: '#0D9488',
+    lede: 'Whether the tide is coming in or going out, when it turns, and the day’s high and low water.',
+    icon: '<path d="M3 9c1.5-1.3 3-1.3 4.5 0s3 1.3 4.5 0 3-1.3 4.5 0 3 1.3 4.5 0"/><path d="M3 14c1.5-1.3 3-1.3 4.5 0s3 1.3 4.5 0 3-1.3 4.5 0 3 1.3 4.5 0"/><path d="M3 19c1.5-1.3 3-1.3 4.5 0s3 1.3 4.5 0 3-1.3 4.5 0 3 1.3 4.5 0"/>',
+    summary: () => {
+      const place = tidePlaceName();
+      return place ? { text: place } : { text: 'Choose a place by the sea', needs: true };
+    },
+    body: () => tideCards(),
+  },
+  {
     id: 'board', name: 'Overhead', category: 'flights', color: '#7C3AED',
     lede: 'A split-flap board of the planes passing over right now.',
     icon: '<path d="M21 15.5v-2l-8-5V4a1.5 1.5 0 0 0-3 0v4.5l-8 5v2l8-2.5V18l-2 1.5V21l3.5-1 3.5 1v-1.5L13 18v-5Z"/>',
@@ -103,11 +113,28 @@ export const SCREENS: ScreenDef[] = [
     body: () => airportCards(),
   },
   {
+    id: 'flight', name: 'Flight tracker', category: 'flights', color: '#DB2777',
+    lede: 'One flight you choose, followed anywhere in the world: its route, how far along it is, how high and fast.',
+    icon: '<circle cx="5" cy="18" r="2"/><circle cx="19" cy="6" r="2"/><path d="M6.5 16.5C9 11 13 13 17.5 7.5" stroke-dasharray="2 2.5"/>',
+    summary: () => {
+      const follow = skySettings().follow;
+      return follow ? { text: `Following ${follow}` } : { text: 'Choose a flight to follow', needs: true };
+    },
+    body: () => [followCard()],
+  },
+  {
     id: 'tonight', name: 'Tonight', category: 'weather', color: '#4F46E5', quiet: true,
     lede: 'The night sky: the moon, planets and what’s worth looking up for.',
     icon: '<path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10Z"/>',
     summary: () => ({ text: placeName() }),
     body: () => [locationRow()],
+  },
+  {
+    id: 'iss', name: 'Space Station', category: 'weather', color: '#0F766E',
+    lede: 'Where the International Space Station is right now, its path round the world, and who’s on board.',
+    icon: '<path d="M2 9h6v6H2zM16 9h6v6h-6zM8 12h8"/><rect x="10" y="8.5" width="4" height="7" rx="1"/>',
+    summary: () => ({ text: 'Live position and crew' }),
+    body: () => [locationRow(), card(null, h('p', { class: 'hint' }, 'The position is worked out on the display from the station’s orbit, every second; your location gives the distance to it and the next time you can see it pass over. Orbit: CelesTrak; crew: the community-kept people-in-space list; map: NASA Blue Marble.'))],
   },
   {
     id: 'clock', name: 'Clock', category: 'everyday', color: '#64748B', quiet: true,
@@ -157,8 +184,9 @@ export const SCREENS: ScreenDef[] = [
 /** The switch for a screen, on its row in the list and at the top of its page. */
 export function screenSwitch(s: ScreenDef) {
   return iosSwitch(isScreenOn(s.id), `Show ${s.name}`, on => {
-    // Turning on airports with none saved: go to the page to add one.
-    if (on && s.id === 'airport' && !airportCodes().length && location.hash !== '#/screens/airport') location.hash = '#/screens/airport';
+    // Turning on a screen that needs something chosen first (airports, a flight, a place by the
+    // sea): go to its page to choose it.
+    if (on && ['airport', 'flight', 'tides'].includes(s.id) && s.summary().needs && location.hash !== `#/screens/${s.id}`) location.hash = `#/screens/${s.id}`;
     return setScreenOn(s.id, on, s.name);
   });
 }

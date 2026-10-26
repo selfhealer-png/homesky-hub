@@ -770,6 +770,136 @@ body.pinned #dots .gear { color: var(--accent); }
 .radar-map img { position: absolute; max-width: none; }
 .radar-credit { position: absolute; right: 6px; bottom: 2px; font-size: 9px; color: rgba(148, 163, 184, 0.4); pointer-events: none; }
 
+/* Rectangular maps (mapView.ts): the Flight tracker and the Space Station. */
+.map-view { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.map-view img { position: absolute; max-width: none; }
+.map-credit { position: absolute; right: 8px; bottom: 4px; z-index: 2; font-size: 10px; color: rgba(226, 232, 240, 0.55); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); pointer-events: none; }
+
+/* Flight tracker: the route map fills most of the screen, the flight beside it. */
+.screen-flight {
+  --ink: #F1F5F9; --muted: #94A3B8; --line: rgba(148, 163, 184, 0.16); --flight: #F472B6;
+  background: #0F172A; color: var(--ink);
+  display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr); gap: 32px;
+}
+.screen-flight.ft-idle { grid-template-columns: minmax(0, 1fr); place-items: center; }
+.ft-map { align-self: stretch; }
+.ft-overlay { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.ft-route-flown { fill: none; stroke: var(--flight); stroke-width: 3.5; stroke-linecap: round; }
+.ft-route-ahead { fill: none; stroke: #F8FAFC; stroke-width: 2.5; stroke-dasharray: 2 7; stroke-linecap: round; opacity: 0.85; }
+.ft-airport { fill: #0F172A; stroke: #F8FAFC; stroke-width: 2.5; }
+.ft-code { font: 700 15px/1 "Gabarito", -apple-system, sans-serif; fill: #F8FAFC; paint-order: stroke; stroke: rgba(15, 23, 42, 0.85); stroke-width: 4px; letter-spacing: 0.04em; }
+.ft-home { fill: #38BDF8; stroke: #0F172A; stroke-width: 2; }
+.ft-plane path { fill: var(--flight); stroke: #0F172A; stroke-width: 1; stroke-linejoin: round; }
+.ft-panel { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.ft-kicker { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--flight); }
+.ft-flight { margin: 4px 0 0; font: 700 56px/1 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.02em; }
+.ft-airline { margin: 8px 0 0; font-size: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ft-leg { display: flex; flex-direction: column; margin-top: 26px; }
+.ft-leg b { font: 700 34px/1.1 "Gabarito", -apple-system, sans-serif; letter-spacing: 0.01em; }
+.ft-leg span { margin-top: 4px; font-size: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ft-progress { height: 8px; margin-top: 18px; border-radius: 4px; background: rgba(148, 163, 184, 0.18); overflow: hidden; }
+.ft-progress::before { content: ""; display: block; height: 100%; width: var(--p); border-radius: 4px; background: var(--flight); }
+.ft-togo { margin: 10px 0 0; font-size: 16px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ft-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; margin: 26px 0 0; padding-top: 20px; border-top: 1px solid var(--line); }
+.ft-stats dt { font-size: 13px; color: var(--muted); }
+.ft-stats dd { margin: 2px 0 0; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ft-waiting { max-width: 30ch; text-align: center; }
+.ft-waiting-icon { width: 64px; height: 64px; fill: var(--muted); opacity: 0.6; transform: rotate(45deg); }
+.ft-waiting h1 { margin: 18px 0 0; font: 700 40px/1.1 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.015em; text-wrap: balance; }
+.ft-waiting p { margin: 14px 0 0; font-size: 19px; color: var(--muted); text-wrap: balance; }
+
+/* Space Station: the world, day and night, with the station's path; the crew beside it. */
+.screen-iss {
+  --ink: #EEF0FF; --muted: #9AA3C7; --line: rgba(154, 163, 199, 0.18); --station: #FDE68A;
+  background: #070A1A; color: var(--ink);
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr); gap: 30px;
+}
+.iss-map { align-self: stretch; background: #04060F; }
+.iss-overlay { position: absolute; inset: 0; pointer-events: none; }
+.iss-night { fill: rgba(2, 4, 16, 0.5); }
+.iss-track-flown { fill: none; stroke: var(--station); stroke-width: 2.5; stroke-linecap: round; opacity: 0.55; }
+.iss-track-ahead { fill: none; stroke: var(--station); stroke-width: 2.5; stroke-dasharray: 2 6; stroke-linecap: round; }
+.iss-home { fill: #38BDF8; stroke: #04060F; stroke-width: 2; }
+.iss-glow { fill: rgba(253, 230, 138, 0.2); stroke: rgba(253, 230, 138, 0.55); stroke-width: 1.5; }
+.iss-station path { fill: var(--station); stroke: #04060F; stroke-width: 0.6; }
+.iss-panel { display: flex; flex-direction: column; justify-content: center; gap: 18px; min-width: 0; min-height: 0; }
+.iss-title { margin: 0; font: 700 34px/1.1 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.015em; }
+.iss-over { margin: -12px 0 0; font-size: 16px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.iss-stats { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 4px 12px; margin: 0; }
+.iss-stats dt { font-size: 12px; color: var(--muted); }
+.iss-stats dd { margin: 2px 0 0; font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.iss-next, .iss-crew { padding-top: 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.iss-panel h2 { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.iss-next b { font-size: 21px; font-variant-numeric: tabular-nums; }
+.iss-next span { font-size: 14px; color: var(--muted); }
+.iss-crew ul { list-style: none; margin: 0; padding: 0; overflow: hidden; }
+.iss-crew li { display: flex; flex-direction: column; padding: 5px 0; }
+.iss-crew b { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iss-crew span { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Tides: which way it's going in big type, the curve across the screen, the next turns under it. */
+.screen-tides {
+  --ink: #ECFEFF; --muted: #8FB3BD; --line: rgba(143, 179, 189, 0.18); --sea: #2DD4BF;
+  background: linear-gradient(180deg, #071A22 0%, #06141B 100%); color: var(--ink);
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 18px;
+}
+.tide-head h1 { margin: 0; font: 600 44px/1.08 "Gabarito", -apple-system, sans-serif; letter-spacing: -0.02em; text-wrap: balance; }
+.tide-head p { margin: 8px 0 0; font-size: 18px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tide-box { position: relative; min-height: 0; }
+.tide-chart { position: absolute; inset: 0; overflow: visible; }
+.tide-water { fill: rgba(45, 212, 191, 0.14); }
+.tide-line { fill: none; stroke: var(--sea); stroke-width: 3; stroke-linejoin: round; }
+.tide-grid { stroke: var(--line); stroke-width: 1; }
+.tide-midnight { stroke: rgba(143, 179, 189, 0.4); stroke-width: 1; stroke-dasharray: 3 4; }
+.tide-axis { font-size: 13px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.tide-dot { fill: #06141B; stroke: var(--sea); stroke-width: 2.5; }
+.tide-turn { font-size: 15px; font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
+.tide-now { stroke: #F8FAFC; stroke-width: 1.5; opacity: 0.7; }
+.tide-now-dot { fill: #F8FAFC; stroke: #06141B; stroke-width: 3; }
+.tide-now-label { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; fill: #F8FAFC; }
+.tide-turns { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tide-card { display: flex; flex-direction: column; padding: 12px 16px; border-radius: 14px; background: rgba(45, 212, 191, 0.07); border: 1px solid var(--line); }
+.tide-card.low { background: rgba(148, 163, 184, 0.06); }
+.tide-kind { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.tide-card.high .tide-kind { color: var(--sea); }
+.tide-card b { margin-top: 2px; font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tide-sub { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tide-note { margin: 0; font-size: 12px; color: var(--muted); opacity: 0.8; }
+
+@media (max-height: 520px) {
+  .screen-flight { grid-template-columns: minmax(0, 1fr) 220px; gap: 16px; }
+  .ft-flight { font-size: 34px; }
+  .ft-airline, .ft-leg span, .ft-togo { font-size: 12px; }
+  .ft-leg { margin-top: 10px; }
+  .ft-leg b { font-size: 22px; }
+  .ft-progress { margin-top: 8px; height: 6px; }
+  .ft-stats { margin-top: 10px; padding-top: 10px; gap: 6px 12px; }
+  .ft-stats dt { font-size: 11px; }
+  .ft-stats dd { font-size: 15px; }
+  .ft-waiting h1 { font-size: 26px; }
+  .ft-waiting p { font-size: 15px; }
+
+  .screen-iss { grid-template-columns: minmax(0, 1fr) 220px; gap: 16px; }
+  .iss-panel { gap: 8px; }
+  .iss-title { font-size: 22px; }
+  .iss-over { margin-top: -4px; font-size: 12px; }
+  .iss-stats dd { font-size: 14px; }
+  .iss-next, .iss-crew { padding-top: 6px; }
+  .iss-next b { font-size: 15px; }
+  .iss-next span, .iss-crew span { font-size: 11px; }
+  .iss-crew b { font-size: 13px; }
+  .iss-crew li { padding: 2px 0; }
+
+  .screen-tides { gap: 8px; }
+  .tide-head h1 { font-size: 26px; }
+  .tide-head p { font-size: 13px; margin-top: 2px; }
+  .tide-card { padding: 6px 10px; border-radius: 10px; }
+  .tide-card b { font-size: 18px; }
+  .tide-kind { font-size: 10px; }
+  .tide-sub { font-size: 11px; }
+  .tide-note { display: none; }
+}
+
 /* ── Night (night.ts) ───────────────────────────────────────────────────────
    From sunset [data-night] is set and nothing on screen is brighter than the dark screens.
    In quiet hours [data-night="quiet"] the whole display also dims and warms, slowly, and a
@@ -789,6 +919,8 @@ body.pinned #dots .gear { color: var(--accent); }
 /* The street map turns to a night map; the satellite view just darkens. */
 [data-night] .radar-map[data-map="map"] { filter: invert(1) hue-rotate(180deg) saturate(0.5) brightness(0.8) contrast(0.95); }
 [data-night] .radar-map[data-map="satellite"] { filter: brightness(0.62); }
+[data-night] .map-view[data-map="map"] { filter: invert(1) hue-rotate(180deg) saturate(0.5) brightness(0.8) contrast(0.95); }
+[data-night] .map-view[data-map="satellite"] { filter: brightness(0.62); }
 /* Pictures stay pictures, a step down; the photo frame's clock stays at full strength. */
 [data-night] .pf-frame::after { content: ""; position: absolute; inset: 0; z-index: 1; background: rgba(0, 0, 0, 0.28); pointer-events: none; }
 [data-night] .wk-figure img { filter: brightness(0.72); }
@@ -826,6 +958,23 @@ body.pinned #dots .gear { color: var(--accent); }
   .screen-tonight { grid-template-columns: minmax(0, 1fr); align-content: center; gap: 40px; }
   .tn-verdict { max-width: 18ch; }
   .tn-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+
+  /* Flight tracker and Space Station: the map on top, the details under it. */
+  .screen-flight, .screen-iss { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 24px; }
+  .ft-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 28px; align-items: start; }
+  .ft-panel > :not(.ft-stats) { grid-column: 1; }
+  .ft-stats { grid-column: 2; grid-row: 1 / span 6; align-self: center; margin: 0; padding: 0 0 0 24px; border-top: 0; border-left: 1px solid var(--line); }
+  .ft-flight { font-size: 48px; }
+  .ft-leg { margin-top: 16px; }
+  .iss-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "title crew" "over crew" "stats crew" "next crew"; grid-template-rows: auto auto auto 1fr; gap: 12px 28px; align-items: start; }
+  .iss-title { grid-area: title; }
+  .iss-over { grid-area: over; margin: -8px 0 0; }
+  .iss-stats { grid-area: stats; }
+  .iss-next { grid-area: next; }
+  .iss-crew { grid-area: crew; }
+
+  /* Tides: the turns two by two. */
+  .tide-turns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   /* Wikipedia: the picture above the article. */
   .screen-wiki { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; align-items: stretch; gap: 30px; }
@@ -888,6 +1037,36 @@ body.pinned #dots .gear { color: var(--accent); }
   .rain-hours { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .rain-hours li { grid-template-columns: 44px minmax(0, 1fr) 38px; gap: 8px; }
   .rain-time, .rain-pct { font-size: 13px; }
+
+  .screen-flight, .screen-iss { gap: 14px; }
+  .ft-panel { display: flex; align-items: stretch; }
+  .ft-stats { align-self: stretch; margin-top: 12px; padding: 12px 0 0; border-left: 0; border-top: 1px solid var(--line); gap: 8px 16px; }
+  .ft-flight { font-size: 34px; }
+  .ft-airline, .ft-leg span, .ft-togo { font-size: 13px; }
+  .ft-leg { margin-top: 10px; }
+  .ft-leg b { font-size: 24px; }
+  .ft-progress { margin-top: 10px; }
+  .ft-stats dd { font-size: 17px; }
+  .ft-waiting h1 { font-size: 28px; }
+  .ft-waiting p { font-size: 16px; }
+  .iss-panel { display: flex; align-items: stretch; gap: 10px; }
+  .iss-title { font-size: 24px; }
+  .iss-over { margin-top: -6px; font-size: 13px; }
+  .iss-stats { justify-content: space-between; gap: 2px 12px; }
+  .iss-stats dd { font-size: 16px; }
+  .iss-next, .iss-crew { padding-top: 8px; }
+  .iss-next b { font-size: 16px; }
+  .iss-next span, .iss-crew span { font-size: 12px; }
+  .iss-crew ul { columns: 2; column-gap: 12px; }
+  .iss-crew b { font-size: 13px; }
+  .iss-crew li { padding: 2px 0; break-inside: avoid; }
+  .screen-tides { gap: 12px; }
+  .tide-head h1 { font-size: 28px; }
+  .tide-head p { font-size: 14px; }
+  .tide-turns { gap: 8px; }
+  .tide-card { padding: 8px 12px; }
+  .tide-card b { font-size: 20px; }
+  .tide-sub { font-size: 12px; }
 
   .screen-radar { padding-right: 18px; gap: 8px; }
   .radar-head h2 { font-size: 20px; }
