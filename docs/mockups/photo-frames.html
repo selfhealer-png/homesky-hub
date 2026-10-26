@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo Frame Options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Gabarito:wght@500;600&family=Cormorant+Garamond:ital,wght@1,500&display=swap" rel="stylesheet">
+<style>
+  :root { --page: #0b0d12; --ink: #e8eaf0; --muted: #8b93a7; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; padding: 32px 16px 80px; }
+  header { max-width: 1100px; margin: 0 auto 28px; }
+  h1 { font: 600 28px/1.2 Gabarito, sans-serif; margin: 0 0 6px; }
+  header p { margin: 0; color: var(--muted); max-width: 70ch; }
+  .opt { max-width: 1100px; margin: 0 auto 48px; }
+  .opt h2 { font: 600 20px/1.2 Gabarito, sans-serif; margin: 0 0 4px; }
+  .opt h2 b { color: #f5c542; font-weight: 600; margin-right: 8px; }
+  .opt p { margin: 0 0 14px; color: var(--muted); max-width: 75ch; }
+
+  /* Each stage is the iPad mini in landscape: 1024×768, everything in container units. */
+  .stage { container-type: size; aspect-ratio: 4 / 3; width: 100%; position: relative; overflow: hidden; border-radius: 10px; box-shadow: 0 0 0 1px #222836; }
+  .stage img { display: block; }
+  .clock { position: absolute; top: 2.9cqh; left: 2.9cqw; z-index: 5; font: 600 4.4cqh/1 Gabarito, sans-serif; letter-spacing: -0.02em; color: rgba(244, 240, 232, 0.75); font-variant-numeric: tabular-nums; }
+  .wall { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .wash { position: absolute; inset: -10%; width: 120%; height: 120%; object-fit: cover; filter: blur(60px) brightness(0.28) saturate(0.9); }
+  figure { margin: 0; position: relative; z-index: 1; }
+
+  /* ── A: current ── */
+  .a .wall { gap: 6cqw; background: radial-gradient(ellipse 80% 70% at 50% 42%, #2a2622 0%, #141210 75%); }
+  .a figure { display: flex; flex-direction: column; align-items: center; gap: 2.4cqh; }
+  .a .mount { background: #f4f0e8; padding: min(3.4cqw, 4.4cqh); border: min(1cqw, 1.3cqh) solid #1b1714; box-shadow: 0 2.6cqh 5cqh -1.6cqh rgba(0,0,0,.75), 0 .4cqh 1cqh rgba(0,0,0,.45); }
+  .a .mount img { height: 52cqh; aspect-ratio: 2/3; object-fit: cover; outline: 1px solid rgba(0,0,0,.14); }
+  .a figcaption { font: 500 1.9cqh/1.35 -apple-system, "Segoe UI", sans-serif; letter-spacing: .02em; color: rgba(244,240,232,.8); }
+
+  /* ── B: classic polaroid ── */
+  .b .wall { gap: 5cqw; background: radial-gradient(ellipse 85% 75% at 50% 40%, #2b2723 0%, #12100e 78%); }
+  .b .pol { background: #fbfaf6; padding: 2.4cqh 2.4cqh 0; box-shadow: 0 3cqh 5cqh -2cqh rgba(0,0,0,.8), 0 .5cqh 1.2cqh rgba(0,0,0,.4); }
+  .b .pol img { height: 62cqh; aspect-ratio: 3/4; object-fit: cover; filter: saturate(.92) contrast(1.03); box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+  .b .pol figcaption { height: 11cqh; display: flex; align-items: center; justify-content: center; font: 600 4.2cqh/1 Caveat, cursive; color: #2b2f3a; }
+  .b figure:first-child { transform: rotate(-3deg) translateY(1cqh); }
+  .b figure:last-child { transform: rotate(2.2deg) translateY(-1cqh); }
+
+  /* ── C: taped to the wall ── */
+  .c .wall { gap: 6cqw; background:
+      radial-gradient(ellipse 90% 80% at 50% 35%, rgba(255,240,220,.10), transparent 70%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 2px, transparent 2px 4px),
+      #1d1a17; }
+  .c .pol { background: #f7f4ec; padding: 2.2cqh 2.2cqh 0; box-shadow: 0 2cqh 3cqh -1.6cqh rgba(0,0,0,.75), 0 .3cqh .8cqh rgba(0,0,0,.35); }
+  .c .pol img { height: 60cqh; aspect-ratio: 3/4; object-fit: cover; }
+  .c .pol figcaption { height: 10cqh; display: flex; align-items: center; padding-left: .6cqh; font: 500 3.8cqh/1 Caveat, cursive; color: #3a3530; }
+  .c .tape { position: absolute; top: -2.2cqh; left: 50%; width: 15cqh; height: 4.6cqh; transform: translateX(-50%) rotate(-4deg); background: rgba(232, 214, 170, .72); box-shadow: 0 .2cqh .4cqh rgba(0,0,0,.18);
+      -webkit-mask: linear-gradient(90deg, transparent 0 2px, #000 2px calc(100% - 2px), transparent 0), conic-gradient(#000 0 0); }
+  .c figure:first-child { transform: rotate(-1.6deg); }
+  .c figure:last-child { transform: rotate(1.4deg) translateY(1.4cqh); }
+  .c figure:last-child .tape { transform: translateX(-50%) rotate(5deg); background: rgba(196, 214, 210, .7); }
+
+  /* ── D: gallery wall with a picture light ── */
+  .d .wall { gap: 5.5cqw; background: #16181c; }
+  .d .wall::before { content: ""; position: absolute; inset: 0; background:
+      radial-gradient(ellipse 34% 62% at 30% 22%, rgba(255,226,180,.30), transparent 70%),
+      radial-gradient(ellipse 34% 62% at 70% 22%, rgba(255,226,180,.30), transparent 70%); }
+  .d figure { display: flex; flex-direction: column; align-items: center; gap: 3cqh; }
+  .d .frame { padding: 5cqh 4.4cqh; background: #f1efea; border: 1.1cqh solid #0c0c0d;
+      box-shadow: 0 0 0 .2cqh #2a2a2c, 0 3.6cqh 5cqh -2cqh rgba(0,0,0,.85), inset 0 .6cqh 1.2cqh rgba(0,0,0,.18); }
+  .d .frame img { height: 50cqh; aspect-ratio: 2/3; object-fit: cover; box-shadow: 0 0 0 .5cqh #f1efea, 0 0 0 .62cqh rgba(0,0,0,.12); }
+  .d figcaption { font: italic 500 2.7cqh/1.2 "Cormorant Garamond", Georgia, serif; color: rgba(240,232,220,.78); letter-spacing: .01em; }
+
+  /* ── E: instax pair, overlapping on a table ── */
+  .e .wall { background: radial-gradient(ellipse 70% 60% at 50% 45%, #3a3029 0%, #1b1613 80%); }
+  .e .wall::before { content: ""; position: absolute; inset: 0; opacity: .35; background: repeating-linear-gradient(92deg, rgba(0,0,0,.18) 0 1px, transparent 1px 9px), repeating-linear-gradient(88deg, rgba(255,255,255,.03) 0 2px, transparent 2px 23px); }
+  .e .pol { background: #fdfcf8; padding: 2.6cqh 2.6cqh 0; border-radius: .5cqh; box-shadow: 0 2.4cqh 4cqh -1.4cqh rgba(0,0,0,.7), 0 .4cqh 1cqh rgba(0,0,0,.35); }
+  .e .pol img { height: 60cqh; aspect-ratio: 54/86; object-fit: cover; border-radius: .3cqh; }
+  .e .pol figcaption { height: 12cqh; display: flex; align-items: center; justify-content: center; font: 500 3.6cqh/1 Caveat, cursive; color: #4b4f5c; }
+  .e figure:first-child { transform: rotate(-5deg) translate(1.5cqw, -2cqh); z-index: 1; }
+  .e figure:last-child { transform: rotate(4deg) translate(-1.5cqw, 3cqh); z-index: 2; }
+
+  /* ── F: album page with photo corners and deckled prints ── */
+  .f .wall { gap: 6cqw; background:
+      radial-gradient(ellipse 80% 70% at 50% 40%, #26302a 0%, #151b17 80%); }
+  .f .wall::before { content: ""; position: absolute; inset: 0; opacity: .5; background: repeating-radial-gradient(circle at 30% 40%, rgba(255,255,255,.015) 0 1px, transparent 1px 3px); }
+  .f figure { display: flex; flex-direction: column; align-items: center; gap: 2.6cqh; }
+  .f .print { position: relative; filter: drop-shadow(0 1.4cqh 1.6cqh rgba(0,0,0,.55)); }
+  .f .deckle { background: #efe6d2; padding: 2.6cqh;
+      --s: 1.1cqh;
+      -webkit-mask: radial-gradient(calc(var(--s) * .62) at 50% 50%, #000 98%, transparent) 0 0 / var(--s) var(--s) round, linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0) calc(var(--s)/2) calc(var(--s)/2) / calc(100% - var(--s)) calc(100% - var(--s)) no-repeat; }
+  .f .deckle img { height: 56cqh; aspect-ratio: 2/3; object-fit: cover; filter: sepia(.18) saturate(.9) contrast(1.02); }
+  .f .corner { position: absolute; width: 6cqh; height: 6cqh; background: linear-gradient(135deg, #4a4741, #141311 60%); z-index: 2; }
+  .f .corner.tl { top: -1.2cqh; left: -1.2cqh; clip-path: polygon(0 0, 100% 0, 0 100%); }
+  .f .corner.tr { top: -1.2cqh; right: -1.2cqh; clip-path: polygon(0 0, 100% 0, 100% 100%); }
+  .f .corner.bl { bottom: -1.2cqh; left: -1.2cqh; clip-path: polygon(0 0, 100% 100%, 0 100%); }
+  .f .corner.br { bottom: -1.2cqh; right: -1.2cqh; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+  .f figcaption { font: 600 3.6cqh/1 Caveat, cursive; color: rgba(236, 228, 210, .82); }
+
+  /* ── G: borderless float over the photo's own colours ── */
+  .g .wall { gap: 3.2cqw; background: #000; }
+  .g .wash { filter: blur(70px) brightness(.5) saturate(1.3); }
+  .g figure img { height: 78cqh; aspect-ratio: 2/3; object-fit: cover; border-radius: 2.2cqh; box-shadow: 0 4cqh 8cqh -3cqh rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.08); }
+  .g .cap { position: absolute; left: 0; right: 0; bottom: 4.2cqh; z-index: 3; text-align: center; font: 500 2.1cqh/1 -apple-system, "Segoe UI", sans-serif; letter-spacing: .03em; color: rgba(255,255,255,.75); }
+  .g .clock { color: rgba(255,255,255,.85); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Photo frame options: two portraits</h1>
+  <p>Each panel is the iPad mini screen (1024×768) with the same pair of portrait photos. Pick a letter, or mix: e.g. the frame from one and the wall from another. Placeholder photos are random stock images.</p>
+</header>
+
+<template id="pair">
+  <img data-n="0" src="https://picsum.photos/seed/hsh-coast/600/900" alt="">
+  <img data-n="1" src="https://picsum.photos/seed/hsh-forest21/600/900" alt="">
+</template>
+
+<section class="opt">
+  <h2><b>A</b>Current: dark frame, cream mount</h2>
+  <p>For reference. Square-on, formal, quite heavy at this size.</p>
+  <div class="stage a"><div class="clock">14:32</div><div class="wall">
+    <img class="wash" src="https://picsum.photos/seed/hsh-coast/600/900" alt="">
+    <figure><div class="mount"><img src="https://picsum.photos/seed/hsh-coast/600/900" alt=""></div><figcaption>St Ives · 3 May 2024</figcaption></figure>
+    <figure><div class="mount"><img src="https://picsum.photos/seed/hsh-forest21/600/900" alt=""></div><figcaption>Lake District · 12 August 2023</figcaption></figure>
+  </div></div>
+</section>
+
+<section class="opt">
+  <h2><b>B</b>Classic Polaroid</h2>
+  <p>White instant-print card with the thick bottom lip. The caption is handwritten on the lip, as if in marker. Tilted slightly in opposite directions, on the same warm dim wall.</p>
+  <div class="stage b"><div class="clock">14:32</div><div class="wall">
+    <img class="wash" src="https://picsum.photos/seed/hsh-coast/600/900" alt="">
+    <figure class="pol"><img src="https://picsum.photos/seed/hsh-coast/600/900" alt=""><figcaption>St Ives, May '24</figcaption></figure>
+    <figure class="pol"><img src="https://picsum.photos/seed/hsh-forest21/600/900" alt=""><figcaption>Lakes, Aug '23</figcaption></figure>
+  </div></div>
+</section>
+
+<section class="opt">
+  <h2><b>C</b>Polaroids taped to the wall</h2>
+  <p>Same prints, held up with a strip of washi tape each (two soft colours), on a plain plaster wall lit from above. Caption written left-aligned like a note.</p>
+  <div class="stage c"><div class="clock">14:32</div><div class="wall">
+    <figure class="pol"><span class="tape"></span><img src="https://picsum.photos/seed/hsh-coast/600/900" alt=""><figcaption>St Ives · 3 May 2024</figcaption></figure>
+    <figure class="pol"><span class="tape"></span><img src="https://picsum.photos/seed/hsh-forest21/600/900" alt=""><figcaption>Lake District · Aug 2023</figcaption></figure>
+  </div></div>
+</section>
+
+<section class="opt">
+  <h2><b>D</b>Gallery wall with picture lights</h2>
+  <p>A refined take on the current style: slim black frames, wide white mats, and a warm pool of light falling on each from above. Labels in an italic serif, like a gallery card.</p>
+  <div class="stage d"><div class="clock">14:32</div><div class="wall">
+    <figure><div class="frame"><img src="https://picsum.photos/seed/hsh-coast/600/900" alt=""></div><figcaption>St Ives, 3 May 2024</figcaption></figure>
+    <figure><div class="frame"><img src="https://picsum.photos/seed/hsh-forest21/600/900" alt=""></div><figcaption>Lake District, 12 August 2023</figcaption></figure>
+  </div></div>
+</section>
+
+<section class="opt">
+  <h2><b>E</b>Instant prints dropped on a table</h2>
+  <p>Narrower Instax-style prints with rounded corners, overlapping casually as if just put down on a wooden table. The most relaxed and personal of the set.</p>
+  <div class="stage e"><div class="clock">14:32</div><div class="wall">
+    <figure class="pol"><img src="https://picsum.photos/seed/hsh-coast/600/900" alt=""><figcaption>St Ives · May 2024</figcaption></figure>
+    <figure class="pol"><img src="https://picsum.photos/seed/hsh-forest21/600/900" alt=""><figcaption>The Lakes · Aug 2023</figcaption></figure>
+  </div></div>
+</section>
+
+<section class="opt">
+  <h2><b>F</b>Photo album page</h2>
+  <p>Old-style prints with scalloped (deckled) edges and a warm tone, held by black photo corners on a dark album page. Handwritten caption underneath.</p>
+  <div class="stage f"><div class="clock">14:32</div><div class="wall">
+    <figure><div class="print"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span><div class="deckle"><img src="https://picsum.photos/seed/hsh-coast/600/900" alt=""></div></div><figcaption>St Ives, May 2024</figcaption></figure>
+    <figure><div class="print"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span><div class="deckle"><img src="https://picsum.photos/seed/hsh-forest21/600/900" alt=""></div></div><figcaption>Lake District, Aug 2023</figcaption></figure>
+  </div></div>
+</section>
+
+<section class="opt">
+  <h2><b>G</b>Borderless, modern</h2>
+  <p>No frame at all: the photos are as big as they can be, with rounded corners and a deep shadow, floating over a blur of their own colours. One shared caption at the bottom.</p>
+  <div class="stage g"><div class="clock">14:32</div><div class="wall">
+    <img class="wash" src="https://picsum.photos/seed/hsh-forest21/600/900" alt="">
+    <figure><img src="https://picsum.photos/seed/hsh-coast/600/900" alt=""></figure>
+    <figure><img src="https://picsum.photos/seed/hsh-forest21/600/900" alt=""></figure>
+  </div><div class="cap">St Ives, 3 May 2024 · Lake District, 12 August 2023</div></div>
+</section>
+</body>
+</html>
