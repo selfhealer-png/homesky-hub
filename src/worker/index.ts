@@ -1,6 +1,7 @@
 import { handleAdmin } from './admin';
 import { handleAgenda } from './agenda';
 import { handleAircraft } from './aircraft';
+import { handleAirportBoard } from './airports';
 import { handlePair, handleWelcome, isDisplayAuthorized, PAIR_PAGE } from './auth';
 import { json, type Env } from './env';
 import { handleOverhead } from './overhead';
@@ -33,6 +34,7 @@ export default {
         case '/api/config': return json(await hubConfig(env, request));
         case '/api/aircraft': return handleAircraft(env, url, request);
         case '/api/overhead': return handleOverhead(url, env, request);
+        case '/api/airport': return handleAirportBoard(env, url);
         case '/api/weather': return handleWeather(env, url, request);
         case '/api/agenda': return handleAgenda(env);
         case '/api/wiki': return handleWiki(env);

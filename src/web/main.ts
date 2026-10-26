@@ -5,6 +5,7 @@ import type { Screen } from './screen';
 import { setMotionLevel } from './motion';
 import { showWelcome } from './welcome';
 import { startKeepAwake } from './wakeLock';
+import { airportScreen } from './screens/airport';
 import { boardScreen } from './screens/board';
 import { clockScreen } from './screens/clock';
 import { homeScreen } from './screens/home';
@@ -14,7 +15,7 @@ import { tonightScreen } from './screens/tonight';
 import { weatherScreen } from './screens/weather';
 import { wikiScreen } from './screens/wiki';
 
-const ALL_SCREENS: Screen[] = [homeScreen, weatherScreen, boardScreen, radarScreen, tonightScreen, clockScreen, photosScreen, wikiScreen];
+const ALL_SCREENS: Screen[] = [homeScreen, weatherScreen, boardScreen, radarScreen, airportScreen, tonightScreen, clockScreen, photosScreen, wikiScreen];
 /** The screens in rotation: those with something to show (no photo frame until there are photos). */
 let screens: Screen[] = ALL_SCREENS;
 const CONFIG_REFRESH_MS = 5 * 60_000;
@@ -155,7 +156,7 @@ async function refreshConfig() {
   try {
     const fresh = await getJson<HubConfig>('/api/config');
     const clockChanged = fresh.clock !== config.clock;
-    const rotationChanged = JSON.stringify(fresh.features) !== JSON.stringify(config.features);
+    const rotationChanged = JSON.stringify([fresh.features, fresh.airports]) !== JSON.stringify([config.features, config.airports]);
     Object.assign(config, fresh);
     setMotionLevel(config.motion);
     if (rotationChanged) buildRotation();

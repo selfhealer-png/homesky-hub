@@ -1,7 +1,7 @@
 import {
-  CALENDAR_COLORS, CLOCK_STYLES, MOTION_LEVELS, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
+  CALENDAR_COLORS, CLOCK_STYLES, MAX_AIRPORTS, MOTION_LEVELS, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
   type ClockStyle, type GoogleWants, type MotionLevel,
-  type AdminState, type Place, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
+  type AdminState, type Place, type SavedAirport, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
 import { handleLogin, handleLogout, hmac, isAdmin, passesCsrfCheck, safeEqual } from './adminAuth';
 import { readConnection } from './agenda';
@@ -324,7 +324,23 @@ async function saveSky(env: Env, b: Record<string, unknown>) {
   const active = b.active === 'device' ? 'device' : places.find(p => p.id === b.active)?.id ?? places[0]?.id ?? 'default';
   const radiusNm = RADIUS_CHOICES.includes(Number(b.radiusNm)) ? Number(b.radiusNm) : 25;
   const map = RADAR_MAPS.find(m => m === b.map);
-  return mutate(env, s => ({ ...s, sky: { places, active, radiusNm, map: map ?? s.sky?.map } }));
+  const airports = Array.isArray(b.airports) ? cleanAirports(b.airports as Array<Partial<SavedAirport>>) : undefined;
+  return mutate(env, s => ({ ...s, sky: { places, active, radiusNm, map: map ?? s.sky?.map, airports: airports ?? s.sky?.airports } }));
+}
+
+function cleanAirports(raw: Array<Partial<SavedAirport>>): SavedAirport[] {
+  if (raw.length > MAX_AIRPORTS) throw new BadRequest(`Up to ${MAX_AIRPORTS} airports.`);
+  const seen = new Set<string>();
+  return raw.flatMap(a => {
+    const icao = String(a.icao ?? '').toUpperCase();
+    const lat = Number(a.lat), lon = Number(a.lon);
+    if (!/^[A-Z0-9]{4}$/.test(icao)) throw new BadRequest('An airport has an invalid ICAO code.');
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new BadRequest('An airport has invalid coordinates.');
+    if (seen.has(icao)) return [];
+    seen.add(icao);
+    const iata = String(a.iata ?? '').toUpperCase();
+    return [{ icao, iata: /^[A-Z0-9]{3}$/.test(iata) ? iata : '', name: str(a.name, 'Airport name', 80), city: str(a.city || a.name, 'Airport city', 60), lat, lon }];
+  });
 }
 
 // ── Display ─────────────────────────────────────────────────────────────────

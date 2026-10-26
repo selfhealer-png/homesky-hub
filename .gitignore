@@ -11,4 +11,5 @@ wrangler.toml
 .homesky.json
 .test-build/
 src/web/public/places/
+src/web/public/airports.json
 homesky-secrets.txt

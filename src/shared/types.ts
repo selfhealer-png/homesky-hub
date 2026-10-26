@@ -1,6 +1,6 @@
 // Shapes shared by the Worker API and the web app.
 
-import type { ClockStyle, MotionLevel, PhotoStyle, Place, RadarMap } from './settings';
+import type { ClockStyle, MotionLevel, PhotoStyle, Place, RadarMap, SavedAirport } from './settings';
 import type { AirInfo } from './air';
 import type { Warmth, WeatherHour, WeatherNow } from './wear';
 
@@ -18,6 +18,8 @@ export interface HubConfig {
   motion: MotionLevel;
   warmth: Warmth;
   photoStyle: PhotoStyle;
+  /** Airports with a board, in order. The board screen is left out of rotation when empty. */
+  airports: SavedAirport[];
   features: { agenda: boolean; photos: boolean; trending: boolean };
 }
 
@@ -73,6 +75,39 @@ export interface OverheadResponse {
   route: RouteInfo | null;
   /** Why this aircraft was chosen. */
   reason: 'emergency' | 'held' | 'nearest' | null;
+}
+
+export type ArrivalStatus = 'en route' | 'descending' | 'approach' | 'landing' | 'landed';
+export type DepartureStatus = 'taxiing' | 'takeoff' | 'climbing' | 'departed';
+
+/** One row of an airport board. `code` and `city` are the other end of the flight. */
+export interface AirportFlight {
+  hex: string;
+  /** IATA flight number when known (BA178), else the callsign (BAW178). */
+  flight: string;
+  airline: string | null;
+  code: string;
+  city: string;
+  type: string | null;
+  altFt: number | null;
+  /** From the airport, not from home. */
+  distanceNm: number;
+  status: ArrivalStatus | DepartureStatus;
+  /** Arrivals only: estimated minutes to touchdown from fetchedAt (0 once landed). */
+  etaMin: number | null;
+}
+
+export interface AirportBoardResponse {
+  airport: { icao: string; iata: string; name: string; city: string };
+  fetchedAt: number;
+  source: string;
+  stale?: boolean;
+  /** How far round the airport the hub looked. */
+  radiusNm: number;
+  /** Soonest first. */
+  arrivals: AirportFlight[];
+  /** Most recent first: on the ground, then nearest. */
+  departures: AirportFlight[];
 }
 
 export type BoardTheme = 'splitflap' | 'led' | 'minimal';

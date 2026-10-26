@@ -107,9 +107,9 @@ The "what's that plane?" screen. One aircraft is shown as a flip board:
 
 ### Airport boards
 
-Configure one or more airports (`AIRPORTS = "EGLL,EGKK,EGSS"`). Each gets a split-flap board styled like an airport arrivals board.
+Up to six airports are chosen in `/setup › Sky › Airport boards`, searched from the OurAirports list (public domain; `scripts/build-airports.mjs` builds `airports.json` at build time). Each gets a split-flap board styled like an airport arrivals board, served by `/api/airport?code=<ICAO>` (only airports chosen in setup). Each visit to the screen shows the next airport's arrivals; a tap in the middle turns to departures, then the next airport.
 
-* **Inbound now** (free, open data, default): every ~30 s the Worker fetches live aircraft within ~200 nm of the airport. It looks up each callsign's route (cached) and keeps those whose destination is that airport. ETA is distance ÷ ground speed, adjusted for planes on approach. The board shows these columns:
+* **Inbound now** (free, open data, default; *built*): every ~25 s the Worker fetches live aircraft within 100 nm of the airport. Only planes pointing at the airport (or low and near it) are looked up, nearest first, with at most 25 new adsbdb lookups per board so a free-plan request stays under its 50 outside requests. It looks up each callsign's route (cached) and keeps those whose destination is that airport. ETA is distance ÷ ground speed, adjusted for planes on approach. The board shows these columns:
 
   ```
   FROM        FLIGHT   TYPE  ALT      ETA    STATUS
@@ -119,7 +119,7 @@ Configure one or more airports (`AIRPORTS = "EGLL,EGKK,EGSS"`). Each gets a spli
   ```
 
   Status comes from altitude, vertical rate and distance: en route, descending, approach, landing, landed.
-* **Departures** (outbound, also free): aircraft whose origin is the airport and that are climbing within ~100 nm.
+* **Departures** (outbound, also free; *built*): aircraft whose origin is the airport, taxiing or moving away within 80 nm. Status: taxiing, takeoff, climbing, departed. Planes on the ground are capped (2 landed, 3 taxiing) so the airborne traffic still shows at a busy airport.
 * **Timetable** (optional): scheduled and estimated times, gates, delays and cancellations. These need a schedule provider with its own key. The provider interface comes first; AeroDataBox is the likely default because it has a small free tier, and its units-per-call cost needs checking. It stays off unless a key is set.
 * Board rotation: when there are several airports, the board flips between them, or each one can be its own screen in the playlist.
 
@@ -152,6 +152,6 @@ Add to Home Screen → Settings › Display › Auto-Lock **Never** → Guided A
 | **M1b** | Setup wizard | `npm run setup` *(done)*; `/setup` page with admin login, encrypted KV settings, iCal/feed/Google read-only calendars with guides, photos, sky places *(done)*; screens and night mode next ([SETUP-WIZARD.md](SETUP-WIZARD.md)) |
 | **M2** | Photos | Google Photos Picker → R2 import in batches, collections, slideshow with crossfade, drift and blurred backdrop for portraits *(done; Google sign-in not yet tested with a real OAuth client)* |
 | **M3** | Overhead board + Radar v2 | Route/airline lookup and split-flap board with three themes and filters *(done)*; radar redesign: labels on the five nearest only, altitude colours, compass bezel, refresh ping *(done)*; saved places, per-display GPS, tap to switch place *(done)*; tap for details and optional map tiles next |
-| **M3b** | Airport boards | `AIRPORTS` config, inbound/departing computed from ADS-B + routes, split-flap arrivals board, schedule-provider interface (optional key) |
+| **M3b** | Airport boards | Airports chosen in /setup, inbound/departing computed from ADS-B + routes, split-flap arrivals and departures board *(done)*; schedule-provider interface (optional key) next |
 | **M4** | Trending + alerts | Cron snapshots, FR24 opt-in provider, squawk rules, watchlist, banner + ntfy |
 | **M5** | Polish + publish | Night mode, stale/offline indicators, display pairing, setup guide with screenshots, CI (typecheck + build), first public release |

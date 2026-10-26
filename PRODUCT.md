@@ -18,7 +18,7 @@ An always-on ambient display that brings together what's happening at home and w
 
 - **Home**: today's events, overdue items and the next few days from the household's calendars and task lists.
 - **Photos**: a photo frame of pictures the household picks from Google Photos.
-- **Sky**: what's flying overhead. A radar, a split-flap board for the plane above, and later airport arrivals, most-tracked flights and alerts.
+- **Sky**: what's flying overhead. A radar, a split-flap board for the plane above, airport arrivals and departures boards, and later most-tracked flights and alerts.
 - Also a word clock, with more screens to be added over time.
 
 Success: it stays on all day without ever needing attention, it can be read at a glance, and a non-expert can set up their own.
@@ -39,7 +39,7 @@ A free, open-source alternative to single-purpose paid devices and apps (photo-f
 - The repository must stay free of personal data (names, locations, account links). Everything deployment-specific is a variable, secret or `/setup` setting, so others can deploy their own.
 - Locations are rounded to about 1 km. The Flightradar24 "most tracked" source is unofficial, so it stays opt-in.
 - Target device: iPad mini 5 in Safari, 1024×768 CSS px in landscape. The Workers free plan allows about 10 ms of CPU per request.
-- Undecided: night mode behaviour, screen-order settings, airport boards, alerts.
+- Undecided: night mode behaviour, screen-order settings, alerts.
 
 ## Brand Commitments
 

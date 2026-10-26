@@ -51,12 +51,18 @@ export function greatCircleKm(lat1: number, lon1: number, lat2: number, lon2: nu
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** Looks up a callsign. Lookup failures resolve to null rather than failing the whole request. */
-export async function lookupRoute(env: Env, callsign: string): Promise<StoredRoute | null> {
+/**
+ * Looks up a callsign. Lookup failures resolve to null rather than failing the whole request.
+ * With a budget, only that many lookups go to adsbdb; cached answers don't count against it.
+ */
+export async function lookupRoute(env: Env, callsign: string, budget?: { fetches: number }): Promise<StoredRoute | null> {
   const key = `route:v1:${callsign.toUpperCase()}`;
   try {
     // Misses are cached too, but only for 6 h, in case the database learns the callsign.
-    return await cached<StoredRoute | null>(env, key, r => (r ? 24 * 3600 : 6 * 3600), () => fetchRoute(callsign));
+    return await cached<StoredRoute | null>(env, key, r => (r ? 24 * 3600 : 6 * 3600), () => {
+      if (budget && budget.fetches-- <= 0) throw new Error('Out of lookups for this request');
+      return fetchRoute(callsign);
+    });
   } catch {
     return null;
   }

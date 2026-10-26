@@ -1,10 +1,10 @@
 import './setup.css';
 import { CLOCK_LABELS, clockPreview } from '../clockPreview';
 import {
-  CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, DEFAULT_RADAR_MAP, MOTION_LEVELS, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS,
+  CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, DEFAULT_RADAR_MAP, MAX_AIRPORTS, MOTION_LEVELS, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS,
   type DisplaySettings, type MotionLevel, type RadarMap,
   googleGranted, type GooglePart, type GoogleWants,
-  type AdminState, type PhotoInfo, type PickStatus, type Place, type SkySettings, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
+  type AdminState, type PhotoInfo, type PickStatus, type Place, type SavedAirport, type SkySettings, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../../shared/settings';
 
 // The admin setup page. Every value from the server is rendered with textContent (via h()),
@@ -167,7 +167,7 @@ function statusCard() {
 function laterCard() {
   return h('section', { class: 'card muted-card' },
     h('h2', {}, 'Coming next'),
-    h('p', { class: 'lede' }, 'Airport boards, watchlist and alerts, and screen order and night mode will be set up here too.'),
+    h('p', { class: 'lede' }, 'Watchlist and alerts, and screen order and night mode will be set up here too.'),
   );
 }
 
@@ -862,8 +862,63 @@ function skyCard() {
   }
   card.append(h('h3', {}, 'Radar background'), maps,
     h('p', { class: 'hint' }, 'A street map or satellite view under the radar shows where the planes are. Satellite and Plain are labelled with nearby towns. Maps: OpenStreetMap; satellite: Sentinel-2 cloudless by EOX; town names: GeoNames.'));
+  airportsInto(card, sky);
   return card;
 }
+
+/** [icao, iata, name, city, country, lat, lon], biggest airports first (scripts/build-airports.mjs). */
+type AirportRow = [string, string, string, string, string, number, number];
+let airportList: Promise<AirportRow[]> | null = null;
+
+function searchAirports(list: AirportRow[], q: string): AirportRow[] {
+  const query = q.trim().toLowerCase();
+  const code = query.toUpperCase();
+  const exact = list.filter(a => a[0] === code || a[1] === code);
+  const named = list.filter(a => !exact.includes(a) && (a[2].toLowerCase().includes(query) || a[3].toLowerCase().includes(query)));
+  return [...exact, ...named].slice(0, 6);
+}
+
+function airportsInto(card: HTMLElement, sky: SkySettings) {
+  const airports = sky.airports ?? [];
+  const save = (next: SavedAirport[], message: string) => saveSky({ ...sky, airports: next }, message);
+
+  card.append(h('h3', {}, 'Airport boards'),
+    h('p', { class: 'hint' }, 'Each airport gets a split-flap arrivals and departures board on the display, showing flights within 100 nm of it. Tap the middle of the board to switch between arrivals, departures and your other airports.'));
+  const list = h('div', { class: 'places' });
+  airports.forEach((a, i) => {
+    const remove = h('button', { type: 'button', class: 'ghost small danger' }, 'Remove');
+    remove.addEventListener('click', () => busy(remove, () => save(airports.filter((_, n) => n !== i), `${a.city} removed.`)));
+    list.append(h('div', { class: 'place' }, h('span', { class: 'gcheck' }, h('span', {}, h('b', {}, `${a.city} ${a.iata || a.icao}`), h('small', {}, a.name))), remove));
+  });
+  if (!airports.length) list.append(h('p', { class: 'empty' }, 'No airports yet, so the board stays out of the rotation.'));
+  card.append(list);
+  if (airports.length >= MAX_AIRPORTS) return;
+
+  const query = input({ type: 'text', placeholder: 'Airport, city or code (e.g. MAN)', 'aria-label': 'Search for an airport' });
+  const search = h('button', { type: 'submit', class: 'ghost' }, 'Search');
+  const results = h('div', { class: 'results' });
+  const form = h('form', { class: 'searchrow' }, query, search);
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    if (query.value.trim().length < 2) return;
+    busy(search, async () => {
+      airportList ??= fetch('/airports.json').then(r => (r.ok ? r.json() : Promise.reject(new Error(`airports.json answered ${r.status}`))));
+      const found = searchAirports(await airportList.catch(err => { airportList = null; throw err; }), query.value);
+      results.replaceChildren(...(found.length ? found.map(([icao, iata, name, city, country, lat, lon]) => {
+        const b = h('button', { type: 'button', class: 'choice' }, h('b', {}, `${city || name} ${iata || icao}`), h('small', {}, `${name}, ${country}`));
+        b.addEventListener('click', () => {
+          results.replaceChildren();
+          query.value = '';
+          if (airports.some(a => a.icao === icao)) return toast('That airport is already on the list.');
+          busy(search, () => save([...airports, { icao, iata, name, city: city || name, lat, lon }], `${city || name} added.`));
+        });
+        return b;
+      }) : [h('p', { class: 'empty' }, 'No airport with scheduled flights matches. Try its city or three-letter code.')]));
+    });
+  });
+  card.append(form, results, h('p', { class: 'hint' }, 'Airports: OurAirports. Flights come from the same open ADS-B data as the radar, with routes from adsbdb, so only flights already in the air or taxiing are shown, and arrival times are estimates.'));
+}
+
 
 // ── boot ────────────────────────────────────────────────────────────────────
 

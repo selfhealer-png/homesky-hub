@@ -7,14 +7,15 @@ import { h, type Screen } from '../screen';
 
 const MIN_HOLD_MS = 30000; // stay on one aircraft at least this long
 const THEMES: BoardTheme[] = ['splitflap', 'led', 'minimal'];
-const MOTION: Record<BoardTheme, FlapMotion> = { splitflap: 'flip', led: 'scramble', minimal: 'fade' };
+export const MOTION: Record<BoardTheme, FlapMotion> = { splitflap: 'flip', led: 'scramble', minimal: 'fade' };
 const THEME_KEY = 'hub.boardTheme';
 
 let refresher: Refresher | undefined;
 let root: HTMLElement | undefined;
 let theme: BoardTheme = 'splitflap';
 
-function storedTheme(fallback: BoardTheme): BoardTheme {
+/** The theme this display last chose on the overhead board; the airport board follows it. */
+export function storedTheme(fallback: BoardTheme): BoardTheme {
   try {
     const t = localStorage.getItem(THEME_KEY) as BoardTheme | null;
     return t && THEMES.includes(t) ? t : fallback;

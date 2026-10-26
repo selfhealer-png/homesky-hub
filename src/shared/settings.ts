@@ -50,6 +50,10 @@ export type Connection = IcsConnection | FeedConnection | GoogleConnection;
 
 export interface Place { id: string; name: string; lat: number; lon: number }
 
+/** An airport with an arrivals board, chosen in /setup from the OurAirports list. */
+export interface SavedAirport { icao: string; iata: string; name: string; city: string; lat: number; lon: number }
+export const MAX_AIRPORTS = 6;
+
 export interface SkySettings {
   places: Place[];
   /** A place id, or 'device' for each display to use its own location (GPS / Wi-Fi). */
@@ -57,6 +61,8 @@ export interface SkySettings {
   radiusNm: number;
   /** What's drawn under the radar. Each display can switch its own from the radar screen. */
   map?: RadarMap;
+  /** Airports with an arrivals and departures board, in the order the display shows them. */
+  airports?: SavedAirport[];
 }
 
 export type RadarMap = 'plain' | 'map' | 'satellite';
