@@ -1,5 +1,5 @@
 import {
-  CALENDAR_COLORS, CLOCK_STYLES, MOTION_LEVELS, PHOTO_STYLES, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
+  CALENDAR_COLORS, CLOCK_STYLES, MOTION_LEVELS, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
   type ClockStyle, type GoogleWants, type MotionLevel,
   type AdminState, type Place, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
@@ -323,7 +323,8 @@ async function saveSky(env: Env, b: Record<string, unknown>) {
   });
   const active = b.active === 'device' ? 'device' : places.find(p => p.id === b.active)?.id ?? places[0]?.id ?? 'default';
   const radiusNm = RADIUS_CHOICES.includes(Number(b.radiusNm)) ? Number(b.radiusNm) : 25;
-  return mutate(env, s => ({ ...s, sky: { places, active, radiusNm } }));
+  const map = RADAR_MAPS.find(m => m === b.map);
+  return mutate(env, s => ({ ...s, sky: { places, active, radiusNm, map: map ?? s.sky?.map } }));
 }
 
 // ── Display ─────────────────────────────────────────────────────────────────

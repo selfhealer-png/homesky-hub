@@ -1,4 +1,4 @@
-import { DEFAULT_DISPLAY } from '../shared/settings';
+import { DEFAULT_DISPLAY, DEFAULT_RADAR_MAP } from '../shared/settings';
 import type { HubConfig, BoardTheme } from '../shared/types';
 import type { Env } from './env';
 import { listPhotos } from './photos';
@@ -59,6 +59,7 @@ export async function hubConfig(env: Env, request?: Request): Promise<HubConfig>
     // Nothing chosen: each display uses its own location, unless the deployment pinned one.
     activePlace: sky?.active ?? (envHome(env) ? 'default' : 'device'),
     radarRadiusNm: sky?.radiusNm ?? Number(env.RADAR_RADIUS_NM ?? 25),
+    radarMap: sky?.map ?? DEFAULT_RADAR_MAP,
     timezone: env.TIMEZONE ?? 'UTC',
     boardTheme: (['splitflap', 'led', 'minimal'] as const).includes(env.BOARD_THEME as BoardTheme) ? env.BOARD_THEME as BoardTheme : 'splitflap',
     clock: settings.display?.clock ?? DEFAULT_DISPLAY.clock,

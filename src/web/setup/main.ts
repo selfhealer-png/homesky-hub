@@ -1,8 +1,8 @@
 import './setup.css';
 import { CLOCK_LABELS, clockPreview } from '../clockPreview';
 import {
-  CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, MOTION_LEVELS, PHOTO_STYLES, RADIUS_CHOICES, WARMTH_LEVELS,
-  type DisplaySettings, type MotionLevel,
+  CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_DISPLAY, DEFAULT_RADAR_MAP, MOTION_LEVELS, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS,
+  type DisplaySettings, type MotionLevel, type RadarMap,
   googleGranted, type GooglePart, type GoogleWants,
   type AdminState, type PhotoInfo, type PickStatus, type Place, type SkySettings, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../../shared/settings';
@@ -849,6 +849,17 @@ function skyCard() {
     radius.append(h('label', {}, r, h('span', {}, `${nm} nm`)));
   }
   card.append(h('h3', {}, 'Range'), radius, h('p', { class: 'hint' }, '25 nm (46 km) suits most places. Near a big airport, 10–15 nm keeps the radar calm.'));
+
+  // What's under the radar
+  const maps = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Radar background' });
+  const labels: Record<RadarMap, string> = { plain: 'Plain', map: 'Map', satellite: 'Satellite' };
+  for (const m of RADAR_MAPS) {
+    const r = h('input', { type: 'radio', name: 'sky-map', value: m, checked: (sky.map ?? DEFAULT_RADAR_MAP) === m });
+    r.addEventListener('change', () => saveSky({ ...sky, map: m }).catch(err => toast((err as Error).message, 'error')));
+    maps.append(h('label', {}, r, h('span', {}, labels[m])));
+  }
+  card.append(h('h3', {}, 'Radar background'), maps,
+    h('p', { class: 'hint' }, 'A street map or satellite view under the radar shows where planes are. Each display can also switch its own with the button on the radar. Maps: OpenStreetMap; satellite: Sentinel-2 cloudless by EOX.'));
   return card;
 }
 

@@ -140,6 +140,7 @@ To add more photos later, pick again. Photos stay in Google Photos; the hub only
 
 - **Centre on:** add places by searching a town, or with **Use where I am now** on your phone. Or choose **Each display's own location**, so the tablet uses its own location (it asks permission once).
 - **Range:** 25 nm suits most places. Near a big airport, 10–15 nm keeps the radar calm.
+- **Radar background:** **Map** (OpenStreetMap), **Satellite** (Sentinel-2 imagery) or **Plain**. Each display can also switch its own with the button at the top left of the radar.
 
 ### Display
 

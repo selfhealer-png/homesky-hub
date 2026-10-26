@@ -55,7 +55,13 @@ export interface SkySettings {
   /** A place id, or 'device' for each display to use its own location (GPS / Wi-Fi). */
   active: string;
   radiusNm: number;
+  /** What's drawn under the radar. Each display can switch its own from the radar screen. */
+  map?: RadarMap;
 }
+
+export type RadarMap = 'plain' | 'map' | 'satellite';
+export const RADAR_MAPS: RadarMap[] = ['plain', 'map', 'satellite'];
+export const DEFAULT_RADAR_MAP: RadarMap = 'map';
 
 export type ClockStyle = 'word' | 'digital' | 'analogue' | 'flip';
 /** full: every animation. gentle: changes fade instead of flipping or drifting. still: nothing moves but data. */

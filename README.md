@@ -12,7 +12,7 @@ It's one Cloudflare Worker that serves the web app and a small API. The tablet j
 |---|---|
 | Home: clock, today, overdue, the next few days (from any [agenda feed](docs/feed-contract.md)) | working |
 | Overhead board: split-flap board for the plane above you, with three themes | working |
-| Radar: live aircraft around you, nearest five labelled, coloured by altitude | working |
+| Radar: live aircraft around you over a street map or satellite view, nearest five labelled, coloured by altitude | working |
 | Weather: now, the next hours and days, what to wear (as icons), a rain radar, and pollen and air quality in the pollen season | working |
 | Tonight: is it worth looking up? Cloud, the moon's phase and times, when it gets dark, the aurora chance, and visible Space Station passes | working |
 | Clock: word clock, digital, analogue or split-flap (chosen in `/setup`) | working |
@@ -53,6 +53,7 @@ npm run dev          # web app on :5173, proxies /api to the Worker
 * Routes and airlines: [adsbdb](https://www.adsbdb.com).
 * Weather, cloud, pollen, air quality and place search: [Open-Meteo](https://open-meteo.com) (forecast, air quality from CAMS, geocoding).
 * Rain radar: [RainViewer](https://www.rainviewer.com), over [OpenStreetMap](https://www.openstreetmap.org/copyright) map tiles (© OpenStreetMap contributors).
+* Aircraft radar background: [OpenStreetMap](https://www.openstreetmap.org/copyright) tiles, or [Sentinel-2 cloudless 2024 by EOX](https://s2maps.eu) satellite imagery (contains modified Copernicus Sentinel data; free for non-commercial use). Both are fine for this open-source hub; a commercial build should switch to a licensed provider in `src/web/mapTiles.ts`.
 * Aurora: Kp forecast from the [NOAA Space Weather Prediction Center](https://www.swpc.noaa.gov).
 * Space Station orbit: [CelesTrak](https://celestrak.org), with [satellite.js](https://github.com/shashwatak/satellite-js) (MIT). Sun and moon are calculated on the hub.
 * Article of the day: [Wikipedia](https://en.wikipedia.org) via the Wikimedia feed API (text CC BY-SA).

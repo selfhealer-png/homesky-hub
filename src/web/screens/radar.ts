@@ -1,5 +1,7 @@
+import { RADAR_MAPS, type RadarMap } from '../../shared/settings';
 import type { Aircraft, AircraftResponse, HubConfig, RouteSummary } from '../../shared/types';
 import { getJson } from '../api';
+import { tileDisc, TILE_SOURCES } from '../mapTiles';
 import { nextPlace, skyHome, skyQuery, type SkyHome } from '../location';
 import { motionLevel } from '../motion';
 import { ageLabel, recall, Refresher, remember, type Outcome } from '../skyCache';
@@ -49,12 +51,33 @@ interface State {
   placement: Map<string, number>; // hex -> chosen label slot, kept stable between frames
   pingAt: number;
   error: string | null;
+  /** What the map layer was last built for; it's rebuilt when this changes. */
+  mapKey: string;
 }
 
 let refresher: Refresher | undefined;
 let frame: number | undefined;
 let retarget: (() => void) | undefined;
 let currentConfig: HubConfig | undefined;
+
+// Each display can pick its own background with the button on the radar; otherwise /setup's choice.
+const MAP_KEY = 'hub.radarMap';
+const MAP_LABEL: Record<RadarMap, string> = { plain: 'Plain', map: 'Map', satellite: 'Satellite' };
+
+function mapChoice(config: HubConfig): RadarMap {
+  try {
+    const own = localStorage.getItem(MAP_KEY) as RadarMap | null;
+    if (own && RADAR_MAPS.includes(own)) return own;
+  } catch { /* storage unavailable */ }
+  return config.radarMap ?? 'plain';
+}
+
+function setMapChoice(map: RadarMap) {
+  try { localStorage.setItem(MAP_KEY, map); } catch { /* not remembered */ }
+}
+
+/** Over a map, everything drawn needs a dark edge to stand out from busy, bright ground. */
+let onMap = false;
 
 function offsetNm(home: SkyHome, lat: number, lon: number): [number, number] {
   return [(lon - home.lon) * 60 * Math.cos((home.lat * Math.PI) / 180), (lat - home.lat) * 60];
@@ -80,9 +103,10 @@ function featured(data: AircraftResponse): Set<string> {
 
 function drawScope(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, radiusNm: number) {
   // The disc: barely lighter than the page, so it reads as an instrument, not a sticker.
+  // Over a map it becomes a soft dark wash instead, so the planes stay the brightest thing.
   const disc = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-  disc.addColorStop(0, 'rgba(30, 41, 59, 0.55)');
-  disc.addColorStop(1, 'rgba(30, 41, 59, 0.15)');
+  disc.addColorStop(0, onMap ? 'rgba(15, 23, 42, 0.18)' : 'rgba(30, 41, 59, 0.55)');
+  disc.addColorStop(1, onMap ? 'rgba(15, 23, 42, 0.5)' : 'rgba(30, 41, 59, 0.15)');
   ctx.fillStyle = disc;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
 
@@ -90,8 +114,8 @@ function drawScope(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: num
   const step = radiusNm <= 30 ? 5 : radiusNm <= 60 ? 10 : 25;
   ctx.save();
   ctx.setLineDash([2, 6]);
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = onMap ? 'rgba(241, 245, 249, 0.5)' : 'rgba(148, 163, 184, 0.22)';
+  ctx.lineWidth = onMap ? 1.2 : 1;
   ctx.font = '600 12px -apple-system, "Segoe UI", sans-serif';
   ctx.fillStyle = '#94A3B8'; // 6.3:1 on the disc
   ctx.textAlign = 'center';
@@ -101,7 +125,14 @@ function drawScope(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: num
     ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke();
     if (nm % (step * 2) === 0 || radiusNm / step <= 4) {
       const a = (135 * Math.PI) / 180;
-      ctx.fillText(`${nm}`, cx + Math.sin(a) * rr, cy - Math.cos(a) * rr);
+      const [lx, ly] = [cx + Math.sin(a) * rr, cy - Math.cos(a) * rr];
+      if (onMap) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+        ctx.beginPath(); ctx.roundRect(lx - 11, ly - 9, 22, 18, 5); ctx.fill();
+        ctx.fillStyle = '#E2E8F0';
+      }
+      ctx.fillText(`${nm}`, lx, ly);
+      ctx.fillStyle = '#94A3B8';
     }
   }
   ctx.restore();
@@ -173,6 +204,7 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
   const cx = w / 2, cy = hgt / 2, r = Math.min(w, hgt) / 2 - 26;
   const radiusNm = config.radarRadiusNm;
   const scale = r / radiusNm;
+  syncMap(canvas, config, state, cx, cy, r, scale);
   drawScope(ctx, cx, cy, r, radiusNm);
 
   const data = state.data;
@@ -200,7 +232,7 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
       ctx.lineWidth = isF ? 1.6 : 1;
       ctx.lineCap = 'round';
       for (let i = 1; i < pts.length; i++) {
-        ctx.strokeStyle = altitudeColor(a.altFt, (isF ? 0.5 : 0.22) * (i / (pts.length - 1)));
+        ctx.strokeStyle = altitudeColor(a.altFt, Math.min(1, (isF ? 0.5 : 0.22) * (onMap ? 1.6 : 1)) * (i / (pts.length - 1)));
         ctx.beginPath(); ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke();
       }
     }
@@ -219,11 +251,14 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
         ctx.shadowBlur = 6;
         ctx.shadowOffsetY = 2;
         ctx.fillStyle = a.emergency ? '#F87171' : altitudeColor(a.altFt);
+        if (onMap) { ctx.strokeStyle = 'rgba(2, 6, 23, 0.9)'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke(PLANE); }
         ctx.fill(PLANE);
       } else {
         // Background traffic: a small heading chevron.
-        ctx.fillStyle = altitudeColor(a.altFt, 0.75);
-        ctx.beginPath(); ctx.moveTo(0, -4.5); ctx.lineTo(3.2, 3.5); ctx.lineTo(0, 1.8); ctx.lineTo(-3.2, 3.5); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = altitudeColor(a.altFt, onMap ? 1 : 0.75);
+        ctx.beginPath(); ctx.moveTo(0, -4.5); ctx.lineTo(3.2, 3.5); ctx.lineTo(0, 1.8); ctx.lineTo(-3.2, 3.5); ctx.closePath();
+        if (onMap) { ctx.strokeStyle = 'rgba(2, 6, 23, 0.85)'; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke(); }
+        ctx.fill();
       }
       ctx.restore();
     }
@@ -247,22 +282,67 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
       // Leader line from the aircraft to the nearest corner of its label.
       const lx = l.x > x ? l.x - 3 : l.x + l.w + 3;
       const ly = l.y > y ? l.y + 4 : l.y + l.h - 4;
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+      ctx.strokeStyle = onMap ? 'rgba(241, 245, 249, 0.75)' : 'rgba(148, 163, 184, 0.45)';
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(lx, ly); ctx.stroke();
+      if (onMap) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+        ctx.beginPath(); ctx.roundRect(l.x - 6, l.y - 4, l.w + 12, l.h + 4, 7); ctx.fill();
+      }
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       ctx.font = '600 13px -apple-system, "Segoe UI", sans-serif';
       ctx.fillStyle = a.emergency ? '#FCA5A5' : '#F1F5F9';
       ctx.fillText(line1, l.x, l.y);
       ctx.font = '500 11px -apple-system, "Segoe UI", sans-serif';
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.95)';
+      ctx.fillStyle = onMap ? '#CBD5E1' : 'rgba(148, 163, 184, 0.95)';
       ctx.fillText(line2, l.x, l.y + 16);
     }
   }
 
   ctx.globalAlpha = 1;
   drawHome(ctx, cx, cy, r, performance.now() - state.pingAt);
+}
+
+/** Keeps the map under the radar in step with its size, place, range and style. */
+function syncMap(canvas: HTMLCanvasElement, config: HubConfig, state: State, cx: number, cy: number, r: number, scale: number) {
+  const choice = mapChoice(config);
+  onMap = choice !== 'plain';
+  const key = `${choice}|${state.home.lat},${state.home.lon}|${Math.round(r)}|${config.radarRadiusNm}|${Math.round(cx)},${Math.round(cy)}`;
+  if (key === state.mapKey) return;
+  state.mapKey = key;
+  const stage = canvas.parentElement!;
+  stage.querySelectorAll('.radar-map, .radar-credit').forEach(e => e.remove());
+  if (choice === 'plain' || r < 20) return;
+  const source = TILE_SOURCES[choice];
+  const disc = tileDisc(source, state.home.lat, state.home.lon, r, scale);
+  disc.style.left = `${cx - r}px`;
+  disc.style.top = `${cy - r}px`;
+  disc.style.width = disc.style.height = `${2 * r}px`;
+  stage.prepend(disc);
+  stage.append(h('span', 'radar-credit', source.credit));
+}
+
+/** A small switch on the radar: Plain, Map, Satellite. Remembered on this display. */
+function mapButton(config: HubConfig, state: State) {
+  const btn = h('button', 'radar-mapbtn');
+  btn.type = 'button';
+  const paint = () => {
+    const now = mapChoice(config);
+    btn.textContent = MAP_LABEL[now];
+    btn.setAttribute('aria-label', `Background: ${MAP_LABEL[now]}. Tap to change.`);
+  };
+  // Its own tap only: don't let it switch screens or start the long press.
+  for (const ev of ['pointerdown', 'pointerup'] as const) btn.addEventListener(ev, e => e.stopPropagation());
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const now = mapChoice(config);
+    setMapChoice(RADAR_MAPS[(RADAR_MAPS.indexOf(now) + 1) % RADAR_MAPS.length]);
+    state.mapKey = '';
+    paint();
+  });
+  paint();
+  return btn;
 }
 
 function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
@@ -324,7 +404,8 @@ export const radarScreen: Screen = {
     const panel = h('aside', 'radar-panel');
     el.append(stage, panel);
 
-    const state: State = { home: config.home, data: null, receivedAt: 0, trails: new Map(), placement: new Map(), pingAt: -1e9, error: null };
+    const state: State = { home: config.home, data: null, receivedAt: 0, trails: new Map(), placement: new Map(), pingAt: -1e9, error: null, mapKey: '' };
+    stage.append(mapButton(config, state));
 
     const poll = async (): Promise<Outcome> => {
       try {

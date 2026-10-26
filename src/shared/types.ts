@@ -1,6 +1,6 @@
 // Shapes shared by the Worker API and the web app.
 
-import type { ClockStyle, MotionLevel, PhotoStyle, Place } from './settings';
+import type { ClockStyle, MotionLevel, PhotoStyle, Place, RadarMap } from './settings';
 import type { AirInfo } from './air';
 import type { Warmth, WeatherHour, WeatherNow } from './wear';
 
@@ -11,6 +11,7 @@ export interface HubConfig {
   /** A place id, 'device' (each display uses its own location), or 'default' (deployment variables). */
   activePlace: string;
   radarRadiusNm: number;
+  radarMap: RadarMap;
   timezone: string;
   boardTheme: BoardTheme;
   clock: ClockStyle;
