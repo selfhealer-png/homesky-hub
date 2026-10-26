@@ -4,6 +4,7 @@ import { handleAircraft } from './aircraft';
 import { handleAirportBoard } from './airports';
 import { handlePair, handleWelcome, isDisplayAuthorized, PAIR_PAGE } from './auth';
 import { json, type Env } from './env';
+import { handleLogo } from './logos';
 import { handleOverhead } from './overhead';
 import { handleDisplayPhotos } from './photos';
 import { hubConfig } from './sky';
@@ -29,6 +30,7 @@ export default {
       if (!(await isDisplayAuthorized(request, env))) return json({ error: 'Display not paired' }, { status: 401 });
 
       if (pathname === '/api/photos' || pathname.startsWith('/api/photos/')) return handleDisplayPhotos(env, url, request);
+      if (pathname.startsWith('/api/logo/')) return handleLogo(pathname);
 
       switch (pathname) {
         case '/api/config': return json(await hubConfig(env, request));

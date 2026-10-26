@@ -3,7 +3,7 @@ import { isWet, type WeatherHour } from '../../shared/wear';
 import { getJson } from '../api';
 import { skyHome, skyQuery } from '../location';
 import { mountRainRadar } from '../rainRadar';
-import { h, setCaption, type Screen } from '../screen';
+import { h, type Screen } from '../screen';
 
 // The rain map: the last hour of radar over the region, big enough to see what's coming, with
 // a plain answer beside it ("Rain likely from 15:00") and the chance of rain hour by hour.
@@ -29,7 +29,6 @@ export function rainOutlook(data: WeatherResponse): string {
 
 function render(el: HTMLElement, data: WeatherResponse | null, home: { name: string; lat: number; lon: number }) {
   stopRadar?.();
-  setCaption(`Rain · ${home.name}`);
   const map = h('div', 'wx-radar rain-map');
   const panel = h('section', 'rain-panel');
   panel.append(h('h2', undefined, data ? rainOutlook(data) : 'Rain radar'));

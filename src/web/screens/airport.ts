@@ -3,7 +3,7 @@ import type { AirportBoardResponse, AirportFlight, HubConfig } from '../../share
 import { getJson } from '../api';
 import { FlapRow, setFlapMotion } from '../flap';
 import { ageLabel, isStale, recall, Refresher, remember, watchAge, type Outcome } from '../skyCache';
-import { h, setCaption, type Screen } from '../screen';
+import { h, type Screen } from '../screen';
 import { MOTION, storedTheme } from './board';
 
 // An airport arrivals board, split-flap style, for each airport chosen in /setup. Each visit
@@ -41,6 +41,8 @@ const COLUMNS: Record<Kind, Column[]> = {
 let view = -1;
 let refresher: Refresher | undefined;
 let rebuild: (() => void) | undefined;
+/** What the board is showing now ("Departures · London"), for the message after a tap. */
+let describe: (() => string) | undefined;
 let stopAge: (() => void) | undefined;
 /** An arrival whose estimate passed this long ago has landed or gone elsewhere: it leaves the board. */
 const PASSED_MS = 2 * 60_000;
@@ -104,7 +106,6 @@ function render(ui: BoardUi, data: AirportBoardResponse, kind: Kind, config: Hub
     ? data.arrivals.filter(f => f.status === 'landed' || f.etaMin === null || data.fetchedAt + f.etaMin * 60_000 > now - PASSED_MS)
     : data.departures;
   ui.title.replaceChildren(planeIcon(kind), h('span', undefined, kindName(kind)));
-  setCaption(`${kindName(kind)} · ${data.airport.city}`);
   ui.place.set(data.airport.city, 'right');
   ui.code.textContent = data.airport.iata || data.airport.icao;
   columns.forEach((c, i) => { ui.labels[i].textContent = c.label; });
@@ -153,6 +154,7 @@ export const airportScreen: Screen = {
     let shown: AirportBoardResponse | null = null;
 
     const current = () => all[view % all.length];
+    describe = () => { const { airport, kind } = current(); return `${kindName(kind)} · ${airport.city}`; };
     const show = () => {
       const { airport, kind } = current();
       if (shown?.airport.icao === airport.icao) render(ui, shown, kind, config);
@@ -196,7 +198,6 @@ export const airportScreen: Screen = {
       }
       show();
       age.check();
-      setCaption(`${kindName(kind)} · ${airport.city}`);
       refresher?.stop();
       refresher = new Refresher(poll);
       refresher.now();
@@ -207,12 +208,14 @@ export const airportScreen: Screen = {
     if (!rebuild) return;
     view++;
     rebuild();
-    return document.querySelector('#caption')?.textContent ?? undefined;
+    // Say what the tap turned to, since the board takes a moment to flip there.
+    return describe?.();
   },
   unmount() {
     refresher?.stop();
     refresher = undefined;
     rebuild = undefined;
+    describe = undefined;
     stopAge?.();
     stopAge = undefined;
   },

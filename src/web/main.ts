@@ -2,7 +2,7 @@ import './styles.css';
 import type { HubConfig } from '../shared/types';
 import { getJson, NotPairedError } from './api';
 import { pickRotation } from '../shared/rotation';
-import { flash, setCaption, type Screen } from './screen';
+import { flash, type Screen } from './screen';
 import { setMotionLevel } from './motion';
 import { currentNight, startNight, updateNight } from './night';
 import { showWelcome } from './welcome';
@@ -47,10 +47,8 @@ function show(i: number) {
   const el = document.createElement('section');
   el.className = `screen screen-${screens[index].id}`;
   stage.append(el);
-  // The shared strip along the bottom: what this is (the screen can say more) and the time,
-  // on every screen that doesn't show the time itself.
+  // The corner time, if chosen, only on screens that don't show the time themselves.
   document.body.classList.toggle('own-clock', !!screens[index].ownClock);
-  setCaption(screens[index].title);
   screens[index].mount(el, config);
   schedule();
 }
@@ -61,10 +59,9 @@ function schedule() {
   if (!pinned) timer = window.setTimeout(() => show(index + 1), (config.rotateSec ?? screens[index].durationSec) * 1000);
 }
 
-/** A screen someone chose (a tap or a dot), not the rotation: say which one it is. */
+/** A screen someone chose with a tap, not the rotation. */
 function showChosen(i: number) {
   show(i);
-  flash(screens[index].title);
 }
 
 function setPinned(value: boolean) {
@@ -90,16 +87,14 @@ function buildRotation() {
   dots.append(gear);
 }
 
-/** The strip along the bottom: a caption on the left and, if chosen in /setup, the time on the right. */
+/** The time in the bottom corner, if chosen in /setup. */
 function buildStrip() {
-  const caption = document.createElement('div');
-  caption.id = 'caption';
   const time = document.createElement('div');
   time.id = 'strip-time';
   const tick = () => { time.textContent = new Intl.DateTimeFormat('en-GB', { timeZone: config.timezone, hour: '2-digit', minute: '2-digit' }).format(new Date()); };
   tick();
   window.setInterval(tick, 10_000);
-  document.body.append(caption, time);
+  document.body.append(time);
 }
 
 function wireGestures() {

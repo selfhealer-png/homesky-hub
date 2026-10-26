@@ -3,7 +3,7 @@ import { describe, essentials, laterToday, recommend } from '../../shared/wear';
 import { getJson } from '../api';
 import { wearIcon, weatherIcon } from '../icons';
 import { skyHome, skyQuery } from '../location';
-import { h, setCaption, type Screen } from '../screen';
+import { h, type Screen } from '../screen';
 
 // Weather now and what to wear for it on the left; the next hours and days on the right. What
 // to wear is a few pictures, not a paragraph: it should be read in a glance on the way out of the
@@ -38,7 +38,6 @@ function render(el: HTMLElement, data: WeatherResponse, home: { name: string; la
 
   // Now
   const left = h('section', 'wx-now');
-  setCaption(`Weather · ${home.name}`);
   const big = h('div', 'wx-big');
   big.append(weatherIcon(info.icon, 'wx-icon wx-icon-big'), h('span', 'wx-temp', deg(now.temp)));
   left.append(big);

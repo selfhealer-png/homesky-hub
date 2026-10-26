@@ -56,6 +56,7 @@ function render(ui: BoardUi, data: OverheadResponse) {
   ui.el.classList.toggle('emergency', !!a?.emergency);
 
   if (!a) {
+    showLogo(ui, null);
     ui.airline.set('NO AIRCRAFT NEARBY', 'center');
     ui.callsign.set('CLEAR', 'center');
     ui.route.set('', 'center');
@@ -66,6 +67,7 @@ function render(ui: BoardUi, data: OverheadResponse) {
     return;
   }
 
+  showLogo(ui, a.emergency ? null : r?.airline?.iata ?? null);
   const airline = a.emergency ? `SQUAWK ${a.squawk ?? 'EMERGENCY'}` : r?.airline?.name ?? a.type ?? 'AIRCRAFT';
   const callsign = a.callsign ?? a.registration ?? a.hex.toUpperCase();
   ui.airline.set(airline, 'center');
@@ -99,8 +101,20 @@ function render(ui: BoardUi, data: OverheadResponse) {
   ui.footer.textContent = facts.join(' · ');
 }
 
+/** The airline's logo, when the route names an airline the logo service knows. The plaque keeps
+ *  its place when empty, so the board doesn't jump from one plane to the next. */
+function showLogo(ui: BoardUi, iata: string | null) {
+  const src = iata ? `/api/logo/${encodeURIComponent(iata)}` : '';
+  if (ui.logo.dataset.src === src) return;
+  ui.logo.dataset.src = src;
+  ui.plaque.classList.remove('on');
+  if (src) ui.logo.src = src;
+  else ui.logo.removeAttribute('src');
+}
+
 interface BoardUi {
   el: HTMLElement;
+  plaque: HTMLElement; logo: HTMLImageElement;
   airline: FlapRow; callsign: FlapRow; route: FlapRow; cities: FlapRow;
   alt: FlapRow; spd: FlapRow; hdg: FlapRow; dist: FlapRow;
   progress: HTMLElement; from: HTMLElement; to: HTMLElement; bar: HTMLElement;
@@ -116,8 +130,18 @@ function build(el: HTMLElement): BoardUi {
     return box;
   };
 
+  const logo = h('img', 'board-logo');
+  logo.alt = '';
+  logo.decoding = 'async';
+  const plaque = h('div', 'board-plaque');
+  plaque.append(logo);
+  // Shown only once a logo has actually loaded; a miss leaves the plaque's space empty.
+  logo.addEventListener('load', () => { if (logo.dataset.src) plaque.classList.add('on'); });
+  logo.addEventListener('error', () => plaque.classList.remove('on'));
+
   const ui: BoardUi = {
     el,
+    plaque, logo,
     airline: new FlapRow(22, 'sm'),
     callsign: new FlapRow(8, 'xl'),
     route: new FlapRow(11, 'lg'),
@@ -142,7 +166,7 @@ function build(el: HTMLElement): BoardUi {
   stats.append(stat('ALT', 'ft', ui.alt), stat('SPD', 'kt', ui.spd), stat('HDG', '', ui.hdg), stat('DIST', 'km', ui.dist));
 
   const board = h('div', 'board');
-  board.append(ui.airline.el, ui.callsign.el, ui.route.el, ui.cities.el, stats, ui.progress, ui.footer);
+  board.append(plaque, ui.airline.el, ui.callsign.el, ui.route.el, ui.cities.el, stats, ui.progress, ui.footer);
   el.append(board);
   return ui;
 }

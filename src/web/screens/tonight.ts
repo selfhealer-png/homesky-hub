@@ -1,7 +1,7 @@
 import type { HubConfig, IssPass, TonightResponse } from '../../shared/types';
 import { getJson } from '../api';
 import { skyHome, skyQuery } from '../location';
-import { h, setCaption, type Screen } from '../screen';
+import { h, type Screen } from '../screen';
 
 // Tonight's sky: is it worth looking up? A one-line verdict first (cloud and moon decide
 // most of it), then the moon, the night's times, the aurora, and the space station.
@@ -72,7 +72,6 @@ function render(el: HTMLElement, d: TonightResponse, home: { name: string; lat: 
 
   // Left: the verdict, the moon, the night's times.
   const left = h('section', 'tn-main');
-  setCaption(`Tonight · ${home.name}`);
   left.append(h('h1', 'tn-verdict', verdict(d)));
 
   const moon = h('div', 'tn-moon-row');

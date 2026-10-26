@@ -16,21 +16,14 @@ export interface Screen {
   isAvailable?(config: HubConfig): boolean;
   /** Optional: stays in the rotation during quiet hours, when the display dims for the night. */
   quiet?: boolean;
-  /** Optional: the screen shows the time itself, so the shared strip (caption and time) stays off. */
+  /** Optional: the screen shows the time itself, so the corner time stays off. */
   ownClock?: boolean;
-}
-
-/** Says what a screen is showing in the shared strip along the bottom ("Weather · Langwathby").
- *  The rotation sets it to the screen's title; a screen can be more specific once it knows. */
-export function setCaption(text: string) {
-  const el = document.getElementById('caption');
-  if (el) el.textContent = text;
 }
 
 let flashEl: HTMLElement | undefined;
 let flashTimer: number | undefined;
 
-/** A few words just above the dots for a couple of seconds: which screen this is, what a tap changed. */
+/** A few words at the bottom for a couple of seconds: what a tap changed, or that a screen is pinned. */
 export function flash(text: string) {
   if (!flashEl) {
     flashEl = h('div');

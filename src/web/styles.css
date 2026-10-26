@@ -36,15 +36,12 @@ body {
 /* The bottom centre: the gear (see the end of the file). */
 #dots { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; align-items: center; padding: 0 4px; }
 
-/* The shared strip along the bottom: what this screen is showing on the left and, when chosen in
-   /setup (body.strip-clock), the time on the right. Off on screens that show the time themselves
-   (body.own-clock). */
-#caption, #strip-time { position: fixed; bottom: 0; z-index: 5; height: 36px; display: flex; align-items: center; pointer-events: none; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
-#caption { left: 32px; max-width: calc(50% - 64px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #94A3B8; font: 500 16px/1 -apple-system, "Segoe UI", sans-serif; }
+/* The time in the bottom corner, when chosen in /setup (body.strip-clock). Off on screens that
+   show the time themselves (body.own-clock). */
+#strip-time { position: fixed; bottom: 0; z-index: 5; height: 36px; display: flex; align-items: center; pointer-events: none; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
 #strip-time { right: 32px; color: #E2E8F0; font: 600 22px/1 "Gabarito", -apple-system, sans-serif; font-variant-numeric: tabular-nums; }
-body.own-clock #caption, body.own-clock #strip-time, body:not(.strip-clock) #strip-time { display: none; }
-/* On the cream board by day, the strip takes the board's ink. */
-html:not([data-night]) body:has(.screen[data-theme="minimal"]) #caption { color: #655f57; text-shadow: none; }
+body.own-clock #strip-time, body:not(.strip-clock) #strip-time { display: none; }
+/* On the cream board by day, the time takes the board's ink. */
 html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { color: #161514; text-shadow: none; }
 
 /* Old sky data (skyCache.watchAge): past ten minutes the screen fades back and says, in amber at
@@ -283,7 +280,7 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 }
 
 /* The board is one object, so it scales as a whole: every size below is a multiple of --s.
-   At its natural size (--s = 1px) it is 880 x 540; --s shrinks or grows it to fit the screen,
+   At its natural size (--s = 1px) it is 880 x 610 with the logo plaque; --s shrinks or grows it to fit the screen,
    up to 1.5x on large tablets. Browsers without container units get the 1024x768 sizes. */
 .board {
   --s: 1px;
@@ -291,10 +288,10 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
   color: var(--glyph); font-family: var(--board-font);
 }
 @supports (width: 1cqw) {
-  .board { --s: min(1.5px, calc(100cqw / 880), calc(100cqh / 540)); }
+  .board { --s: min(1.5px, calc(100cqw / 880), calc(100cqh / 610)); }
   /* Portrait: the four stats sit 2 x 2, so the board is narrower and the letters can stay large. */
   @container (aspect-ratio < 1) {
-    .board { --s: min(1.5px, calc(100cqw / 830), calc(100cqh / 640)); }
+    .board { --s: min(1.5px, calc(100cqw / 830), calc(100cqh / 710)); }
     .board .stats { display: grid; grid-template-columns: repeat(2, auto); row-gap: calc(14 * var(--s)); }
   }
 }
@@ -344,6 +341,16 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 .board .footer { min-height: 20px; font: 600 max(12px, calc(14 * var(--s)))/1.4 system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--label); }
 .screen-board.emergency .flaprow.sm:first-child { --glyph: #ff5d5d; color: #ff5d5d; }
 .screen-board.empty .stats { opacity: 0.35; }
+
+/* The airline's logo on a white plaque, as it would be painted on the tail: most logos are drawn
+   for white, and a dark one would vanish on the board. Its space is kept when there's no logo. */
+.board-plaque { height: calc(52 * var(--s)); display: grid; place-items: center; padding: 0 calc(16 * var(--s)); border-radius: calc(8 * var(--s)); background: #fff; box-shadow: 0 calc(6 * var(--s)) calc(16 * var(--s)) calc(-8 * var(--s)) rgba(0, 0, 0, 0.6); visibility: hidden; opacity: 0; transition: opacity 0.6s ease; }
+.board-plaque.on { visibility: visible; opacity: 1; }
+.board-logo { display: block; height: calc(36 * var(--s)); width: auto; max-width: calc(220 * var(--s)); object-fit: contain; }
+/* The cream board has no need of a plaque: the logo sits on the paper. */
+.screen-board[data-theme="minimal"] .board-plaque { background: transparent; box-shadow: none; }
+[data-night] .board-plaque { filter: brightness(0.78); }
+[data-motion="still"] .board-plaque { transition: none; }
 
 /* ── Airport board ──────────────────────────────────────────────────────────
    Shares the overhead board's themes. Natural size 1240 x 520, scaled like the board. */
@@ -507,8 +514,7 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 @media (max-height: 520px) {
   .screen { padding: 14px 20px 26px; }
   #flash { bottom: 34px; font-size: 14px; padding: 6px 12px; }
-  #caption, #strip-time { height: 30px; }
-  #caption { left: 20px; max-width: calc(50% - 44px); font-size: 12px; }
+  #strip-time { height: 30px; }
   #strip-time { right: 20px; font-size: 16px; }
   .screen.stale .stale-note { top: 10px; padding: 6px 14px; font-size: 14px; }
 
@@ -833,7 +839,6 @@ body.pinned #dots .gear { color: var(--accent); }
 /* A phone held upright (about 390×800): the same stacks, sized for a hand-held screen. */
 @media (orientation: portrait) and (max-width: 520px) {
   .screen { padding: 18px 18px 38px; }
-  #caption { left: 18px; font-size: 13px; }
   #strip-time { right: 18px; font-size: 17px; }
   #flash { font-size: 15px; }
   .screen.stale .stale-note { top: 10px; padding: 8px 14px; font-size: 15px; }
