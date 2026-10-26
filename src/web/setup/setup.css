@@ -23,23 +23,52 @@
     --shadow: rgba(0, 0, 0, .4);
   }
 }
+/* In the Home Screen app the status bar text is always white, so the page is always dark there. */
+:root[data-standalone] {
+  color-scheme: dark;
+  --bg: #0F172A; --card: #1E293B; --ink: #F1F5F9; --muted: #94A3B8; --line: #334155;
+  --rowbg: #24334A; --border2: #475569; --input-bg: #24334A; --faint: #64748B;
+  --bluetext: #8AAEFF;
+  --good: #34D399; --goodbg: #0F2A20; --bad: #F87171; --badbg: #3B1717; --amber: #FBBF24; --amberbg: #3F2D12;
+  --shadow: rgba(0, 0, 0, .4);
+}
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font-ui); -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font-ui); -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+::selection { background: color-mix(in srgb, var(--blue) 30%, transparent); }
+input, textarea { caret-color: var(--blue); }
 button, input { font: inherit; color: inherit; }
 button { -webkit-appearance: none; appearance: none; cursor: pointer; }
 a { color: var(--bluetext); }
 code { font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; background: var(--rowbg); border-radius: 6px; padding: 2px 6px; overflow-wrap: anywhere; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
-.top { max-width: 760px; margin: 0 auto; padding: 28px 16px 8px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-h1 { font: 800 26px/1.1 var(--font-display); letter-spacing: -.02em; margin: 0; }
-h1 span { font-weight: 600; color: var(--muted); }
+/* The nav bar: below the status bar and Dynamic Island, frosted like iOS so the page scrolls
+   underneath it. Its hairline and small title only appear once the large title has gone under. */
+.navbar {
+  position: sticky; top: 0; z-index: 10; padding-top: env(safe-area-inset-top);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: .5px solid transparent; transition: border-color .2s;
+}
+.navbar.scrolled { border-bottom-color: var(--line); }
+.navbar-inner {
+  max-width: 760px; margin: 0 auto; height: 44px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center;
+  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+}
+.nav-title { font-weight: 600; font-size: 17px; max-width: 52vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transform: translateY(4px); transition: opacity .2s, transform .25s cubic-bezier(.2, .8, .2, 1); }
+.navbar.scrolled .nav-title { opacity: 1; transform: none; }
+.nav-left { display: flex; min-width: 0; }
+.nav-right { justify-self: end; }
+.nav-back, .nav-done { display: inline-flex; align-items: center; min-height: 44px; font-size: 17px; color: var(--bluetext); text-decoration: none; }
+.nav-back { margin-left: -8px; gap: 0; }
+.nav-done { font-weight: 600; }
+.nav-back:active, .nav-done:active { opacity: .4; }
 h2 { font: 700 21px/1.2 var(--font-display); letter-spacing: -.015em; margin: 0 0 6px; }
 h3 { font: 700 17px/1.25 var(--font-display); margin: 22px 0 10px; }
 h4 { font: 700 11px/1 var(--font-ui); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 18px 0 8px; }
 
-main { max-width: 760px; margin: 0 auto; padding: 8px 16px 64px; display: flex; flex-direction: column; gap: 16px; }
+main { max-width: 760px; margin: 0 auto; padding: 4px max(16px, env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 16px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: 0 1px 2px var(--shadow), 0 8px 20px -12px var(--shadow); }
 .muted-card { background: transparent; box-shadow: none; border-style: dashed; }
 .lede { color: var(--muted); margin: 0 0 12px; }
@@ -130,7 +159,7 @@ main { max-width: 760px; margin: 0 auto; padding: 8px 16px 64px; display: flex; 
 
 .login { max-width: 420px; }
 
-#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 12px; font-weight: 600; box-shadow: 0 8px 24px var(--shadow); }
+#toast { position: fixed; z-index: 20; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 12px; font-weight: 600; box-shadow: 0 8px 24px var(--shadow); }
 #toast.ok { background: var(--ink); color: var(--bg); }
 #toast.error { background: var(--bad); color: #fff; }
 
@@ -147,10 +176,11 @@ main { max-width: 760px; margin: 0 auto; padding: 8px 16px 64px; display: flex; 
 .results { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-top: 8px; }
 .results:empty { display: none; }
 .hint { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
-.segmented { display: inline-flex; flex-wrap: wrap; border: 1.5px solid var(--border2); border-radius: 12px; overflow: hidden; background: var(--input-bg); }
-.segmented label { position: relative; }
+/* Full width with equal segments, like an iOS segmented control; five ranges fit on a phone. */
+.segmented { display: flex; width: 100%; border: 1.5px solid var(--border2); border-radius: 12px; overflow: hidden; background: var(--input-bg); }
+.segmented label { position: relative; flex: 1 1 0; min-width: 0; text-align: center; }
 .segmented input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.segmented span { display: block; padding: 8px 14px; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+.segmented span { display: block; padding: 8px 6px; white-space: nowrap; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
 .segmented label + label span { border-left: 1px solid var(--line); }
 .segmented input:checked + span { background: var(--blue); color: #fff; }
 .segmented input:focus-visible + span { outline: 2px solid var(--blue); outline-offset: -4px; }
@@ -188,10 +218,7 @@ progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--blue)
 .thumb-edit:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 10px; }
 .thumb figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 6px 4px; font-size: 11px; font-weight: 600; color: #fff; background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 
-.topnav { display: flex; gap: 14px; align-items: baseline; }
-.topnav a.link { text-decoration: none; font-weight: 600; }
-.topnav .link { white-space: nowrap; }
-@media (max-width: 420px) { .top h1 span { display: none; } }
+
 
 /* Google: what to use it for */
 .gparts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-bottom: 14px; }
@@ -202,7 +229,7 @@ progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--blue)
 .gpart small { color: var(--muted); font-size: 13px; }
 
 /* Settings app: grouped lists of rows, iOS switches, drill-in pages */
-.listtitle { font-size: 30px; margin: 4px 0 0; }
+.listtitle { font-size: 32px; margin: 2px 0 0; }
 .group h4 { margin: 0 0 8px 16px; }
 .group .hint { margin: 8px 16px 0; }
 .rows { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 2px var(--shadow); }
@@ -217,7 +244,9 @@ progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--blue)
 .row-link::after { content: ""; position: absolute; inset: 0; }
 .row-link:focus-visible { outline: none; }
 .row-link:focus-visible::after { outline: 2px solid var(--blue); outline-offset: -3px; border-radius: 14px; }
-.row.nav:hover { background: color-mix(in srgb, var(--rowbg) 60%, transparent); }
+/* Hover only where there is a pointer (on a phone it sticks after a tap); a press shows on touch. */
+@media (hover: hover) { .row.nav:hover { background: color-mix(in srgb, var(--rowbg) 60%, transparent); } }
+.row.nav:active:not(:has(.ios:active, .actions:active)) { background: var(--rowbg); }
 .row .ios { position: relative; z-index: 1; }
 .chev { color: var(--faint); display: grid; margin-right: -4px; }
 .tile { flex: 0 0 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: #fff; background: var(--tile); }
@@ -231,10 +260,9 @@ input.ios:checked { background: var(--green); }
 input.ios:checked::before { transform: translateX(20px); }
 input.ios:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
-.pagehead h2 { font-size: 28px; margin: 6px 0 4px; }
+.pagehead h2 { font-size: 32px; margin: 2px 0 4px; }
 .pagehead h2:focus { outline: none; }
 .pagehead .lede { margin: 0; }
-.back { display: inline-flex; align-items: center; gap: 2px; margin-left: -6px; padding: 6px 6px 6px 0; font-weight: 600; text-decoration: none; }
 .card > h3:first-child { margin-top: 0; }
 .cardhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .cardhead h3 { margin: 0; }
@@ -243,3 +271,7 @@ input.ios:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .ghost.icon { display: grid; place-items: center; width: 36px; padding: 0; }
 .actions .spacer { display: inline-block; width: 36px; }
 .row .actions { position: relative; z-index: 1; display: flex; gap: 6px; flex: 0 0 auto; }
+.row-button { all: unset; box-sizing: border-box; display: block; width: 100%; min-height: 50px; padding: 13px 16px; text-align: center; font-weight: 600; cursor: pointer; }
+.row-button.danger { color: var(--bad); }
+.row-button:active { background: var(--rowbg); }
+.row-button:focus-visible { outline: 2px solid var(--blue); outline-offset: -3px; border-radius: 14px; }

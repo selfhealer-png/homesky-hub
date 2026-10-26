@@ -9,7 +9,7 @@ import { PHOTO_LABELS, photoCount, photoSections } from './photos';
 import { airportCards, airportCodes, locationRow, MAP_LABELS, mapCard, rangeCard } from './sky';
 import { displaySettings, isScreenOn, km, placeName, saveDisplay, setScreenOn, skySettings, state } from './store';
 import { screenOrder } from '../../shared/rotation';
-import { busy, card, choiceList, copyRow, h, iosSwitch, pageHead, quietly, row, segmented, svg, tile } from './ui';
+import { api, busy, card, choiceList, copyRow, h, iosSwitch, pageHead, quietly, row, segmented, svg, tile } from './ui';
 
 // Every screen the hub can show, with its row on the Settings list and its own page, and the
 // hub-wide pages (Night, Motion, This hub).
@@ -312,5 +312,14 @@ export function aboutPage() {
         ? h('div', {}, h('p', {}, 'Open the hub’s address on the other device and sign in with the admin password. Or, to let someone use a screen without the admin password, send them this link instead. Anyone with it can view the hub, so treat it like a password.'), copyRow(s.displayPairing, 'Copy link'))
         : 'DISPLAY_TOKEN is not set. Run npm run setup.'),
       item(s.photos, 'Photo storage', s.photos ? 'R2 bucket connected, ready for the photo frame.' : 'No R2 bucket yet. Optional: the photo frame needs it.'),
-    ))];
+    )), signOut()];
+}
+
+function signOut() {
+  const b = h('button', { type: 'button', class: 'row-button danger' }, 'Sign out');
+  b.addEventListener('click', () => busy(b, async () => {
+    await api('/api/admin/logout', {}).catch(() => {});
+    location.replace('/setup');
+  }));
+  return h('div', { class: 'rows' }, b);
 }

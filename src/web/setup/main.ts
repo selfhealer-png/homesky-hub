@@ -4,19 +4,39 @@ import { accountsPage, googleConnection } from './accounts';
 import { aboutPage, CATEGORIES, hubProblems, motionPage, MOTION_LABELS, nightPage, nightSummary, orderPage, orderSummary, SCREENS, screenPage, screenRow, timingPage, timingSummary } from './pages';
 import { placesPage } from './sky';
 import { displaySettings, onRender, placeName, setState, state } from './store';
-import { api, busy, field, group, h, HttpError, input, row, tile, toast } from './ui';
+import { api, busy, field, group, h, HttpError, input, row, svg, tile, toast } from './ui';
 
 // The admin setup page, laid out like a phone's Settings app: a list of the hub's screens (each
 // with an on/off switch and its own page), then the hub-wide settings. Pages are hash routes
 // (#/screens/radar, #/places…) so Back works and a page can be linked to.
 
 const app = document.getElementById('app')!;
-const logoutBtn = document.getElementById('logout') as HTMLButtonElement;
+const navbar = document.getElementById('navbar')!;
+const navLeft = document.getElementById('nav-left')!;
+const navTitle = document.getElementById('nav-title')!;
+
+/** The bar along the top, as on iOS: Back on the left, and the page's name in the middle once its
+ *  large title has scrolled up under the bar. */
+function setNav(title: string, back: string | null) {
+  navTitle.textContent = title;
+  navLeft.replaceChildren(back ? h('a', { href: back, class: 'nav-back' }, svg('<path d="m15 5-7 7 7 7"/>', 22), 'Settings') : '');
+}
+
+let titleWatch: IntersectionObserver | undefined;
+function watchTitle() {
+  titleWatch?.disconnect();
+  navbar.classList.remove('scrolled');
+  const large = app.querySelector('h2');
+  if (!large) return;
+  titleWatch = new IntersectionObserver(([e]) => navbar.classList.toggle('scrolled', !e.isIntersecting),
+    { rootMargin: `-${navbar.offsetHeight}px 0px 0px 0px` });
+  titleWatch.observe(large);
+}
 
 // ── login ───────────────────────────────────────────────────────────────────
 
 function renderLogin(message?: string) {
-  logoutBtn.hidden = true;
+  setNav('Sign in', null);
   const pw = input({ type: 'password', name: 'password', autocomplete: 'current-password', required: 'true' });
   const submit = h('button', { type: 'submit', class: 'primary' }, 'Sign in');
   const form = h('form', { class: 'card login' },
@@ -36,6 +56,7 @@ function renderLogin(message?: string) {
     });
   });
   app.replaceChildren(form);
+  watchTitle();
   pw.focus();
 }
 
@@ -47,7 +68,6 @@ async function load() {
     app.replaceChildren(h('div', { class: 'card' }, h('p', { class: 'result bad' }, (err as Error).message)));
     return;
   }
-  logoutBtn.hidden = false;
   onRender(render);
   render();
 }
@@ -80,6 +100,9 @@ function page(route: string): Node[] {
 function render() {
   if (!state) return;
   app.replaceChildren(...page(location.hash));
+  const root = !location.hash || location.hash === '#/';
+  setNav(app.querySelector('h2')?.textContent ?? '', root ? null : '#/');
+  watchTitle();
 }
 
 window.addEventListener('hashchange', () => {
@@ -137,11 +160,6 @@ function listPage() {
 }
 
 // ── boot ────────────────────────────────────────────────────────────────────
-
-logoutBtn.addEventListener('click', async () => {
-  await api('/api/admin/logout', {}).catch(() => {});
-  renderLogin();
-});
 
 if (OLD_ANCHORS[location.hash]) history.replaceState(null, '', `${location.pathname}${location.search}${OLD_ANCHORS[location.hash]}`);
 

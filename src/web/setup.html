@@ -7,11 +7,19 @@
   <meta name="theme-color" content="#0F172A" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#F8FAFC" media="(prefers-color-scheme: light)">
   <title>Hub setup</title>
+  <script>
+    // Inside the Home Screen app the status bar is black-translucent (white text over the page),
+    // so the setup page goes dark there whatever the system setting, and its clock stays readable.
+    if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) document.documentElement.dataset.standalone = '';
+  </script>
 </head>
 <body>
-  <header class="top">
-    <h1>Home&amp;Sky Hub <span>setup</span></h1>
-    <nav class="topnav"><a href="/" class="link">Back to display</a><button id="logout" class="link" hidden>Sign out</button></nav>
+  <header class="navbar" id="navbar">
+    <div class="navbar-inner">
+      <div class="nav-left" id="nav-left"></div>
+      <div class="nav-title" id="nav-title" aria-hidden="true"></div>
+      <div class="nav-right"><a href="/" class="nav-done" title="Back to the display">Done</a></div>
+    </div>
   </header>
   <main id="app" aria-live="polite"></main>
   <div id="toast" role="status" hidden></div>

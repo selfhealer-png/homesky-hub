@@ -149,10 +149,9 @@ export function group(title: string | null, rows: HTMLElement[], foot?: string |
     foot ? h('p', { class: 'hint' }, foot) : null);
 }
 
-/** The top of a detail page: back to the list, then the title. */
-export function pageHead(title: string, lede?: string, back = '#/') {
+/** The top of a detail page: its large title (the nav bar above carries Back). */
+export function pageHead(title: string, lede?: string) {
   return h('div', { class: 'pagehead' },
-    h('a', { href: back, class: 'back' }, svg('<path d="m15 6-6 6 6 6"/>', 18), back === '#/' ? 'Settings' : 'Back'),
     h('h2', { tabindex: '-1' }, title),
     lede ? h('p', { class: 'lede' }, lede) : null);
 }
