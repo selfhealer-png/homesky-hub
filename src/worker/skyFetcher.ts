@@ -14,14 +14,21 @@ import type { Env } from './env';
 //
 // It also remembers where each plane has been over the last few minutes (in memory only), so a
 // radar that has just opened can draw trails straight away instead of growing them from nothing.
+//
+// A second instance, named "lookups", holds the slow-changing lookups (routes, the aircraft
+// registry, type articles) for cache.ts, because they're written for every new plane and KV's
+// free plan allows only 1,000 writes a day. Expired entries are swept once a day by an alarm.
 
 const STORE_PREFIX = 'last:';
+const LOOKUP_PREFIX = 'lookup:';
+const SWEEP_MS = 24 * 3600_000;
 const STALE_OK_MS = 90_000;
 /** How much of each plane's path is remembered, and how far apart its points are. */
 const TRAIL_SECONDS = 10 * 60;
 const TRAIL_STEP_SECONDS = 15;
 
 type Result = AircraftResponse | { error: string; details: string[] };
+type Lookup = { v: unknown; exp: number };
 
 export class SkyFetcher extends DurableObject<Env> {
   // A short pause after "too many requests": the Workers will try from other addresses meanwhile.
@@ -30,6 +37,33 @@ export class SkyFetcher extends DurableObject<Env> {
   private inFlight = new Map<string, Promise<Result>>();
   /** Per place, per hex: recent positions, oldest first. */
   private paths = new Map<string, Map<string, TrailPoint[]>>();
+  private sweepSet = false;
+
+  /** Stored lookups for these keys; missing or expired ones are left out. */
+  async recall(keys: string[]): Promise<Record<string, Lookup>> {
+    const found = await this.ctx.storage.get<Lookup>(keys.map(k => LOOKUP_PREFIX + k));
+    const out: Record<string, Lookup> = {};
+    const now = Date.now();
+    for (const [k, entry] of found) if (entry.exp > now) out[k.slice(LOOKUP_PREFIX.length)] = entry;
+    return out;
+  }
+
+  async keep(key: string, entry: Lookup): Promise<void> {
+    await this.ctx.storage.put(LOOKUP_PREFIX + key, entry);
+    if (!this.sweepSet) {
+      this.sweepSet = true;
+      if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + SWEEP_MS);
+    }
+  }
+
+  async alarm(): Promise<void> {
+    const now = Date.now();
+    const all = await this.ctx.storage.list<Lookup>({ prefix: LOOKUP_PREFIX });
+    const expired = [...all].filter(([, e]) => e.exp <= now).map(([k]) => k);
+    for (let i = 0; i < expired.length; i += 128) await this.ctx.storage.delete(expired.slice(i, i + 128));
+    if (all.size > expired.length) await this.ctx.storage.setAlarm(now + SWEEP_MS);
+    else this.sweepSet = false;
+  }
 
   async aircraft(lat: number, lon: number, nm: number): Promise<Result> {
     const key = aircraftKey(lat, lon, nm);

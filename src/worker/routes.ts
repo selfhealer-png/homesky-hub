@@ -58,7 +58,7 @@ export async function lookupRoute(env: Env, callsign: string, budget?: { fetches
     return await cached<StoredRoute | null>(env, key, r => (r ? 24 * 3600 : 6 * 3600), () => {
       if (budget && budget.fetches-- <= 0) throw new Error('Out of lookups for this request');
       return fetchRoute(callsign);
-    });
+    }, 'sky');
   } catch {
     return null;
   }

@@ -74,7 +74,7 @@ async function registry(env: Env, hex: string): Promise<AdsbdbAircraft | null> {
     if (!res.ok) throw new Error(`adsbdb answered ${res.status}`);
     const body = (await res.json()) as { response: string | { aircraft?: AdsbdbAircraft } };
     return typeof body.response === 'object' ? body.response.aircraft ?? null : null;
-  }).catch(() => null);
+  }, 'sky').catch(() => null);
 }
 
 interface SearchPage {
@@ -96,7 +96,7 @@ async function typeArticle(env: Env, a: Aircraft): Promise<TypeArticle | null> {
       if (found) return found;
     }
     return null;
-  }).catch(() => null);
+  }, 'sky').catch(() => null);
 }
 
 async function query(pick: Record<string, string>): Promise<SearchPage[]> {

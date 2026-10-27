@@ -25,6 +25,8 @@ const LIVE_SECONDS = 15;
 /** The last sighting is written to KV at most this often, to stay well inside the free plan's writes. */
 const LAST_SEEN_WRITE_MS = 10 * 60_000;
 const lastWrite = new Map<string, number>();
+/** The last sighting as this isolate knows it, so polls while the flight is down don't each read KV. */
+const lastSeenMemo = new Map<string, { seen: TrackResponse['lastSeen'] | null; at: number }>();
 
 /** An IATA airline code (BA, U2, 9W) to its ICAO code (BAW, EZY, JAI), from adsbdb. Cached a month. */
 async function icaoAirline(env: Env, iata: string): Promise<string | null> {
@@ -114,10 +116,19 @@ export async function handleTrack(env: Env, url: URL, request: Request): Promise
     if (env.HUB_KV && Date.now() - (lastWrite.get(query) ?? 0) > LAST_SEEN_WRITE_MS) {
       lastWrite.set(query, Date.now());
       const seen: TrackResponse['lastSeen'] = { at: Date.now(), callsign: aircraft.callsign, lat: aircraft.lat, lon: aircraft.lon };
+      lastSeenMemo.set(query, { seen, at: Date.now() });
       await env.HUB_KV.put(lastKey, JSON.stringify(seen), { expirationTtl: 14 * 86_400 }).catch(() => {});
     }
     return json({ query, fetchedAt: Date.now(), source, aircraft, route: stored && withProgress(stored, aircraft) } satisfies TrackResponse);
   }
-  const lastSeen = (await env.HUB_KV?.get(lastKey, 'json').catch(() => null)) as TrackResponse['lastSeen'] | null;
+  // Another isolate may have seen it since, so the remembered answer is only trusted as long as
+  // the gap between writes.
+  let memo = lastSeenMemo.get(query);
+  if (!memo || Date.now() - memo.at > LAST_SEEN_WRITE_MS) {
+    const seen = (await env.HUB_KV?.get(lastKey, 'json').catch(() => null)) as TrackResponse['lastSeen'] | null;
+    memo = { seen, at: Date.now() };
+    lastSeenMemo.set(query, memo);
+  }
+  const lastSeen = memo.seen;
   return json({ query, fetchedAt: Date.now(), source, aircraft: null, route: null, lastSeen: lastSeen ?? undefined } satisfies TrackResponse);
 }
