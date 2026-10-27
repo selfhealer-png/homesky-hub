@@ -1,21 +1,23 @@
-/* Setup page: the LED departures board. The display's LED board colours (near-black, amber
-   lettering, dim amber labels), its condensed type, and the screen list as a board of flap rows.
-   Always dark, like the board. Inputs stay at 16px so iOS Safari doesn't zoom on focus. */
+/* Setup page: a split-flap departures board, in the airport board's colours: near-black, cream
+   lettering on dark tiles, grey labels, and its yellow kept for the few things that stand out
+   (section titles, the page you're on, a screen that needs setting up). Always dark, like the
+   board. Inputs stay at 16px so iOS Safari doesn't zoom on focus. */
 /* The clock previews (previews.css) draw in the display's own face. */
 @font-face { font-family: "Gabarito"; src: url("/fonts/gabarito.woff2") format("woff2"); font-weight: 600 800; font-display: swap; }
 
 :root {
   color-scheme: dark;
-  /* --blue is the page's one accent, so it is the board's amber; --on-accent is ink on it. */
-  --bg: #050403; --card: #0d0a07; --ink: #f3e6cf; --muted: #b8a487; --line: #2a1a08;
-  --rowbg: #140e08; --border2: #4a3315; --input-bg: #0d0a07; --faint: #8a6a3a;
-  --blue: #ffb03a; --bluetext: #ffb03a; --on-accent: #050403; --glow: 0 0 6px rgba(255, 150, 40, .55);
-  --green: #ffb03a; --good: #9ad58e; --goodbg: #10200d; --bad: #ff7a66; --badbg: #2b100b; --amber: #ffb03a; --amberbg: #2a1a08;
-  --setup: #ff7a3d; /* SET UP on the board: needs something chosen */
+  /* --blue fills the controls (switches, the chosen key, buttons): the board's cream, with
+     --on-accent the ink on it. --accent is the board's yellow. */
+  --bg: #0b0b0c; --card: #131315; --ink: #f4efe3; --muted: #a9a59c; --line: #2a2a2d;
+  --rowbg: #17171a; --border2: #3a3a3e; --input-bg: #131315; --faint: #8c8a85;
+  --blue: #f4efe3; --bluetext: #f5c542; --on-accent: #0b0b0c; --accent: #f5c542; --glow: none;
+  --green: #f4efe3; --good: #9ad58e; --goodbg: #13200f; --bad: #ff7a66; --badbg: #2b110d; --amber: #f5c542; --amberbg: #2a2410;
+  --setup: #f5c542; /* SET UP on the board: needs something chosen */
   --shadow: rgba(0, 0, 0, .6);
   --font-display: "Avenir Next Condensed", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
   --font-ui: "Avenir Next Condensed", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
-  --font-board: Menlo, "SF Mono", ui-monospace, Consolas, monospace;
+  --font-board: var(--font-display);
 }
 
 * { box-sizing: border-box; }
@@ -237,9 +239,9 @@ progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--blue)
 .row.nav:active:not(:has(.ios:active, .actions:active)) { background: var(--rowbg); }
 .row .ios { position: relative; z-index: 1; }
 .chev { color: var(--faint); display: grid; margin-right: -4px; }
-/* Icons are the board's amber line, without the coloured tiles. */
-.tile { flex: 0 0 24px; height: 24px; display: grid; place-items: center; color: var(--blue); }
-.rowicon { display: grid; color: var(--blue); }
+/* Icons are plain grey lines, without the coloured tiles. */
+.tile { flex: 0 0 24px; height: 24px; display: grid; place-items: center; color: var(--muted); }
+.rowicon { display: grid; color: var(--muted); }
 .card > .row { padding: 4px 0; min-height: 44px; }
 .card > .row .row-link::after { inset: -4px -8px; }
 
@@ -265,8 +267,9 @@ input.ios:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .row-button:active { background: var(--rowbg); }
 .row-button:focus-visible { outline: 2px solid var(--blue); outline-offset: -3px; border-radius: 6px; }
 
-/* ── The departures board: one row per screen, its name and status in LED flaps ── */
-.board-head { display: flex; justify-content: space-between; font: 700 12px/1 var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); padding: 0 12px 8px; border-bottom: 1px solid var(--line); margin-bottom: 0; }
+/* ── The departures board: one row per screen, its name and status in split-flap tiles ── */
+.board-head { display: flex; justify-content: space-between; font: 700 12px/1 var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--faint); padding: 0 12px 8px; border-bottom: 1px solid var(--line); margin-bottom: 0; }
+.board-head > :first-child { color: var(--accent); }
 .dep { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 14px; padding: 8px 12px 7px; border-bottom: 1px solid var(--line); }
 .dep-link { display: block; min-width: 0; color: inherit; text-decoration: none; }
 .dep-link::after { content: ""; position: absolute; inset: 0; }
@@ -276,26 +279,33 @@ input.ios:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .dep .needs { color: var(--setup); }
 .dep-status { position: relative; z-index: 1; display: flex; align-items: center; min-height: 44px; padding: 0; margin: -6px 0; border: 0; background: none; border-radius: 4px; }
 .dep-status:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
-.dep.current { background: var(--rowbg); box-shadow: inset 2px 0 0 var(--blue); }
+.dep.current { background: var(--rowbg); box-shadow: inset 2px 0 0 var(--accent); }
 .dep:active:not(:has(.dep-status:active)) { background: var(--rowbg); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.quietnote { margin: 0 12px; font-size: 15px; color: var(--muted); }
+.quietnote b { color: var(--ink); font-weight: 600; }
 
-/* The LED board's tiles (styles.css draws the display's; this is the same look, small). */
-.flaprow { --s: 1px; --w: 14; --h: 22; --fs: 15; --gap: 2; display: flex; gap: calc(var(--gap) * var(--s)); }
-@media (min-width: 700px) { .flaprow { --w: 16; --h: 25; --fs: 17; } }
-.flap { --glyph: var(--blue); position: relative; width: calc(var(--w) * var(--s)); height: calc(var(--h) * var(--s)); font: 700 calc(var(--fs) * var(--s)) var(--font-board); color: var(--glyph); }
-.flap .half, .flap .leaf { position: absolute; left: 0; right: 0; height: 50%; overflow: hidden; background: radial-gradient(circle, rgba(255, 170, 60, .08) 1px, transparent 1.3px) 0 0 / 4px 4px; }
-.flap .top { top: 0; border-radius: 2px 2px 0 0; }
-.flap .bottom { bottom: 0; border-radius: 0 0 2px 2px; }
-.flap .half > span, .flap .leaf > span { position: absolute; left: 0; right: 0; height: 200%; display: flex; align-items: center; justify-content: center; line-height: 1; text-shadow: var(--glow); }
+/* The split-flap board's tiles (styles.css draws the display's; this is the same look, small). */
+.flaprow { --s: 1px; --w: 14; --h: 22; --fs: 16; --gap: 2; display: flex; gap: calc(var(--gap) * var(--s)); }
+@media (min-width: 700px) { .flaprow { --w: 16; --h: 25; --fs: 18; } }
+.flap { --glyph: var(--ink); position: relative; width: calc(var(--w) * var(--s)); height: calc(var(--h) * var(--s)); font: 700 calc(var(--fs) * var(--s)) var(--font-board); color: var(--glyph); perspective: calc(200 * var(--s)); }
+.flap .half, .flap .leaf { position: absolute; left: 0; right: 0; height: 50%; overflow: hidden; background: linear-gradient(#242427, #1a1a1c); }
+.flap .top { top: 0; border-radius: 3px 3px 0 0; }
+.flap .bottom { bottom: 0; border-radius: 0 0 3px 3px; }
+.flap .half > span, .flap .leaf > span { position: absolute; left: 0; right: 0; height: 200%; display: flex; align-items: center; justify-content: center; line-height: 1; }
 .flap .top > span { top: 0; }
 .flap .bottom > span { bottom: 0; }
-.flap .leaf { visibility: hidden; }
-.dep.off .flap { --glyph: #6b5428; }
-.dep.off .flap span { text-shadow: none; }
-.dep-status .flap { --glyph: var(--blue); }
+.flap::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(0, 0, 0, .7); z-index: 3; }
+.flap .leaf { visibility: hidden; z-index: 2; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.flap .leaf.top { transform-origin: 50% 100%; }
+.flap .leaf.bottom { transform-origin: 50% 0; }
+.flap.flipping .leaf { visibility: visible; }
+.flap.flipping .leaf.top { animation: flap-top var(--half-ms) ease-in forwards; }
+.flap.flipping .leaf.bottom { animation: flap-bottom var(--half-ms) ease-out var(--half-ms) both; }
+@keyframes flap-top { from { transform: rotateX(0); } to { transform: rotateX(-90deg); filter: brightness(.6); } }
+@keyframes flap-bottom { from { transform: rotateX(90deg); filter: brightness(1.4); } to { transform: rotateX(0); } }
+.dep.off .flap { --glyph: #6f6c66; }
 .dep.needs-setup .dep-status .flap { --glyph: var(--setup); }
-.dep.off .dep-status .flap { --glyph: #8a6a3a; }
 
 /* ── Split view: on an iPad or a laptop the board stays on the left, the page on the right ── */
 @media (min-width: 900px) {
@@ -304,4 +314,4 @@ input.ios:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .split > .side { position: sticky; top: calc(44px + env(safe-area-inset-top)); max-height: calc(100vh - 44px - env(safe-area-inset-top)); overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 16px; padding: 4px 0 32px; border-right: 1px solid var(--line); padding-right: 20px; scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
   .split > .page { display: flex; flex-direction: column; gap: 16px; min-width: 0; max-width: 640px; padding-top: 4px; }
 }
-.row.current { background: var(--rowbg); box-shadow: inset 2px 0 0 var(--blue); }
+.row.current { background: var(--rowbg); box-shadow: inset 2px 0 0 var(--accent); }
