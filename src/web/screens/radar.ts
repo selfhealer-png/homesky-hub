@@ -640,6 +640,8 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
       const logo = route?.airlineIata ? airlineLogo(route.airlineIata) : null;
       if (logo) who.append(logo);
       who.append(h('b', undefined, name(a)));
+      // The squawk, unless it's an emergency one: that's already spelled out below the name.
+      if (a.squawk && !a.emergency) who.append(h('span', 'radar-squawk', a.squawk));
       main.append(who);
       // When it should land, roughly, from how far it has to go and how fast it's going.
       // (Positions remembered from before routes carried the distance left have no figure.)
@@ -652,7 +654,8 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
       const alt = h('span', undefined, fmtAlt(a));
       const climb = climbMark(a);
       if (climb) alt.append(climb);
-      figs.append(alt, h('span', undefined, `${(a.distanceNm * NM_KM).toFixed(a.distanceNm < 5 ? 1 : 0)} km`));
+      const speed = a.groundSpeedKt != null ? h('span', undefined, `${Math.round(a.groundSpeedKt * NM_KM).toLocaleString('en-GB')} km/h`) : null;
+      figs.append(...[alt, speed, h('span', undefined, `${(a.distanceNm * NM_KM).toFixed(a.distanceNm < 5 ? 1 : 0)} km`)].filter(e => !!e));
       li.append(h('span', 'radar-dot'), main, figs);
       list.append(li);
     }
