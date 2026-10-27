@@ -15,9 +15,9 @@ import type { Env } from './env';
 // It also remembers where each plane has been over the last few minutes (in memory only), so a
 // radar that has just opened can draw trails straight away instead of growing them from nothing.
 //
-// A second instance, named "lookups", holds the slow-changing lookups (routes, the aircraft
-// registry, type articles) for cache.ts, because they're written for every new plane and KV's
-// free plan allows only 1,000 writes a day. Expired entries are swept once a day by an alarm.
+// A second instance, named "lookups", is the shared level of cache.ts (agenda, weather, routes,
+// the aircraft registry and the rest), because an always-on display rewrites them all day and
+// KV's free plan allows only 1,000 writes a day. Expired entries are swept once a day by an alarm.
 
 const STORE_PREFIX = 'last:';
 const LOOKUP_PREFIX = 'lookup:';
