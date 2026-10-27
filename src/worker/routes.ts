@@ -1,10 +1,11 @@
 import type { Aircraft, Airport, RouteInfo } from '../shared/types';
+import { greatCircleKm, routeMisfit } from '../shared/routeCheck';
 import { cached } from './cache';
 import { USER_AGENT, type Env } from './env';
 
 // Callsign → airline + origin/destination, from adsbdb.com. Routes are looked up by callsign,
 // and callsigns get reused across different flights, so a route is only trusted if the aircraft
-// is plausibly flying it right now (see isPlausible).
+// is plausibly flying it right now (see routeMisfit).
 
 interface AdsbdbAirport {
   iata_code: string; icao_code: string; name: string; municipality: string;
@@ -45,11 +46,6 @@ async function fetchRoute(callsign: string): Promise<StoredRoute | null> {
   };
 }
 
-export function greatCircleKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const r = Math.PI / 180;
-  const a = Math.sin(((lat2 - lat1) * r) / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(((lon2 - lon1) * r) / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 /**
  * Looks up a callsign. Lookup failures resolve to null rather than failing the whole request.
@@ -68,13 +64,11 @@ export async function lookupRoute(env: Env, callsign: string, budget?: { fetches
   }
 }
 
-/** Adds progress figures, or returns null if the aircraft can't be on this route. */
+/** Adds progress figures, or returns null if the aircraft can't be on this route (see routeMisfit). */
 export function withProgress(route: StoredRoute, ac: Aircraft): RouteInfo | null {
   const { origin: o, destination: d } = route;
-  const total = greatCircleKm(o.lat, o.lon, d.lat, d.lon);
+  if (routeMisfit(ac, o, d)) return null;
   const flown = greatCircleKm(o.lat, o.lon, ac.lat, ac.lon);
   const remaining = greatCircleKm(ac.lat, ac.lon, d.lat, d.lon);
-  // On the great circle, flown + remaining ≈ total. Allow for airways, holds and departure turns.
-  if (flown + remaining > total * 1.3 + 150) return null;
   return { ...route, flownKm: flown, remainingKm: remaining, progress: Math.min(1, Math.max(0, flown / (flown + remaining))) };
 }
