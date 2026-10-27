@@ -13,7 +13,8 @@ const csvPath = join(cacheDir, 'airports.csv');
 const outPath = join(root, 'src', 'web', 'public', 'airports.json');
 const SOURCE = 'https://davidmegginson.github.io/ourairports-data/airports.csv';
 
-if (existsSync(outPath)) {
+// Lists built before the size field was added are built again.
+if (existsSync(outPath) && JSON.parse(readFileSync(outPath, 'utf8'))[0]?.length >= 8) {
   console.log('Airport list already built.');
   process.exit(0);
 }
@@ -57,11 +58,12 @@ for (const line of lines.slice(1)) {
   if (f[SCHEDULED] !== 'yes' || !/^(large|medium|small)_airport$/.test(f[TYPE])) continue;
   const icao = f[ICAO] || (/^[A-Z]{4}$/.test(f[IDENT]) ? f[IDENT] : '');
   if (!icao) continue;
-  // [icao, iata, name, city, country, lat, lon]: compact, about 60 bytes an airport.
+  // [icao, iata, name, city, country, lat, lon, size]: compact, about 60 bytes an airport.
+  // size is l, m or s (large, medium, small), for the radar to draw the big ones larger.
   airports.push([icao, f[IATA], f[NAME], f[CITY].split(',')[0].trim(), f[COUNTRY], Math.round(Number(f[LAT]) * 1000) / 1000, Math.round(Number(f[LON]) * 1000) / 1000, f[TYPE][0]]);
 }
 // Big airports first, so a search for a city finds its main airport before the small ones.
 const rank = { l: 0, m: 1, s: 2 };
 airports.sort((a, b) => rank[a[7]] - rank[b[7]]);
-writeFileSync(outPath, JSON.stringify(airports.map(a => a.slice(0, 7))));
+writeFileSync(outPath, JSON.stringify(airports));
 console.log(`Airports: ${airports.length} with scheduled flights.`);

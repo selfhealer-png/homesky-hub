@@ -47,9 +47,13 @@ export async function handlePlane(env: Env, url: URL, request: Request): Promise
     photo: db?.url_photo ?? null,
     year: Number.isInteger(year) && year > 1900 ? year : null,
     category: raw?.category ?? null,
+    positionSource: raw?.type ?? null,
     live: {
       iasKt: num(raw?.ias), tasKt: num(raw?.tas), mach: num(raw?.mach),
       selectedAltFt: num(raw?.nav_altitude_mcp),
+      selectedHeadingDeg: num(raw?.nav_heading),
+      navModes: Array.isArray(raw?.nav_modes) ? raw.nav_modes.filter(m => typeof m === 'string') : null,
+      rollDeg: num(raw?.roll),
       windFromDeg: num(raw?.wd), windKt: num(raw?.ws), outsideTempC: num(raw?.oat),
     },
     article: aircraft ? await typeArticle(env, aircraft) : null,

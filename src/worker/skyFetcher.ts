@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import type { AircraftResponse } from '../shared/types';
+import type { AircraftResponse, TrailPoint } from '../shared/types';
 import { AircraftUnavailable, aircraftKey, CACHE_SECONDS, fetchFromSources, type SourceMemory } from './aircraft';
 import type { Env } from './env';
 
@@ -11,9 +11,15 @@ import type { Env } from './env';
 //
 // The last good positions are also written to the object's own storage, so they survive the
 // object being unloaded between requests.
+//
+// It also remembers where each plane has been over the last few minutes (in memory only), so a
+// radar that has just opened can draw trails straight away instead of growing them from nothing.
 
 const STORE_PREFIX = 'last:';
 const STALE_OK_MS = 90_000;
+/** How much of each plane's path is remembered, and how far apart its points are. */
+const TRAIL_SECONDS = 10 * 60;
+const TRAIL_STEP_SECONDS = 15;
 
 type Result = AircraftResponse | { error: string; details: string[] };
 
@@ -22,6 +28,8 @@ export class SkyFetcher extends DurableObject<Env> {
   private memory: SourceMemory = { restingUntil: new Map(), lastGood: new Map(), max429Rest: 20 };
   private fresh = new Map<string, AircraftResponse>();
   private inFlight = new Map<string, Promise<Result>>();
+  /** Per place, per hex: recent positions, oldest first. */
+  private paths = new Map<string, Map<string, TrailPoint[]>>();
 
   async aircraft(lat: number, lon: number, nm: number): Promise<Result> {
     const key = aircraftKey(lat, lon, nm);
@@ -42,8 +50,32 @@ export class SkyFetcher extends DurableObject<Env> {
     const current = this.fresh.get(key);
     if (current && current.fetchedAt >= result.fetchedAt) return;
     this.fresh.set(key, result);
+    this.record(key, result);
     this.memory.lastGood.set(key, result);
     await this.ctx.storage.put(STORE_PREFIX + key, result);
+  }
+
+  /** Where each plane round this place has been lately. */
+  async trails(lat: number, lon: number, nm: number): Promise<Record<string, TrailPoint[]>> {
+    return Object.fromEntries(this.paths.get(aircraftKey(lat, lon, nm)) ?? []);
+  }
+
+  private record(key: string, result: AircraftResponse) {
+    const now = Math.round(result.fetchedAt / 1000);
+    const paths = this.paths.get(key) ?? new Map<string, TrailPoint[]>();
+    this.paths.set(key, paths);
+    const seen = new Set<string>();
+    for (const a of result.aircraft) {
+      if (a.altFt === null) continue;
+      seen.add(a.hex);
+      const path = paths.get(a.hex) ?? [];
+      const last = path[path.length - 1];
+      if (!last || now - last[2] >= TRAIL_STEP_SECONDS) path.push([Math.round(a.lat * 1e4) / 1e4, Math.round(a.lon * 1e4) / 1e4, now]);
+      while (path.length && now - path[0][2] > TRAIL_SECONDS) path.shift();
+      paths.set(a.hex, path);
+    }
+    // Planes that have left (or landed) are forgotten once their last point is a couple of minutes old.
+    for (const [hex, path] of paths) if (!seen.has(hex) && now - path[path.length - 1][2] > 120) paths.delete(hex);
   }
 
   private async refresh(key: string, lat: number, lon: number, nm: number): Promise<Result> {
@@ -55,6 +87,7 @@ export class SkyFetcher extends DurableObject<Env> {
       const result = await fetchFromSources(this.env, lat, lon, nm, this.memory);
       if (!result.stale) {
         this.fresh.set(key, result);
+        this.record(key, result);
         await this.ctx.storage.put(STORE_PREFIX + key, result);
       }
       return result;

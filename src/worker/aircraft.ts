@@ -1,4 +1,4 @@
-import type { Aircraft, AircraftResponse, RouteSummary } from '../shared/types';
+import type { Aircraft, AircraftResponse, RouteSummary, TrailPoint } from '../shared/types';
 import { cached } from './cache';
 import { json, USER_AGENT, type Env } from './env';
 import { lookupRoute, withProgress } from './routes';
@@ -38,7 +38,10 @@ export interface ReadsbAircraft {
   // From the feed's aircraft database. dbFlags: 1 military, 2 interesting, 4 PIA, 8 LADD.
   desc?: string; dbFlags?: number; ownOp?: string; year?: string | number; category?: string;
   // What the aircraft reports about itself, when it does.
-  ias?: number; tas?: number; mach?: number; nav_altitude_mcp?: number; wd?: number; ws?: number; oat?: number;
+  ias?: number; tas?: number; mach?: number; nav_altitude_mcp?: number; nav_heading?: number; nav_modes?: string[];
+  roll?: number; wd?: number; ws?: number; oat?: number;
+  /** How the position was found: adsb_icao, mlat, tisb_icao and so on. */
+  type?: string;
 }
 
 /** PIA and LADD: owners who asked for their aircraft not to be singled out. */
@@ -85,6 +88,8 @@ export function normalize(raw: ReadsbAircraft, lat0: number, lon0: number): Airc
     desc: raw.desc?.trim() || null,
     military: (!!(flags & 1) || (raw.dbFlags === undefined && inMilitaryBlock(raw.hex))) && !(flags & PRIVATE_FLAGS),
     interesting: !!(flags & 2) && !(flags & PRIVATE_FLAGS),
+    category: raw.category ?? null,
+    onGround: raw.alt_baro === 'ground',
   };
 }
 
@@ -180,7 +185,8 @@ export async function getAircraft(env: Env, sky: SkyContext): Promise<AircraftRe
   if (!env.SKY) return local();
 
   const shared = env.SKY.get(env.SKY.idFromName('shared'));
-  const result = await shared.aircraft(lat, lon, nm);
+  // RPC types turn tuples into plain arrays; the shapes are the same.
+  const result = (await shared.aircraft(lat, lon, nm)) as AircraftResponse | { error: string; details: string[] };
   if (!('error' in result) && !result.stale) return result;
 
   try {
@@ -194,9 +200,21 @@ export async function getAircraft(env: Env, sky: SkyContext): Promise<AircraftRe
   }
 }
 
+/** Where the aircraft in `data` have been lately, from the shared fetcher's memory of recent answers. */
+async function trailsFor(env: Env, sky: SkyContext, data: AircraftResponse): Promise<Record<string, TrailPoint[]>> {
+  if (!env.SKY) return {};
+  const all = (await env.SKY.get(env.SKY.idFromName('shared')).trails(sky.home.lat, sky.home.lon, sky.radiusNm).catch(() => ({}))) as Record<string, TrailPoint[]>;
+  const out: Record<string, TrailPoint[]> = {};
+  for (const a of data.aircraft) if (all[a.hex]?.length) out[a.hex] = all[a.hex];
+  return out;
+}
+
 export async function handleAircraft(env: Env, url: URL, request: Request): Promise<Response> {
   try {
-    const data = await getAircraft(env, await skyContext(env, url, request));
+    const sky = await skyContext(env, url, request);
+    let data = await getAircraft(env, sky);
+    // ?trails=1 (a screen just opened) adds where each plane has been, so its trail is there at once.
+    if (url.searchParams.get('trails') === '1') data = { ...data, trails: await trailsFor(env, sky, data) };
     // ?routes=N adds routes for the N nearest airborne aircraft (plus any emergency).
     // Lookups are cached for 24 h, so this costs nothing after the first sighting.
     const n = Math.min(8, Number(url.searchParams.get('routes') ?? 0));
@@ -207,7 +225,13 @@ export async function handleAircraft(env: Env, url: URL, request: Request): Prom
     await Promise.all(featured.map(async a => {
       const stored = a.callsign ? await lookupRoute(env, a.callsign) : null;
       const r = stored && withProgress(stored, a);
-      if (r) routes[a.hex] = { from: r.origin.iata || r.origin.icao, to: r.destination.iata || r.destination.icao, fromCity: r.origin.city, toCity: r.destination.city, airline: r.airline?.name ?? null };
+      if (r) {
+        routes[a.hex] = {
+          from: r.origin.iata || r.origin.icao, to: r.destination.iata || r.destination.icao, fromCity: r.origin.city, toCity: r.destination.city,
+          airline: r.airline?.name ?? null, airlineIata: r.airline?.iata || null,
+          toLat: r.destination.lat, toLon: r.destination.lon, remainingKm: Math.round(r.remainingKm),
+        };
+      }
     }));
     return json({ ...data, routes } satisfies AircraftResponse);
   } catch (err) {

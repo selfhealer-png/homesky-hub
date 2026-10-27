@@ -1,4 +1,5 @@
 import type { Aircraft, HubConfig, RouteInfo, TrackResponse } from '../../shared/types';
+import { minutesToGo } from '../../shared/arrivals';
 import { typeName } from '../../shared/notable';
 import { getJson } from '../api';
 import { skyHome, skyQuery, type SkyHome } from '../location';
@@ -109,11 +110,9 @@ function panel(d: TrackResponse, a: Aircraft) {
     const bar = h('div', 'ft-progress');
     bar.style.setProperty('--p', `${Math.round(r.progress * 100)}%`);
     side.append(bar);
-    // Roughly, so it's "about": on a long way still to go, at least a jet's cruising speed (a
-    // plane climbing out is slow now but won't be for long); near the end, as fast as it's going.
-    const gsKmh = (a.groundSpeedKt ?? 0) * 1.852;
-    const pace = r.remainingKm > 400 ? Math.max(gsKmh, 780) : gsKmh;
-    const eta = a.altFt !== null && gsKmh > 150 ? `, lands in about ${duration((r.remainingKm / pace) * 60)}` : '';
+    // Roughly, so it's "about".
+    const togo = minutesToGo(r.remainingKm, a);
+    const eta = togo !== null ? `, lands in about ${duration(togo)}` : '';
     side.append(h('p', 'ft-togo', `${num(r.remainingKm)} km to go${eta}`));
   } else if (a.altFt !== null) {
     side.append(h('p', 'ft-togo', 'Route not known'));

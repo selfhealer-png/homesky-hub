@@ -93,7 +93,7 @@ export function mapCard() {
 }
 
 /** [icao, iata, name, city, country, lat, lon], biggest airports first (scripts/build-airports.mjs). */
-type AirportRow = [string, string, string, string, string, number, number];
+type AirportRow = [string, string, string, string, string, number, number, string?];
 let airportList: Promise<AirportRow[]> | null = null;
 
 function searchAirports(list: AirportRow[], q: string): AirportRow[] {

@@ -145,6 +145,14 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 .radar-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--alt); box-shadow: 0 0 0 3px color-mix(in srgb, var(--alt) 22%, transparent); }
 .radar-main { min-width: 0; display: flex; flex-direction: column; }
 .radar-main b { font-size: 17px; font-weight: 600; letter-spacing: 0.01em; }
+.radar-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* Logos are drawn for light backgrounds, so they sit on a small white plaque, shown once loaded. */
+.radar-logo { display: none; flex: none; height: 20px; width: auto; max-width: 62px; padding: 2px 5px; border-radius: 5px; background: #fff; object-fit: contain; }
+.radar-logo.on { display: block; }
+[data-night] .radar-logo { filter: brightness(0.78); }
+.radar-climb { margin-left: 4px; font-weight: 700; }
+.radar-climb.up { color: #86EFAC; }
+.radar-climb.down { color: #FDBA74; }
 .radar-route { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .radar-figs { display: flex; flex-direction: column; align-items: flex-end; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .radar-figs span:first-child { color: var(--ink); font-weight: 500; }

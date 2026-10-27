@@ -12,9 +12,9 @@ It's one Cloudflare Worker that serves the web app and a small API. The tablet j
 |---|---|
 | Home: clock, today, overdue, the next few days (from any [agenda feed](docs/feed-contract.md)) | working |
 | Overhead board: split-flap board for the plane above you, with three themes | working |
-| Radar: live aircraft around you over a street map or satellite view, nearest five labelled, coloured by altitude, rare and military aircraft ringed | working |
+| Radar: live aircraft around you over a street map or satellite view, drawn by kind (airliner, heavy, light aircraft, helicopter, glider…) and coloured by altitude, with ten-minute trails, planes on the ground shown faintly, and nearby airports marked. The nearest five are labelled with type and height and a line towards where they're going; the list beside shows the airline's logo, climbing or descending, and roughly when each lands. Rare and military aircraft ringed | working |
 | Alerts: a banner over any screen when an emergency or a rare aircraft (a Beluga, a B-52, a Spitfire) comes into range, saying where to look; optionally military too, and a chime | working |
-| Plane card: tap a plane on the radar, an alert, or "About this plane" in the menu for its route, owner, age, target altitude, airspeed, the weather outside it, a photo and a few lines about the type | working |
+| Plane card: tap a plane on the radar, an alert, or "About this plane" in the menu for its route and when it lands, owner, age, what the autopilot is set to, bank angle, how its position was found, airspeed, the weather outside it, a photo and a few lines about the type | working |
 | Weather: now, the next hours and days, what to wear (as icons), a rain radar, and pollen and air quality in the pollen season | working |
 | Tides: coming in or going out, when it turns, the curve for the next day and the next high and low waters, for a place by the sea | working |
 | Flight tracker: one flight you choose (flight number, callsign, registration or hex), followed anywhere in the world on a route map; it also goes first on the Overhead board when it passes | working |
@@ -61,6 +61,7 @@ npm run dev          # web app on :5173, proxies /api to the Worker
 * Aircraft radar background: [OpenStreetMap](https://www.openstreetmap.org/copyright) tiles, or [Sentinel-2 cloudless 2024 by EOX](https://s2maps.eu) satellite imagery (contains modified Copernicus Sentinel data; free for non-commercial use). Both are fine for this open-source hub; a commercial build should switch to a licensed provider in `src/web/mapTiles.ts`.
 * Aurora: Kp forecast from the [NOAA Space Weather Prediction Center](https://www.swpc.noaa.gov).
 * Space Station orbit: [CelesTrak](https://celestrak.org), with [satellite.js](https://github.com/shashwatak/satellite-js) (MIT). Sun and moon are calculated on the hub. Crew: the community-kept [people in space](https://github.com/corquaid/international-space-station-APIs) list. World map: NASA [Blue Marble](https://earthobservatory.nasa.gov/features/BlueMarble) via [GIBS](https://www.earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs) (public domain).
+* Airports on the radar and in `/setup`: [OurAirports](https://ourairports.com/data/) (public domain), built with the app by `scripts/build-airports.mjs`.
 * Town names on the radar: [GeoNames](https://www.geonames.org) (CC BY 4.0), built into small files with the app by `scripts/build-places.mjs`.
 * Article of the day: [Wikipedia](https://en.wikipedia.org) via the Wikimedia feed API (text CC BY-SA). Aircraft types on the plane card: Wikipedia too.
 * Calendar parsing: [ical.js](https://github.com/kewisch/ical.js) (MPL-2.0).

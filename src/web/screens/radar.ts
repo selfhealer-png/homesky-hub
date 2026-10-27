@@ -1,8 +1,10 @@
+import { minutesToGo } from '../../shared/arrivals';
 import { classify, typeName } from '../../shared/notable';
 import type { RadarMap } from '../../shared/settings';
 import type { Aircraft, AircraftResponse, HubConfig, PlaceName, RouteSummary } from '../../shared/types';
 import { getJson } from '../api';
 import { tileDisc, TILE_SOURCES } from '../mapTiles';
+import { airportsAround, type NearbyAirport } from '../nearbyAirports';
 import { placesAround } from '../placeNames';
 import { nextPlace, skyHome, skyQuery, type SkyHome } from '../location';
 import { motionLevel } from '../motion';
@@ -10,12 +12,17 @@ import { ageLabel, recall, Refresher, remember, watchAge, type Outcome } from '.
 import { h, type Screen } from '../screen';
 
 // An ambient radar for a room: calm at a glance, detailed on a closer look.
-// Only the few nearest aircraft are labelled; everything else is a small heading mark
-// coloured by altitude. The one animation that carries meaning is the ping that ripples
-// out from home each time fresh positions arrive.
+// Only the few nearest aircraft are labelled, with a faint line to where they're going;
+// everything else is a small silhouette of its kind (airliner, light aircraft, helicopter…)
+// coloured by altitude, and planes on the ground are fainter still. The one animation that
+// carries meaning is the ping that ripples out from home each time fresh positions arrive.
 
 const FEATURED = 5;
-const TRAIL_POINTS = 8;
+
+/** Aircraft on the ground; category C is airport vehicles and fixed obstacles, which aren't. */
+const onGround = (data: AircraftResponse) => data.aircraft.filter(a => a.onGround && !a.category?.startsWith('C'));
+/** How much of each plane's path is drawn behind it. */
+const TRAIL_SECONDS = 10 * 60;
 const FRAME_MS = 1000 / 30; // 30 fps is plenty for planes and kinder to an always-on tablet
 
 // Altitude colour ramp: warm near the ground, cool at cruise. Shared with the legend.
@@ -45,8 +52,57 @@ const name = (a: Aircraft) => a.callsign ?? a.registration ?? a.hex.toUpperCase(
 /** Light aircraft fly under their registration: G-VOAR's callsign is GVOAR, so don't say it twice. */
 const regRepeats = (a: Aircraft) => !!a.registration && a.callsign?.trim().toUpperCase() === a.registration.replace(/-/g, '').toUpperCase();
 
-// A small aircraft silhouette pointing up (north), about 16 px nose to tail at scale 1.
-const PLANE = new Path2D('M0 -8 L1.3 -5.6 L1.3 -2.2 L7.5 1.6 L7.5 3 L1.3 1.2 L1 5.3 L3 6.8 L3 7.8 L0 7 L-3 7.8 L-3 6.8 L-1 5.3 L-1.3 1.2 L-7.5 3 L-7.5 1.6 L-1.3 -2.2 L-1.3 -5.6 Z');
+// Aircraft silhouettes pointing up (north), about 16 px nose to tail at scale 1, chosen by the
+// ADS-B emitter category each aircraft sends.
+const AIRLINER = new Path2D('M0 -8 L1.3 -5.6 L1.3 -2.2 L7.5 1.6 L7.5 3 L1.3 1.2 L1 5.3 L3 6.8 L3 7.8 L0 7 L-3 7.8 L-3 6.8 L-1 5.3 L-1.3 1.2 L-7.5 3 L-7.5 1.6 L-1.3 -2.2 L-1.3 -5.6 Z');
+/** Straight wings and a propeller nose: a light aircraft. */
+const LIGHT = new Path2D('M0 -7.5 L1 -6.5 L1 -3.2 L8 -3.2 L8 -1.2 L1 -1.2 L0.7 4.8 L3.4 5.3 L3.4 6.9 L0 6.5 L-3.4 6.9 L-3.4 5.3 L-0.7 4.8 L-1 -1.2 L-8 -1.2 L-8 -3.2 L-1 -3.2 L-1 -6.5 Z');
+const GLIDER = new Path2D('M0 -6.5 L0.7 -5.2 L0.7 -2.6 L11 -2.1 L11 -1.2 L0.7 -1 L0.5 5.5 L2.8 6 L2.8 7 L0 6.6 L-2.8 7 L-2.8 6 L-0.5 5.5 L-0.7 -1 L-11 -1.2 L-11 -2.1 L-0.7 -2.6 L-0.7 -5.2 Z');
+/** A delta: fast jets. */
+const FAST = new Path2D('M0 -8.5 L1.2 -4 L6.8 4.8 L6.8 6.4 L1.6 5.4 L2.6 7.6 L-2.6 7.6 L-1.6 5.4 L-6.8 6.4 L-6.8 4.8 L-1.2 -4 Z');
+const HELI = new Path2D();
+HELI.ellipse(0, -1, 2.6, 4.2, 0, 0, Math.PI * 2);
+HELI.rect(-0.7, 2.5, 1.4, 6);
+HELI.rect(-2.6, 7.6, 5.2, 1.2);
+const ROTOR = new Path2D();
+ROTOR.arc(0, -1, 7.5, 0, Math.PI * 2);
+const BALLOON = new Path2D();
+BALLOON.arc(0, -1.5, 5.5, 0, Math.PI * 2);
+BALLOON.rect(-1.6, 5, 3.2, 2.6);
+const DRONE = new Path2D('M-5.2 -4.2 L-4.2 -5.2 L5.2 4.2 L4.2 5.2 Z M4.2 -5.2 L5.2 -4.2 L-4.2 5.2 L-5.2 4.2 Z');
+for (const [x, y] of [[-4.7, -4.7], [4.7, -4.7], [-4.7, 4.7], [4.7, 4.7]]) { DRONE.moveTo(x + 2.6, y); DRONE.arc(x, y, 2.6, 0, Math.PI * 2); }
+
+interface Icon { path: Path2D; scale: number; rotor?: boolean; upright?: boolean }
+
+function iconFor(a: Aircraft): Icon {
+  switch (a.category) {
+    case 'A1': case 'B4': return { path: LIGHT, scale: 0.9 };
+    case 'A2': return { path: AIRLINER, scale: 0.85 };
+    case 'A4': return { path: AIRLINER, scale: 1.15 };
+    case 'A5': return { path: AIRLINER, scale: 1.3 };
+    case 'A6': return { path: FAST, scale: 1 };
+    case 'A7': return { path: HELI, scale: 1, rotor: true };
+    case 'B1': return { path: GLIDER, scale: 1 };
+    case 'B2': return { path: BALLOON, scale: 0.9, upright: true };
+    case 'B6': return { path: DRONE, scale: 0.85 };
+    default: return { path: AIRLINER, scale: 1 };
+  }
+}
+
+/** One aircraft's silhouette at (x, y), turned to its track; `edge` outlines it over a map. */
+function drawIcon(ctx: CanvasRenderingContext2D, a: Aircraft, x: number, y: number, size: number, fill: string, edge: string | null) {
+  const icon = iconFor(a);
+  const s = size * icon.scale;
+  ctx.save();
+  ctx.translate(x, y);
+  if (!icon.upright) ctx.rotate(((a.trackDeg ?? 0) * Math.PI) / 180);
+  ctx.scale(s, s);
+  ctx.fillStyle = fill;
+  if (edge) { ctx.strokeStyle = edge; ctx.lineWidth = 2 / s; ctx.lineJoin = 'round'; ctx.stroke(icon.path); }
+  ctx.fill(icon.path);
+  if (icon.rotor) { ctx.strokeStyle = fill; ctx.lineWidth = 1.2 / s; ctx.stroke(ROTOR); }
+  ctx.restore();
+}
 
 interface Label { x: number; y: number; w: number; h: number }
 
@@ -54,7 +110,7 @@ interface State {
   home: SkyHome;
   data: AircraftResponse | null;
   receivedAt: number;
-  trails: Map<string, Array<[number, number]>>; // hex -> [eastNm, northNm], oldest first
+  trails: Map<string, Array<[number, number, number]>>; // hex -> [eastNm, northNm, epoch seconds], oldest first
   placement: Map<string, number>; // hex -> chosen label slot, kept stable between frames
   pingAt: number;
   error: string | null;
@@ -62,6 +118,10 @@ interface State {
   mapKey: string;
   /** Towns and cities around home, biggest first, for labelling. */
   places: PlaceName[];
+  /** Airports with scheduled flights round home, the big ones first. */
+  airports: NearbyAirport[];
+  /** The next answer should bring the trails the shared fetcher remembers (just opened, or moved). */
+  wantTrails: boolean;
 }
 
 let refresher: Refresher | undefined;
@@ -209,7 +269,7 @@ const PLACE_FONT: Record<PlaceName['kind'], string> = {
  * Town names: the biggest places first, then the villages nearest home, each only if it fits
  * without touching another. Returns the boxes used, so aircraft labels can avoid them.
  */
-function drawPlaces(ctx: CanvasRenderingContext2D, state: State, cx: number, cy: number, r: number, scale: number, radiusNm: number): Label[] {
+function drawPlaces(ctx: CanvasRenderingContext2D, state: State, cx: number, cy: number, r: number, scale: number, radiusNm: number, reserved: Label[]): Label[] {
   if (!state.places.length) return [];
   const max = listed() === FEATURED ? 12 : 5;
   const dist = (p: PlaceName) => Math.hypot(...offsetNm(state.home, p.lat, p.lon));
@@ -218,7 +278,7 @@ function drawPlaces(ctx: CanvasRenderingContext2D, state: State, cx: number, cy:
   const sat = onMap;
   const boxes: Label[] = [];
   // Home and the ring distances stay clear.
-  const taken: Label[] = [{ x: cx - 14, y: cy - 14, w: 28, h: 28 }, ...ringLabels(cx, cy, r, radiusNm).map(l => ({ x: l.x - 13, y: l.y - 10, w: 26, h: 20 }))];
+  const taken: Label[] = [...reserved, { x: cx - 14, y: cy - 14, w: 28, h: 28 }, ...ringLabels(cx, cy, r, radiusNm).map(l => ({ x: l.x - 13, y: l.y - 10, w: 26, h: 20 }))];
   const clear = (l: Label) =>
     !taken.some(o => l.x < o.x + o.w && l.x + l.w > o.x && l.y < o.y + o.h && l.y + l.h > o.y) &&
     [[l.x, l.y], [l.x + l.w, l.y], [l.x, l.y + l.h], [l.x + l.w, l.y + l.h]].every(([x, y]) => Math.hypot(x - cx, y - cy) < r - 6);
@@ -254,6 +314,113 @@ function drawPlaces(ctx: CanvasRenderingContext2D, state: State, cx: number, cy:
   return boxes;
 }
 
+const overlaps = (l: Label, taken: Label[]) => taken.some(o => l.x < o.x + o.w && l.x + l.w > o.x && l.y < o.y + o.h && l.y + l.h > o.y);
+
+/** Airports round home: a small ring and the code, bigger for the big ones. Returns the boxes used. */
+function drawAirports(ctx: CanvasRenderingContext2D, state: State, cx: number, cy: number, r: number, scale: number): Label[] {
+  const boxes: Label[] = [];
+  ctx.save();
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.lineJoin = 'round';
+  for (const ap of state.airports) {
+    if (boxes.length >= 8) break;
+    const [e, n] = offsetNm(state.home, ap.lat, ap.lon);
+    const x = cx + e * scale, y = cy - n * scale;
+    const big = ap.size === 'l';
+    const code = ap.iata || ap.icao;
+    ctx.font = `700 ${big ? 12 : 11}px -apple-system, "Segoe UI", sans-serif`;
+    const w = ctx.measureText(code).width;
+    const box = { x: x - 6, y: y - 8, w: w + 13, h: 16 };
+    if (Math.hypot(x + 7 + w - cx, y - cy) > r - 8 || Math.hypot(x - cx, y - cy) > r - 8 || overlaps(box, boxes)) continue;
+    boxes.push(box);
+    ctx.strokeStyle = onMap ? '#BFDBFE' : 'rgba(147, 197, 253, 0.7)';
+    ctx.lineWidth = big ? 1.8 : 1.4;
+    ctx.beginPath(); ctx.arc(x, y, big ? 4.5 : 3.5, 0, Math.PI * 2); ctx.stroke();
+    if (onMap) {
+      ctx.strokeStyle = 'rgba(2, 6, 23, 0.8)';
+      ctx.lineWidth = 3.5;
+      ctx.strokeText(code, x + 7, y);
+    }
+    ctx.fillStyle = onMap ? '#DBEAFE' : 'rgba(147, 197, 253, 0.8)';
+    ctx.fillText(code, x + 7, y);
+  }
+  ctx.restore();
+  return boxes;
+}
+
+/** Initial great-circle bearing from one point to another, in radians from north. */
+function bearingTo(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const k = Math.PI / 180;
+  const dLon = (lon2 - lon1) * k;
+  const y = Math.sin(dLon) * Math.cos(lat2 * k);
+  const x = Math.cos(lat1 * k) * Math.sin(lat2 * k) - Math.sin(lat1 * k) * Math.cos(lat2 * k) * Math.cos(dLon);
+  return Math.atan2(y, x);
+}
+
+/**
+ * For the labelled planes whose route is known: a faint dashed line the way they're going, to
+ * the destination if it's on the radar, else to the edge, where the destination's code is shown.
+ * Returns the boxes of those codes, so aircraft labels can avoid them.
+ */
+function drawRoutes(ctx: CanvasRenderingContext2D, planes: Aircraft[], data: AircraftResponse, pos: Map<string, readonly [number, number]>, cx: number, cy: number, r: number, scale: number): Label[] {
+  const boxes: Label[] = [];
+  const R = r - 4;
+  ctx.save();
+  ctx.lineWidth = 1.3;
+  ctx.font = '700 11px -apple-system, "Segoe UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const a of planes) {
+    const route = data.routes?.[a.hex];
+    const p = pos.get(a.hex);
+    if (!route || !p || !Number.isFinite(route.toLat) || !Number.isFinite(route.remainingKm)) continue;
+    const b = bearingTo(a.lat, a.lon, route.toLat, route.toLon);
+    const dx = Math.sin(b), dy = -Math.cos(b);
+    const px = p[0] - cx, py = p[1] - cy;
+    if (Math.hypot(px, py) >= R) continue;
+    // Where the line leaves the disc, and where the destination is: whichever comes first.
+    const along = px * dx + py * dy;
+    const edge = -along + Math.sqrt(Math.max(0, along * along - (px * px + py * py - R * R)));
+    const there = (route.remainingKm / NM_KM) * scale;
+    const len = Math.min(edge, there);
+    if (len < 24) continue;
+    ctx.strokeStyle = altitudeColor(a.altFt, onMap ? 0.8 : 0.45);
+    ctx.setLineDash([3, 6]);
+    ctx.beginPath(); ctx.moveTo(p[0] + dx * 12, p[1] + dy * 12); ctx.lineTo(p[0] + dx * len, p[1] + dy * len); ctx.stroke();
+    ctx.setLineDash([]);
+    if (there <= edge) continue; // the airport's own marker is there
+    const tx = p[0] + dx * (len - 14), ty = p[1] + dy * (len - 14);
+    const w = ctx.measureText(route.to).width;
+    const box = { x: tx - w / 2 - 3, y: ty - 8, w: w + 6, h: 16 };
+    if (overlaps(box, boxes)) continue;
+    boxes.push(box);
+    if (onMap) {
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+      ctx.beginPath(); ctx.roundRect(box.x - 2, box.y, box.w + 4, box.h, 4); ctx.fill();
+    }
+    ctx.fillStyle = onMap ? '#E2E8F0' : altitudeColor(a.altFt, 0.9);
+    ctx.fillText(route.to, tx, ty);
+  }
+  ctx.restore();
+  return boxes;
+}
+
+/** A trail in a few bands, fainter towards the oldest end: far fewer strokes than one per segment. */
+function strokeTrail(ctx: CanvasRenderingContext2D, pts: number[][], colour: (alpha: number) => string, alpha: number) {
+  const bands = 4;
+  const segs = pts.length - 1;
+  for (let b = 0; b < bands; b++) {
+    const from = Math.floor((b * segs) / bands), to = Math.floor(((b + 1) * segs) / bands);
+    if (to <= from) continue;
+    ctx.strokeStyle = colour(alpha * ((b + 1) / bands));
+    ctx.beginPath();
+    ctx.moveTo(pts[from][0], pts[from][1]);
+    for (let i = from + 1; i <= to; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.stroke();
+  }
+}
+
 function placeLabel(state: State, hex: string, x: number, y: number, w: number, hgt: number, taken: Label[], bounds: { cx: number; cy: number; r: number }): Label {
   // Near slots first, then the same four directions further out (the leader line covers the gap).
   const slots: Array<[number, number]> = [
@@ -261,7 +428,7 @@ function placeLabel(state: State, hex: string, x: number, y: number, w: number, 
     [34, -hgt - 22], [34, 24], [-34 - w, -hgt - 22], [-34 - w, 24],
   ];
   const fits = (l: Label) =>
-    !taken.some(o => l.x < o.x + o.w && l.x + l.w > o.x && l.y < o.y + o.h && l.y + l.h > o.y) &&
+    !overlaps(l, taken) &&
     Math.hypot(l.x + l.w / 2 - bounds.cx, l.y + l.h / 2 - bounds.cy) < bounds.r - 10;
   const order = [state.placement.get(hex) ?? 0, ...slots.keys()];
   for (const i of order) {
@@ -285,8 +452,9 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
   const scale = r / radiusNm;
   syncMap(canvas, config, state, cx, cy, r, scale);
   drawScope(ctx, cx, cy, r, radiusNm);
+  const airportBoxes = drawAirports(ctx, state, cx, cy, r, scale);
   // The street map has its own names; the satellite view and the plain radar get ours.
-  const placeBoxes = mapChoice(config) === 'map' ? [] : drawPlaces(ctx, state, cx, cy, r, scale, radiusNm);
+  const placeBoxes = mapChoice(config) === 'map' ? [] : drawPlaces(ctx, state, cx, cy, r, scale, radiusNm, airportBoxes);
 
   const data = state.data;
   if (data) {
@@ -296,14 +464,29 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
     // From when the positions were measured, which can be earlier than when they arrived.
     const elapsed = (Date.now() - data.fetchedAt) / 1000;
     const visible = data.aircraft.filter(a => a.altFt !== null);
-    const pos = new Map(visible.map(a => {
+    const ground = onGround(data);
+    const pos = new Map([...visible, ...ground].map(a => {
       const [e, n] = projected(a, state.home, elapsed);
       return [a.hex, [cx + e * scale, cy - n * scale]] as const;
     }));
     const inside = (x: number, y: number) => Math.hypot(x - cx, y - cy) < r - 4;
+    drawn = [];
 
-    // Trails, fading with age. Background traffic first, featured on top.
+    // Planes on the ground: small and faint, under everything that's flying.
+    for (const a of ground) {
+      const [x, y] = pos.get(a.hex)!;
+      if (!inside(x, y)) continue;
+      drawn.push({ a, x, y });
+      drawIcon(ctx, a, x, y, 0.5, onMap ? 'rgba(226, 232, 240, 0.6)' : 'rgba(203, 213, 225, 0.38)', onMap ? 'rgba(2, 6, 23, 0.6)' : null);
+    }
+
+    // Trails, fading with age and kept inside the disc. Background traffic first, featured on top.
     const ordered = [...visible].sort((a, b) => Number(feature.has(a.hex)) - Number(feature.has(b.hex)));
+    const nearestFirst = visible.filter(a => feature.has(a.hex));
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r - 2, 0, Math.PI * 2); ctx.clip();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     for (const a of ordered) {
       const trail = state.trails.get(a.hex);
       const [x, y] = pos.get(a.hex)!;
@@ -311,15 +494,12 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
       const pts = [...trail.map(([e, n]) => [cx + e * scale, cy - n * scale]), [x, y]];
       const isF = feature.has(a.hex);
       ctx.lineWidth = isF ? 1.6 : 1;
-      ctx.lineCap = 'round';
-      for (let i = 1; i < pts.length; i++) {
-        ctx.strokeStyle = altitudeColor(a.altFt, Math.min(1, (isF ? 0.5 : 0.22) * (onMap ? 1.6 : 1)) * (i / (pts.length - 1)));
-        ctx.beginPath(); ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke();
-      }
+      strokeTrail(ctx, pts, alpha => altitudeColor(a.altFt, alpha), Math.min(1, (isF ? 0.5 : 0.22) * (onMap ? 1.6 : 1)));
     }
+    ctx.restore();
+    const routeBoxes = drawRoutes(ctx, nearestFirst, data, pos, cx, cy, r, scale);
 
     // Aircraft.
-    drawn = [];
     for (const a of ordered) {
       const [x, y] = pos.get(a.hex)!;
       if (!inside(x, y)) continue;
@@ -334,31 +514,22 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
         ctx.beginPath(); ctx.arc(x, y, isF ? 14 : 10, 0, Math.PI * 2); ctx.stroke();
         ctx.restore();
       }
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(((a.trackDeg ?? 0) * Math.PI) / 180);
       if (isF) {
-        ctx.scale(1.15, 1.15);
+        ctx.save();
         ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
         ctx.shadowBlur = 6;
         ctx.shadowOffsetY = 2;
-        ctx.fillStyle = a.emergency ? '#F87171' : altitudeColor(a.altFt);
-        if (onMap) { ctx.strokeStyle = 'rgba(2, 6, 23, 0.9)'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke(PLANE); }
-        ctx.fill(PLANE);
+        drawIcon(ctx, a, x, y, 1.15, a.emergency ? '#F87171' : altitudeColor(a.altFt), onMap ? 'rgba(2, 6, 23, 0.9)' : null);
+        ctx.restore();
       } else {
-        // Background traffic: a small heading chevron.
-        ctx.fillStyle = altitudeColor(a.altFt, onMap ? 1 : 0.75);
-        ctx.beginPath(); ctx.moveTo(0, -4.5); ctx.lineTo(3.2, 3.5); ctx.lineTo(0, 1.8); ctx.lineTo(-3.2, 3.5); ctx.closePath();
-        if (onMap) { ctx.strokeStyle = 'rgba(2, 6, 23, 0.85)'; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke(); }
-        ctx.fill();
+        // Background traffic: the same silhouette, small.
+        drawIcon(ctx, a, x, y, 0.62, altitudeColor(a.altFt, onMap ? 1 : 0.75), onMap ? 'rgba(2, 6, 23, 0.85)' : null);
       }
-      ctx.restore();
     }
 
     // Labels for featured aircraft only, placed so they don't collide.
     // Home and every featured aircraft are reserved first, so no label covers a plane.
-    const nearestFirst = visible.filter(a => feature.has(a.hex));
-    const taken: Label[] = [{ x: cx - 12, y: cy - 12, w: 24, h: 24 }, ...placeBoxes, ...nearestFirst.map(a => {
+    const taken: Label[] = [{ x: cx - 12, y: cy - 12, w: 24, h: 24 }, ...airportBoxes, ...placeBoxes, ...routeBoxes, ...nearestFirst.map(a => {
       const [x, y] = pos.get(a.hex)!;
       return { x: x - 10, y: y - 10, w: 20, h: 20 };
     })];
@@ -367,7 +538,8 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
       if (!inside(x, y)) continue;
       ctx.font = '600 13px -apple-system, "Segoe UI", sans-serif';
       const line1 = name(a);
-      const line2 = fmtAlt(a);
+      // The type code, as the trackers show it (A320, B77W), then the height.
+      const line2 = [a.type, fmtAlt(a)].filter(Boolean).join(' · ');
       const tw = Math.max(ctx.measureText(line1).width, (ctx.font = '500 11px -apple-system, "Segoe UI", sans-serif', ctx.measureText(line2).width));
       const l = placeLabel(state, a.hex, x, y, tw, 30, taken, { cx, cy, r });
       taken.push(l);
@@ -416,15 +588,42 @@ function syncMap(canvas: HTMLCanvasElement, config: HubConfig, state: State, cx:
   stage.prepend(disc);
 }
 
+/** Which airline logos loaded (true) or don't exist (false), so the list doesn't flicker on each refresh. */
+const logoKnown = new Map<string, boolean>();
+
+/** The airline's logo on a small white plaque, once it's known to exist. */
+function airlineLogo(iata: string): HTMLImageElement | null {
+  if (logoKnown.get(iata) === false) return null;
+  const img = h('img', 'radar-logo');
+  img.alt = '';
+  img.decoding = 'async';
+  if (logoKnown.get(iata)) img.classList.add('on');
+  img.addEventListener('load', () => { logoKnown.set(iata, true); img.classList.add('on'); });
+  img.addEventListener('error', () => { logoKnown.set(iata, false); img.remove(); });
+  img.src = `/api/logo/${encodeURIComponent(iata)}`;
+  return img;
+}
+
+/** ↑ or ↓ beside the height while climbing or descending at a few hundred feet a minute or more. */
+function climbMark(a: Aircraft): HTMLElement | null {
+  const vs = a.verticalRateFpm;
+  if (vs == null || Math.abs(vs) < 300) return null;
+  const mark = h('span', `radar-climb ${vs > 0 ? 'up' : 'down'}`, vs > 0 ? '↑' : '↓');
+  mark.setAttribute('aria-label', vs > 0 ? 'climbing' : 'descending');
+  return mark;
+}
+
 function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
   const data = state.data;
   const head = h('header', 'radar-head');
   head.append(h('h2', undefined, 'Nearby'));
   const airborne = data ? data.aircraft.filter(a => a.altFt !== null) : [];
+  const grounded = data ? onGround(data).length : 0;
   const age = data ? ageLabel(data.fetchedAt) : null;
   head.append(h('p', 'radar-sub', data
-    ? `${airborne.length} aircraft within ${Math.round(config.radarRadiusNm * NM_KM)} km of ${state.home.name}${age ? ` · ${age}` : ''}`
+    ? `${airborne.length} aircraft within ${Math.round(config.radarRadiusNm * NM_KM)} km of ${state.home.name}${grounded ? ` · ${grounded} on the ground` : ''}${age ? ` · ${age}` : ''}`
     : `Looking for aircraft near ${state.home.name}…`));
+  const clock = new Intl.DateTimeFormat('en-GB', { timeZone: config.timezone, hour: '2-digit', minute: '2-digit' });
   const list = h('ol', 'radar-list');
 
   if (data) {
@@ -437,12 +636,23 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
       li.dataset.hex = a.hex;
       li.style.setProperty('--alt', a.emergency ? '#F87171' : altitudeColor(a.altFt));
       const main = h('div', 'radar-main');
-      main.append(h('b', undefined, name(a)));
+      const who = h('span', 'radar-name');
+      const logo = route?.airlineIata ? airlineLogo(route.airlineIata) : null;
+      if (logo) who.append(logo);
+      who.append(h('b', undefined, name(a)));
+      main.append(who);
+      // When it should land, roughly, from how far it has to go and how fast it's going.
+      // (Positions remembered from before routes carried the distance left have no figure.)
+      const togo = route && Number.isFinite(route.remainingKm) ? minutesToGo(route.remainingKm, a) : null;
+      const lands = togo !== null ? ` · lands ${clock.format(new Date(data.fetchedAt + togo * 60_000))}` : '';
       main.append(h('span', 'radar-route', a.emergency ? `Squawk ${a.squawk ?? 'emergency'}`
         : notable?.kind === 'rare' ? notable.title
-          : route ? `${route.fromCity} → ${route.toCity}` : [typeName(a.desc) ?? a.type, regRepeats(a) ? null : a.registration].filter(Boolean).join(' · ') || '—'));
+          : route ? `${route.fromCity} → ${route.toCity}${lands}` : [typeName(a.desc) ?? a.type, regRepeats(a) ? null : a.registration].filter(Boolean).join(' · ') || '—'));
       const figs = h('div', 'radar-figs');
-      figs.append(h('span', undefined, fmtAlt(a)), h('span', undefined, `${(a.distanceNm * NM_KM).toFixed(a.distanceNm < 5 ? 1 : 0)} km`));
+      const alt = h('span', undefined, fmtAlt(a));
+      const climb = climbMark(a);
+      if (climb) alt.append(climb);
+      figs.append(alt, h('span', undefined, `${(a.distanceNm * NM_KM).toFixed(a.distanceNm < 5 ? 1 : 0)} km`));
       li.append(h('span', 'radar-dot'), main, figs);
       list.append(li);
     }
@@ -479,7 +689,7 @@ export const radarScreen: Screen = {
     const panel = h('aside', 'radar-panel');
     el.append(stage, panel);
 
-    const state: State = { home: config.home, data: null, receivedAt: 0, trails: new Map(), placement: new Map(), pingAt: -1e9, error: null, mapKey: '', places: [] };
+    const state: State = { home: config.home, data: null, receivedAt: 0, trails: new Map(), placement: new Map(), pingAt: -1e9, error: null, mapKey: '', places: [], airports: [], wantTrails: true };
     current = state;
     const age = watchAge(el, config.timezone, () => state.data?.fetchedAt ?? null, () => renderPanel(panel, config, state));
     stopAge = age.stop;
@@ -488,22 +698,28 @@ export const radarScreen: Screen = {
 
     const poll = async (): Promise<Outcome> => {
       try {
-        const data = await getJson<AircraftResponse>(`/api/aircraft?routes=${FEATURED}&${skyQuery(state.home)}`);
+        const data = await getJson<AircraftResponse>(`/api/aircraft?routes=${FEATURED}${state.wantTrails ? '&trails=1' : ''}&${skyQuery(state.home)}`);
         // Never swap newer positions for older ones (a stale answer can be older than what we show).
         if (state.data && data.fetchedAt <= state.data.fetchedAt) {
           renderPanel(panel, config, state);
           return 'failed';
         }
+        const now = data.fetchedAt / 1000;
         const seen = new Set<string>();
         for (const a of data.aircraft) {
+          if (a.altFt === null) continue;
           seen.add(a.hex);
-          const t = state.trails.get(a.hex) ?? [];
-          t.push(offsetNm(state.home, a.lat, a.lon));
-          state.trails.set(a.hex, t.slice(-TRAIL_POINTS));
+          // Where the shared fetcher remembers it being, the first time; after that, our own points.
+          const known = state.trails.get(a.hex) ?? (data.trails?.[a.hex] ?? []).map(([lat, lon, t]): [number, number, number] => [...offsetNm(state.home, lat, lon), t]);
+          const t = known.filter(p => p[2] < now && now - p[2] <= TRAIL_SECONDS);
+          t.push([...offsetNm(state.home, a.lat, a.lon), now]);
+          state.trails.set(a.hex, t);
         }
         for (const hex of [...state.trails.keys()]) if (!seen.has(hex)) { state.trails.delete(hex); state.placement.delete(hex); }
-        Object.assign(state, { data, receivedAt: Date.now(), error: null, pingAt: performance.now() });
-        if (!data.stale) remember('aircraft', state.home, data);
+        // The trails aren't kept with the remembered positions: they'd be old by the time they're shown.
+        const { trails: _trails, ...keep } = data;
+        Object.assign(state, { data: keep, receivedAt: Date.now(), error: null, pingAt: performance.now(), wantTrails: false });
+        if (!data.stale) remember('aircraft', state.home, keep);
         renderPanel(panel, config, state);
         age.check();
         return data.stale ? 'failed' : data.aircraft.length ? 'found' : 'empty';
@@ -525,10 +741,13 @@ export const radarScreen: Screen = {
     retarget = () => {
       skyHome(config).then(home => {
         // Show the last planes seen here straight away, while fresh positions load.
-        Object.assign(state, { home, data: recall<AircraftResponse>('aircraft', home), error: null });
+        Object.assign(state, { home, data: recall<AircraftResponse>('aircraft', home), error: null, wantTrails: true, airports: [] });
         state.trails.clear();
         state.placement.clear();
         renderPanel(panel, config, state);
+        airportsAround(home.lat, home.lon, config.radarRadiusNm)
+          .then(airports => { if (state.home === home) state.airports = airports; })
+          .catch(() => { /* airports are a nicety too */ });
         state.places = recall<{ fetchedAt: number; places: PlaceName[] }>('places', home)?.places ?? [];
         placesAround(home.lat, home.lon, config.radarRadiusNm)
           .then(places => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { angleBetween, arrivalStatus, departureStatus, etaMinutes, mayBeArriving, mayBeDeparting } from '../src/shared/arrivals';
+import { angleBetween, arrivalStatus, departureStatus, etaMinutes, mayBeArriving, mayBeDeparting, minutesToGo } from '../src/shared/arrivals';
 import type { Aircraft } from '../src/shared/types';
 
 const plane = (p: Partial<Aircraft>): Aircraft => ({
@@ -55,4 +55,15 @@ test('departures are near and moving away', () => {
   assert.equal(mayBeDeparting(plane({ bearingDeg: 180, trackDeg: 175, distanceNm: 20, altFt: 9000, verticalRateFpm: 2500 })), true);
   assert.equal(mayBeDeparting(plane({ bearingDeg: 180, trackDeg: 0, distanceNm: 20, altFt: 9000 })), false);
   assert.equal(mayBeDeparting(plane({ bearingDeg: 180, trackDeg: 175, distanceNm: 150 })), false);
+});
+
+test('time to go: at least cruising speed while far away, actual speed near the end', () => {
+  // 734 km at a climbing 300 kt counts as cruise, plus 46 km of approach: an hour.
+  assert.equal(minutesToGo(734, plane({ groundSpeedKt: 300 })), 60);
+  // 100 km at 270 kt (500 km/h), plus 18 km of approach: about 14 minutes.
+  assert.ok(Math.abs(minutesToGo(100, plane({ groundSpeedKt: 270 }))! - 14.16) < 0.1);
+  // Close in, no faster than an approach: 20 km at 300 kt counts as 390 km/h, plus 2 km.
+  assert.ok(Math.abs(minutesToGo(20, plane({ groundSpeedKt: 300 }))! - 3.38) < 0.1);
+  assert.equal(minutesToGo(100, plane({ altFt: null })), null);
+  assert.equal(minutesToGo(100, plane({ groundSpeedKt: 60 })), null);
 });

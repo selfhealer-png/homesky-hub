@@ -62,6 +62,10 @@ export interface Aircraft {
   military?: boolean;
   /** Flagged "interesting" there: government, police, air ambulance and other special operators. */
   interesting?: boolean;
+  /** ADS-B emitter category: A1 light … A5 heavy, A7 helicopter, B2 balloon, B6 drone. */
+  category?: string | null;
+  /** Reported on the ground (altFt is then null too). */
+  onGround?: boolean;
 }
 
 export interface AircraftResponse {
@@ -72,9 +76,20 @@ export interface AircraftResponse {
   stale?: boolean;
   /** Routes for the few featured aircraft, keyed by hex, when requested with ?routes=N. */
   routes?: Record<string, RouteSummary>;
+  /** Where each aircraft has been lately, keyed by hex, oldest first, when requested with ?trails=1. */
+  trails?: Record<string, TrailPoint[]>;
 }
 
-export interface RouteSummary { from: string; to: string; fromCity: string; toCity: string; airline: string | null }
+/** [lat, lon, epoch seconds] */
+export type TrailPoint = [number, number, number];
+
+export interface RouteSummary {
+  from: string; to: string; fromCity: string; toCity: string;
+  airline: string | null; airlineIata: string | null;
+  /** The destination, for drawing the way there. */
+  toLat: number; toLon: number;
+  remainingKm: number;
+}
 
 export interface Airport {
   iata: string; icao: string; name: string; city: string; country: string; lat: number; lon: number;
@@ -118,11 +133,19 @@ export interface PlaneDetail {
   year: number | null;
   /** ADS-B emitter category: A1 light … A5 heavy, A7 helicopter, B2 balloon, B6 drone. */
   category: string | null;
+  /** How the position was found: adsb_icao (sent by the aircraft), mlat, tisb_icao and so on. */
+  positionSource: string | null;
   /** What the aircraft itself reports, when it does. */
   live: {
     iasKt: number | null; tasKt: number | null; mach: number | null;
     /** The altitude dialled in on the autopilot: where it's climbing or descending to. */
     selectedAltFt: number | null;
+    /** The heading dialled in on the autopilot. */
+    selectedHeadingDeg: number | null;
+    /** Which autopilot modes are engaged: autopilot, vnav, althold, approach, lnav, tcas. */
+    navModes: string[] | null;
+    /** Bank angle in degrees, negative to the left. */
+    rollDeg: number | null;
     windFromDeg: number | null; windKt: number | null; outsideTempC: number | null;
   };
   /** About the type, from Wikipedia. */

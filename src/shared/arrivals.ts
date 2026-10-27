@@ -40,6 +40,21 @@ export function etaMinutes(ac: Aircraft): number {
   return Math.max(1, Math.round(((d + extraNm) / speed) * 60));
 }
 
+/**
+ * Roughly how many minutes until a plane reaches the end of its route, `remainingKm` away. On a
+ * long way still to go, at least a jet's cruising speed (a plane climbing out is slow now but
+ * won't be for long); near the end, as fast as it's going, and no faster than an approach once
+ * close in. Like etaMinutes, it allows for the extra distance of a descent and approach pattern.
+ * Null on the ground or when too slow to say.
+ */
+export function minutesToGo(remainingKm: number, ac: Pick<Aircraft, 'altFt' | 'groundSpeedKt'>): number | null {
+  const kmh = (ac.groundSpeedKt ?? 0) * 1.852;
+  if (ac.altFt === null || kmh <= 150) return null;
+  const pace = remainingKm > 400 ? Math.max(kmh, 780) : remainingKm < 75 ? Math.min(kmh, 390) : kmh;
+  const extraKm = remainingKm > 28 ? Math.min(46, 6 + remainingKm * 0.12) : 2;
+  return ((remainingKm + extraKm) / pace) * 60;
+}
+
 /** Pointing at the airport, or already low and close to it (vectored, holding or on base). */
 export function mayBeArriving(ac: Aircraft): boolean {
   if (ac.altFt === null) return ac.distanceNm < 3 && (ac.groundSpeedKt ?? 0) > 3;

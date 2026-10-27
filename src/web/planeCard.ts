@@ -1,3 +1,4 @@
+import { minutesToGo } from '../shared/arrivals';
 import { approaching, classify, compassWord, typeName, whereToLook, type Notable } from '../shared/notable';
 import type { Aircraft, HubConfig, PlaneDetail } from '../shared/types';
 import { getJson } from './api';
@@ -19,6 +20,44 @@ const CATEGORY: Record<string, string> = {
   A6: 'High performance', A7: 'Helicopter', B1: 'Glider', B2: 'Balloon or airship', B4: 'Microlight',
   B6: 'Drone', B7: 'Spacecraft',
 };
+
+/** How the position was found (readsb's message types, without their _icao/_other ending). */
+const POSITION_SOURCE: Record<string, string> = {
+  adsb: 'ADS-B, sent by the aircraft',
+  adsr: 'ADS-B, relayed by a ground station',
+  mlat: 'MLAT, worked out by ground receivers',
+  tisb: 'TIS-B, from air traffic radar',
+  adsc: 'ADS-C, by satellite',
+  mode_s: 'Mode S only',
+};
+
+/** The autopilot's modes in words; air traffic avoidance (tcas) is always on, so it's left out. */
+const NAV_MODE: Record<string, string> = {
+  althold: 'holding height',
+  vnav: 'managing its climb and descent',
+  lnav: 'following its route',
+  approach: 'flying the approach',
+};
+
+/** What the autopilot is set to: on or off, the height and heading dialled in, and its modes. */
+function autopilot(modes: string[] | null, targetFt: number | null, headingDeg: number | null): string | null {
+  const parts: string[] = [];
+  // Only aircraft that send their modes say whether it's engaged at all.
+  if (modes) parts.push(modes.includes('autopilot') ? 'On' : 'Not engaged');
+  if (targetFt != null && targetFt > 0) parts.push(`set to ${num(targetFt)} ft`);
+  if (headingDeg != null) parts.push(`heading ${Math.round(headingDeg)}°`);
+  for (const m of modes ?? []) if (NAV_MODE[m]) parts.push(NAV_MODE[m]);
+  if (!parts.length) return null;
+  const text = parts.join(' · ');
+  return text[0].toUpperCase() + text.slice(1);
+}
+
+/** Bank angle: readsb's roll is negative with the left wing down. */
+function bank(rollDeg: number | null): string | null {
+  if (rollDeg == null) return null;
+  if (Math.abs(rollDeg) < 2) return 'Wings level';
+  return `${Math.round(Math.abs(rollDeg))}°, turning ${rollDeg < 0 ? 'left' : 'right'}`;
+}
 
 export const NOTABLE_LABEL: Record<Notable['kind'], string> = { emergency: 'Emergency', rare: 'Rare', military: 'Military', special: 'Special' };
 
@@ -124,7 +163,11 @@ function render(config: HubConfig, hex: string, d: PlaneDetail | null, known: Ai
     );
     const bar = h('div', 'plane-progress');
     bar.style.setProperty('--p', `${Math.round(r.progress * 100)}%`);
-    leg.append(bar, h('small', undefined, `${num(r.flownKm)} km flown · ${num(r.remainingKm)} km to go`));
+    const togo = minutesToGo(r.remainingKm, a);
+    const lands = togo !== null
+      ? ` · lands about ${new Intl.DateTimeFormat('en-GB', { timeZone: config.timezone, hour: '2-digit', minute: '2-digit' }).format(new Date((d?.fetchedAt ?? Date.now()) + togo * 60_000))}`
+      : '';
+    leg.append(bar, h('small', undefined, `${num(r.flownKm)} km flown · ${num(r.remainingKm)} km to go${lands}`));
     parts.push(leg);
   }
 
@@ -146,6 +189,11 @@ function render(config: HubConfig, hex: string, d: PlaneDetail | null, known: Ai
   stat('Speed', a.groundSpeedKt != null ? `${num(a.groundSpeedKt * 1.852)} km/h over the ground` : null);
   stat('Airspeed', live?.mach != null && live.mach >= 0.4 ? `Mach ${live.mach.toFixed(2)}` : live?.iasKt != null ? `${num(live.iasKt)} kt` : null);
   stat('Heading', a.trackDeg != null ? `${Math.round(a.trackDeg)}° ${compassWord(a.trackDeg)}` : null);
+  if (a.altFt !== null) {
+    stat('Autopilot', autopilot(live?.navModes ?? null, target, live?.selectedHeadingDeg ?? null));
+    stat('Bank', bank(live?.rollDeg ?? null));
+  }
+  stat('Position', d?.positionSource ? POSITION_SOURCE[d.positionSource.replace(/_(icao(_nt)?|other|trackfile)$/, '')] ?? null : null);
   stat('From you', Number.isFinite(a.distanceNm) ? `${(a.distanceNm * 1.852).toFixed(a.distanceNm < 5 ? 1 : 0)} km ${compassWord(a.bearingDeg)}` : null);
   stat('Outside', live?.outsideTempC != null ? `${String(Math.round(live.outsideTempC)).replace('-', '−')} °C${live.windKt != null && live.windFromDeg != null ? `, wind from the ${compassWord(live.windFromDeg)} at ${num(live.windKt * 1.852)} km/h` : ''}` : null);
   stat('Squawk', a.squawk);
