@@ -1,3 +1,4 @@
+import { DEFAULT_ALERTS } from '../shared/notable';
 import { DEFAULT_DISPLAY, DEFAULT_NIGHT, DEFAULT_RADAR_MAP } from '../shared/settings';
 import { screenOrder } from '../shared/rotation';
 import type { HubConfig, BoardTheme } from '../shared/types';
@@ -76,6 +77,8 @@ export async function hubConfig(env: Env, request?: Request): Promise<HubConfig>
     stripClock: settings.display?.stripClock ?? false,
     follow: sky?.follow ?? null,
     tidePlace: sky?.tidePlace ?? null,
+    alerts: sky?.alerts ?? DEFAULT_ALERTS,
+    alertSound: sky?.alertSound ?? false,
     features: { agenda: !!env.AGENDA_FEED_URL || settings.connections.some(c => c.enabled), photos: (await listPhotos(env)).length > 0, trending: false },
   };
 }

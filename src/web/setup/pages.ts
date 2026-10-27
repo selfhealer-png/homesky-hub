@@ -6,7 +6,7 @@ import {
 import type { Warmth } from '../../shared/wear';
 import { calendarChoices, calendarCount } from './accounts';
 import { PHOTO_LABELS, photoCount, photoSections } from './photos';
-import { airportCards, airportCodes, followCard, locationRow, MAP_LABELS, mapCard, rangeCard, tideCards, tidePlaceName } from './sky';
+import { airportCards, airportCodes, alertsCard, followCard, locationRow, MAP_LABELS, mapCard, rangeCard, tideCards, tidePlaceName } from './sky';
 import { displaySettings, isScreenOn, km, placeName, saveDisplay, setScreenOn, skySettings, state } from './store';
 import { screenOrder } from '../../shared/rotation';
 import { api, busy, card, choiceList, copyRow, h, iosSwitch, pageHead, quietly, row, segmented, svg, tile } from './ui';
@@ -93,7 +93,7 @@ export const SCREENS: ScreenDef[] = [
     lede: 'A split-flap board of the planes passing over right now.',
     icon: '<path d="M21 15.5v-2l-8-5V4a1.5 1.5 0 0 0-3 0v4.5l-8 5v2l8-2.5V18l-2 1.5V21l3.5-1 3.5 1v-1.5L13 18v-5Z"/>',
     summary: () => ({ text: `${placeName()} · ${km(skySettings().radiusNm)}` }),
-    body: () => [locationRow(), rangeCard('Flight radar')],
+    body: () => [locationRow(), rangeCard('Flight radar'), alertsCard()],
   },
   {
     id: 'radar', name: 'Flight radar', category: 'flights', color: '#2e9d6e',

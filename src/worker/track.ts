@@ -13,7 +13,7 @@ import { skyContext } from './sky';
 // the first one in the air wins. The same community ADS-B sources as the radar answer by
 // callsign, registration or hex, worldwide.
 
-type Lookup = { kind: 'callsign' | 'reg' | 'hex'; value: string };
+export type Lookup = { kind: 'callsign' | 'reg' | 'hex'; value: string };
 
 const SOURCES: Array<{ name: string; url: (l: Lookup) => string }> = [
   { name: 'adsb.lol', url: l => `https://api.adsb.lol/v2/${l.kind}/${encodeURIComponent(l.value)}` },
@@ -58,7 +58,7 @@ export async function lookupsFor(env: Env, query: string): Promise<Lookup[]> {
   return out;
 }
 
-async function fetchLookup(env: Env, l: Lookup): Promise<{ source: string; aircraft: ReadsbAircraft[] }> {
+export async function fetchLookup(env: Env, l: Lookup): Promise<{ source: string; aircraft: ReadsbAircraft[] }> {
   return cached(env, `track:${l.kind}:${l.value}`, LIVE_SECONDS, async () => {
     const errors: string[] = [];
     for (const s of SOURCES) {

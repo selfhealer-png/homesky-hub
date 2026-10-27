@@ -649,6 +649,63 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 .menu button { min-height: 48px; border-radius: 12px; border: 1.5px solid #475569; background: #0F172A; color: #F1F5F9; font: 600 16px/1 -apple-system, "Segoe UI", sans-serif; cursor: pointer; }
 .menu button.primary { background: #2563FF; border-color: #2563FF; }
 
+/* ── Alerts (alerts.ts): a banner over any screen ───────────────────────── */
+.alert { position: fixed; top: 16px; left: 50%; z-index: 17; display: flex; align-items: center; gap: 14px; width: min(760px, calc(100% - 32px)); padding: 12px 14px 12px 12px; border-radius: 18px; border: 1px solid rgba(251, 191, 36, 0.45); background: rgba(15, 23, 42, 0.96); color: #F1F5F9; text-align: left; font: inherit; cursor: pointer; box-shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.85); transform: translate(-50%, -12px); opacity: 0; transition: opacity 0.3s, transform 0.4s cubic-bezier(.16, 1, .3, 1); }
+.alert.on { opacity: 1; transform: translate(-50%, 0); }
+[data-motion="still"] .alert { transition: none; }
+.alert-tag { flex: none; padding: 5px 10px; border-radius: 999px; background: #FBBF24; color: #1C1405; font: 800 13px/1 -apple-system, "Segoe UI", sans-serif; letter-spacing: 0.06em; text-transform: uppercase; }
+.alert-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.alert-text b { font: 700 21px/1.2 "Gabarito", -apple-system, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alert-text span { font-size: 15px; color: #CBD5E1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alert-look { flex: none; font: 700 16px/1.2 -apple-system, "Segoe UI", sans-serif; color: #FDE68A; }
+.alert-close { flex: none; display: grid; place-items: center; width: 40px; height: 40px; margin: -6px -4px -6px 0; border-radius: 12px; font-size: 26px; line-height: 1; color: #94A3B8; }
+.alert-emergency { border-color: rgba(248, 113, 113, 0.6); }
+.alert-emergency .alert-tag { background: #F87171; color: #1F0505; }
+.alert-emergency .alert-look { color: #FCA5A5; }
+.alert-military, .alert-special { border-color: rgba(148, 163, 184, 0.4); }
+.alert-military .alert-tag, .alert-special .alert-tag { background: #CBD5E1; color: #0F172A; }
+.alert-military .alert-look, .alert-special .alert-look { color: #E2E8F0; }
+@media (max-width: 640px) { .alert-look { display: none; } .alert-text b { font-size: 18px; } }
+
+/* ── Plane card (planeCard.ts) ──────────────────────────────────────────── */
+.plane-scrim { position: fixed; inset: 0; z-index: 21; display: grid; place-items: center; padding: 16px; background: rgba(2, 6, 23, 0.6); }
+.plane-card { position: relative; width: min(920px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; -webkit-user-select: text; user-select: text; border-radius: 22px; background: #111A2E; border: 1px solid rgba(148, 163, 184, 0.22); box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.9); color: #F1F5F9; }
+.plane-close { position: absolute; top: 10px; right: 10px; z-index: 1; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; border: 0; background: rgba(30, 41, 59, 0.9); color: #CBD5E1; cursor: pointer; }
+.plane-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+.plane-main { padding: 22px 24px 18px; display: flex; flex-direction: column; gap: 14px; }
+.plane-loading { padding: 40px 24px; color: #94A3B8; }
+.plane-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding-right: 40px; }
+.plane-head h2 { margin: 0; font: 700 40px/1 "Gabarito", -apple-system, sans-serif; letter-spacing: 0.01em; }
+.plane-head p { flex-basis: 100%; margin: 0; }
+.plane-logo { height: 34px; max-width: 120px; object-fit: contain; padding: 3px 6px; border-radius: 6px; background: #F8FAFC; }
+.plane-tag { padding: 5px 10px; border-radius: 999px; font: 800 12px/1 -apple-system, "Segoe UI", sans-serif; letter-spacing: 0.06em; text-transform: uppercase; background: #CBD5E1; color: #0F172A; }
+.plane-tag.tag-rare { background: #FBBF24; color: #1C1405; }
+.plane-tag.tag-emergency { background: #F87171; color: #1F0505; }
+.plane-who { font: 600 19px/1.3 -apple-system, "Segoe UI", sans-serif; color: #E2E8F0; }
+.plane-alarm { font-weight: 700; color: #FCA5A5; }
+.plane-facts { font-size: 15px; color: #94A3B8; }
+.plane-look { margin: 0; padding: 10px 14px; border-radius: 12px; background: rgba(251, 191, 36, 0.1); color: #FDE68A; font: 700 17px/1.3 -apple-system, "Segoe UI", sans-serif; }
+.plane-leg { display: flex; flex-direction: column; gap: 4px; }
+.plane-leg b { font: 700 24px/1.1 "Gabarito", -apple-system, sans-serif; }
+.plane-leg span { font-size: 15px; color: #CBD5E1; }
+.plane-leg small { font-size: 14px; color: #94A3B8; }
+.plane-progress { height: 6px; margin: 6px 0 2px; border-radius: 3px; background: #1E293B; overflow: hidden; }
+.plane-progress::before { content: ""; display: block; height: 100%; width: var(--p); border-radius: 3px; background: #5AB4FF; }
+.plane-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; margin: 0; }
+.plane-stats dt { font: 700 12px/1 -apple-system, "Segoe UI", sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: #94A3B8; }
+.plane-stats dd { margin: 4px 0 0; font-size: 16px; line-height: 1.3; }
+.plane-about { padding: 22px 24px 18px; border-left: 1px solid rgba(148, 163, 184, 0.16); background: rgba(15, 23, 42, 0.5); display: flex; flex-direction: column; gap: 10px; }
+.plane-photo { width: 100%; max-height: 240px; object-fit: cover; border-radius: 12px; background: #1E293B; }
+.plane-about h3 { margin: 4px 0 0; font: 700 20px/1.2 "Gabarito", -apple-system, sans-serif; }
+.plane-about p { margin: 0; font-size: 15px; line-height: 1.5; color: #CBD5E1; }
+.plane-credit { font-size: 12px; color: #64748B; }
+.plane-foot { grid-column: 1 / -1; padding: 10px 24px 14px; border-top: 1px solid rgba(148, 163, 184, 0.12); font-size: 12px; color: #64748B; }
+@media (orientation: portrait), (max-width: 700px) {
+  .plane-body { grid-template-columns: 1fr; }
+  .plane-about { border-left: 0; border-top: 1px solid rgba(148, 163, 184, 0.16); }
+}
+@media (max-width: 520px) { .plane-head h2 { font-size: 30px; } .plane-stats { grid-template-columns: 1fr; } }
+
 /* ── Nothing set up yet ─────────────────────────────────────────────────── */
 .screen-home.clock-only { grid-template-columns: 1fr; place-items: center; text-align: center; }
 .screen-home.clock-only .agenda, .screen-home.clock-only .days { display: none; }

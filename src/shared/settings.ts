@@ -1,6 +1,7 @@
 // Settings chosen in /setup, stored in KV. Anything secret (calendar links, tokens, OAuth
 // credentials) is not in here: it lives in a separate encrypted blob, keyed by `secretKey`.
 
+import type { AlertLevel } from './notable';
 import type { Warmth } from './wear';
 
 export type ConnectionKind = 'ics' | 'feed' | 'google';
@@ -68,6 +69,10 @@ export interface SkySettings {
   follow?: string;
   /** Where the Tides screen reads the tide: a place by the sea, since inland places have none. */
   tidePlace?: Place;
+  /** Which aircraft interrupt the display with an alert (default: rare ones and emergencies). */
+  alerts?: AlertLevel;
+  /** A soft chime with each alert, except at night. Off unless chosen. */
+  alertSound?: boolean;
 }
 
 export type RadarMap = 'plain' | 'map' | 'satellite';

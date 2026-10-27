@@ -6,6 +6,8 @@ import { flash, type Screen } from './screen';
 import { setMotionLevel } from './motion';
 import { currentNight, startNight, updateNight } from './night';
 import { showWelcome } from './welcome';
+import { startAlerts } from './alerts';
+import { openPlane } from './planeCard';
 import { startKeepAwake } from './wakeLock';
 import { airportScreen } from './screens/airport';
 import { boardScreen } from './screens/board';
@@ -127,6 +129,9 @@ function wireGestures() {
   stage.addEventListener('pointerup', e => {
     clearTimeout(pressTimer);
     if (longPressed) return;
+    // A tap on a plane opens its card, wherever it is on the screen.
+    const plane = screens[index].aircraftAt?.(e.clientX, e.clientY, e.target as Element);
+    if (plane) return openPlane(plane.hex, config, plane);
     const x = e.clientX / window.innerWidth;
     if (x < 1 / 3) showChosen(index - 1);
     else if (x > 2 / 3) showChosen(index + 1);
@@ -171,9 +176,11 @@ function openMenu() {
   }
   document.addEventListener('keydown', onKey);
   scrim.addEventListener('pointerdown', () => { clearTimeout(idle); idle = window.setTimeout(close, MENU_IDLE_MS); });
+  const plane = screens[index].currentAircraft?.();
   menu.append(
     title,
     item(pinned ? 'Carry on rotating' : 'Stay on this screen', () => setPinned(!pinned), true),
+    plane ? item('About this plane', () => openPlane(plane.hex, config, plane)) : '',
     // Straight to this screen's own settings page; Back there leads to the rest.
     item('Settings', () => { location.href = `/setup#/screens/${screens[index].id}`; }),
     item('Close', () => {}),
@@ -205,6 +212,7 @@ async function start() {
   document.body.classList.toggle('strip-clock', config.stripClock);
   wireGestures();
   startKeepAwake();
+  startAlerts(config);
   startNight(config, () => {
     buildRotation();
     if (mounted && screens[index] !== mounted) show(index);

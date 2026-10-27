@@ -1,6 +1,7 @@
+import { ALERT_LEVELS, DEFAULT_ALERTS, type AlertLevel } from '../../shared/notable';
 import { cleanFollow, DEFAULT_RADAR_MAP, isFollow, MAX_AIRPORTS, RADAR_MAPS, RADIUS_CHOICES, type Place, type RadarMap, type SavedAirport } from '../../shared/settings';
 import { km, placeName, saveSky, skySettings } from './store';
-import { busy, card, h, input, pageHead, quietly, row, segmented, svg, toast } from './ui';
+import { busy, card, h, input, iosSwitch, pageHead, quietly, row, segmented, svg, toast } from './ui';
 
 // Places (shared by every screen that uses a location), the radar's range and map, and airports.
 
@@ -196,3 +197,16 @@ export function tideCards(): Node[] {
   return [yours, card('Choose a place', form, results, saved.length ? h('div', { class: 'results' }, ...saved) : null,
     h('p', { class: 'hint' }, 'Choose somewhere right on the coast. Tides come from Open-Meteo’s global marine model, as height above or below mean sea level: good for when the tide turns, but not a harbour tide table, and not for navigation.'))];
 }
+
+// ── Alerts ──────────────────────────────────────────────────────────────────
+
+export function alertsCard() {
+  const sky = skySettings();
+  return card('Alerts',
+    segmented('sky-alerts', 'Alerts', ALERT_LEVELS.map(l => [l, ALERT_LABELS[l]] as [AlertLevel, string]), sky.alerts ?? DEFAULT_ALERTS,
+      alerts => quietly(saveSky({ ...sky, alerts }))),
+    h('label', { class: 'gcheck' }, iosSwitch(sky.alertSound ?? false, 'Chime with each alert', alertSound => saveSky({ ...sky, alertSound })), h('span', {}, 'Chime with each alert')),
+    h('p', { class: 'hint' }, 'A banner over any screen when something worth looking up for comes into range: an emergency, a rare aircraft (a Beluga, a B-52, a Spitfire), or, if you choose, military and special operators such as police and air ambulances. It says where to look; tap it for the plane’s details. Each aircraft alerts once every six hours, nothing alerts in quiet hours, and the chime never sounds after sunset.'));
+}
+
+const ALERT_LABELS: Record<AlertLevel, string> = { off: 'Off', rare: 'Rare and emergencies', all: 'Also military' };

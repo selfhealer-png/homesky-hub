@@ -1,3 +1,4 @@
+import { classify, typeName } from '../../shared/notable';
 import type { RadarMap } from '../../shared/settings';
 import type { Aircraft, AircraftResponse, HubConfig, PlaceName, RouteSummary } from '../../shared/types';
 import { getJson } from '../api';
@@ -68,6 +69,10 @@ let stopAge: (() => void) | undefined;
 let frame: number | undefined;
 let retarget: (() => void) | undefined;
 let currentConfig: HubConfig | undefined;
+let current: State | undefined;
+let canvasEl: HTMLCanvasElement | undefined;
+/** Where each plane was last drawn, in canvas pixels, for finding the one under a tap. */
+let drawn: Array<{ a: Aircraft; x: number; y: number }> = [];
 
 // What's under the radar is chosen in /setup (Sky › Radar background).
 const mapChoice = (config: HubConfig): RadarMap => config.radarMap ?? 'plain';
@@ -94,8 +99,13 @@ const listed = () => (window.matchMedia('(max-height: 520px), (max-width: 520px)
 
 function featured(data: AircraftResponse): Set<string> {
   const airborne = data.aircraft.filter(a => a.altFt !== null);
-  return new Set([...airborne.filter(a => a.emergency), ...airborne.slice(0, listed())].map(a => a.hex));
+  // Emergencies and rare aircraft are always labelled, however far out.
+  const special = airborne.filter(a => a.emergency || classify(a)?.kind === 'rare');
+  return new Set([...special, ...airborne.slice(0, listed())].map(a => a.hex));
 }
+
+/** Rare aircraft get an amber ring; military and special operators a fainter, dashed one. */
+const RING: Partial<Record<string, string>> = { rare: '#FBBF24', military: 'rgba(226, 232, 240, 0.7)', special: 'rgba(226, 232, 240, 0.7)' };
 
 /** Range rings every so many kilometres, for a radius in nautical miles. */
 const ringStepKm = (radiusNm: number) => { const km = radiusNm * NM_KM; return km <= 60 ? 10 : km <= 120 ? 20 : 50; };
@@ -309,10 +319,21 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
     }
 
     // Aircraft.
+    drawn = [];
     for (const a of ordered) {
       const [x, y] = pos.get(a.hex)!;
       if (!inside(x, y)) continue;
+      drawn.push({ a, x, y });
       const isF = feature.has(a.hex);
+      const ring = RING[classify(a)?.kind ?? ''];
+      if (ring) {
+        ctx.save();
+        ctx.strokeStyle = ring;
+        ctx.lineWidth = 1.5;
+        if (ring !== RING.rare) ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.arc(x, y, isF ? 14 : 10, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(((a.trackDeg ?? 0) * Math.PI) / 180);
@@ -411,12 +432,15 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
     const rows = airborne.filter(a => feature.has(a.hex));
     for (const a of rows) {
       const route: RouteSummary | undefined = data.routes?.[a.hex];
+      const notable = classify(a);
       const li = h('li', `radar-row${a.emergency ? ' emergency' : ''}`);
+      li.dataset.hex = a.hex;
       li.style.setProperty('--alt', a.emergency ? '#F87171' : altitudeColor(a.altFt));
       const main = h('div', 'radar-main');
       main.append(h('b', undefined, name(a)));
       main.append(h('span', 'radar-route', a.emergency ? `Squawk ${a.squawk ?? 'emergency'}`
-        : route ? `${route.fromCity} → ${route.toCity}` : [a.type, regRepeats(a) ? null : a.registration].filter(Boolean).join(' · ') || '—'));
+        : notable?.kind === 'rare' ? notable.title
+          : route ? `${route.fromCity} → ${route.toCity}` : [typeName(a.desc) ?? a.type, regRepeats(a) ? null : a.registration].filter(Boolean).join(' · ') || '—'));
       const figs = h('div', 'radar-figs');
       figs.append(h('span', undefined, fmtAlt(a)), h('span', undefined, `${(a.distanceNm * NM_KM).toFixed(a.distanceNm < 5 ? 1 : 0)} km`));
       li.append(h('span', 'radar-dot'), main, figs);
@@ -448,6 +472,7 @@ export const radarScreen: Screen = {
     currentConfig = config;
     const stage = h('div', 'radar-stage');
     const canvas = h('canvas', 'radar');
+    canvasEl = canvas;
     canvas.setAttribute('role', 'img');
     canvas.setAttribute('aria-label', 'Radar of aircraft around home');
     stage.append(canvas);
@@ -455,6 +480,7 @@ export const radarScreen: Screen = {
     el.append(stage, panel);
 
     const state: State = { home: config.home, data: null, receivedAt: 0, trails: new Map(), placement: new Map(), pingAt: -1e9, error: null, mapKey: '', places: [] };
+    current = state;
     const age = watchAge(el, config.timezone, () => state.data?.fetchedAt ?? null, () => renderPanel(panel, config, state));
     stopAge = age.stop;
     // Displays used to keep their own choice; it's in /setup now.
@@ -527,6 +553,18 @@ export const radarScreen: Screen = {
     retarget!();
     return `Centred on ${next === 'device' ? 'this display' : currentConfig!.places.find(p => p.id === next)?.name ?? 'home'}`;
   },
+  aircraftAt(x: number, y: number, target: Element) {
+    // A row in the list, or the plane nearest the tap on the radar (within a fingertip).
+    const hex = target.closest<HTMLElement>('[data-hex]')?.dataset.hex;
+    if (hex) return current?.data?.aircraft.find(a => a.hex === hex) ?? null;
+    if (!canvasEl || target !== canvasEl) return null;
+    const box = canvasEl.getBoundingClientRect();
+    const hit = drawn
+      .map(d => ({ a: d.a, gap: Math.hypot(d.x - (x - box.left), d.y - (y - box.top)) }))
+      .filter(d => d.gap < 24)
+      .sort((p, q) => p.gap - q.gap)[0];
+    return hit?.a ?? null;
+  },
   unmount() {
     stopAge?.();
     stopAge = undefined;
@@ -534,5 +572,7 @@ export const radarScreen: Screen = {
     refresher = undefined;
     if (frame) cancelAnimationFrame(frame);
     retarget = undefined;
+    current = canvasEl = undefined;
+    drawn = [];
   },
 };

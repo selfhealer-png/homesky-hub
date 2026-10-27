@@ -35,7 +35,22 @@ export interface ReadsbAircraft {
   hex: string; flight?: string; r?: string; t?: string;
   lat?: number; lon?: number; alt_baro?: number | 'ground'; gs?: number; track?: number;
   baro_rate?: number; geom_rate?: number; squawk?: string; emergency?: string;
+  // From the feed's aircraft database. dbFlags: 1 military, 2 interesting, 4 PIA, 8 LADD.
+  desc?: string; dbFlags?: number; ownOp?: string; year?: string | number; category?: string;
+  // What the aircraft reports about itself, when it does.
+  ias?: number; tas?: number; mach?: number; nav_altitude_mcp?: number; wd?: number; ws?: number; oat?: number;
 }
+
+/** PIA and LADD: owners who asked for their aircraft not to be singled out. */
+const PRIVATE_FLAGS = 4 | 8;
+
+/** ICAO address blocks kept for military aircraft, for feeds that don't send the military flag:
+ *  the United States and the United Kingdom, which between them fly most of what's seen. */
+const MILITARY_BLOCKS: Array<[number, number]> = [[0xae0000, 0xafffff], [0x43c000, 0x43cfff]];
+const inMilitaryBlock = (hex: string) => {
+  const n = parseInt(hex, 16);
+  return MILITARY_BLOCKS.some(([lo, hi]) => n >= lo && n <= hi);
+};
 
 export function distanceAndBearing(lat0: number, lon0: number, lat: number, lon: number) {
   const toRad = Math.PI / 180;
@@ -52,6 +67,7 @@ export function distanceAndBearing(lat0: number, lon0: number, lat: number, lon:
 export function normalize(raw: ReadsbAircraft, lat0: number, lon0: number): Aircraft | null {
   if (typeof raw.lat !== 'number' || typeof raw.lon !== 'number') return null;
   const squawk = raw.squawk ?? null;
+  const flags = raw.dbFlags ?? 0;
   return {
     hex: raw.hex,
     callsign: raw.flight?.trim() || null,
@@ -66,6 +82,9 @@ export function normalize(raw: ReadsbAircraft, lat0: number, lon0: number): Airc
     squawk,
     emergency: (!!raw.emergency && raw.emergency !== 'none') || (!!squawk && EMERGENCY_SQUAWKS.has(squawk)),
     ...distanceAndBearing(lat0, lon0, raw.lat, raw.lon),
+    desc: raw.desc?.trim() || null,
+    military: (!!(flags & 1) || (raw.dbFlags === undefined && inMilitaryBlock(raw.hex))) && !(flags & PRIVATE_FLAGS),
+    interesting: !!(flags & 2) && !(flags & PRIVATE_FLAGS),
   };
 }
 

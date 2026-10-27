@@ -1,3 +1,4 @@
+import { classify } from '../shared/notable';
 import type { Aircraft, OverheadResponse } from '../shared/types';
 import { getAircraft, type AircraftUnavailable } from './aircraft';
 import { json, type Env } from './env';
@@ -7,7 +8,7 @@ import { skyContext } from './sky';
 import { followMatcher } from './track';
 
 // Picks the one aircraft the overhead board should show.
-// Priority: an emergency squawk in range, then the flight the Flight tracker follows if it's
+// Priority: an emergency squawk in range, then a rare aircraft, then the flight the Flight tracker follows if it's
 // passing, then the aircraft the display is holding (so the board doesn't flip between two
 // planes at similar distances), then the nearest one.
 
@@ -40,6 +41,8 @@ export async function handleOverhead(url: URL, env: Env, request: Request): Prom
   };
   // Emergencies are shown even when they don't pass the airliner filter.
   add(data.aircraft.find(a => a.emergency && a.distanceNm <= radiusNm), 'emergency');
+  // So are rare aircraft (a Beluga, a Spitfire): the reason to look up.
+  add(data.aircraft.find(a => a.distanceNm <= radiusNm && a.altFt !== null && classify(a)?.kind === 'rare'), 'notable');
   const follow = (await loadSettings(env)).sky?.follow;
   if (follow) {
     const isFollowed = await followMatcher(env, follow);

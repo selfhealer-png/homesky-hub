@@ -3,6 +3,7 @@ import {
   ROTATE_CHOICES, SCREEN_IDS, cleanFollow, isClockTime, isFollow, type ClockStyle, type GoogleWants, type ScreenId, type MotionLevel, type NightSettings,
   type AdminState, type Place, type SavedAirport, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
+import { ALERT_LEVELS } from '../shared/notable';
 import { screenOrder } from '../shared/rotation';
 import { handleLogin, handleLogout, hmac, isAdmin, passesCsrfCheck, safeEqual } from './adminAuth';
 import { readConnection } from './agenda';
@@ -326,7 +327,12 @@ async function saveSky(env: Env, b: Record<string, unknown>) {
   if (followed && !isFollow(followed)) throw new BadRequest('That doesn’t look like a flight number, callsign, registration or hex code.');
   const follow = (s: string | undefined) => b.follow === undefined ? s : followed || undefined;
   const tidePlace = (s: Place | undefined) => b.tidePlace === undefined ? s : b.tidePlace ? cleanPlace(b.tidePlace as Partial<Place>) : undefined;
-  return mutate(env, s => ({ ...s, sky: { places, active, radiusNm, map: map ?? s.sky?.map, airports: airports ?? s.sky?.airports, follow: follow(s.sky?.follow), tidePlace: tidePlace(s.sky?.tidePlace) } }));
+  const alerts = ALERT_LEVELS.find(l => l === b.alerts);
+  const alertSound = typeof b.alertSound === 'boolean' ? b.alertSound : undefined;
+  return mutate(env, s => ({ ...s, sky: {
+    places, active, radiusNm, map: map ?? s.sky?.map, airports: airports ?? s.sky?.airports, follow: follow(s.sky?.follow), tidePlace: tidePlace(s.sky?.tidePlace),
+    alerts: alerts ?? s.sky?.alerts, alertSound: alertSound ?? s.sky?.alertSound,
+  } }));
 }
 
 function cleanPlace(p: Partial<Place>): Place {

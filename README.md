@@ -12,7 +12,9 @@ It's one Cloudflare Worker that serves the web app and a small API. The tablet j
 |---|---|
 | Home: clock, today, overdue, the next few days (from any [agenda feed](docs/feed-contract.md)) | working |
 | Overhead board: split-flap board for the plane above you, with three themes | working |
-| Radar: live aircraft around you over a street map or satellite view, nearest five labelled, coloured by altitude | working |
+| Radar: live aircraft around you over a street map or satellite view, nearest five labelled, coloured by altitude, rare and military aircraft ringed | working |
+| Alerts: a banner over any screen when an emergency or a rare aircraft (a Beluga, a B-52, a Spitfire) comes into range, saying where to look; optionally military too, and a chime | working |
+| Plane card: tap a plane on the radar, an alert, or "About this plane" in the menu for its route, owner, age, target altitude, airspeed, the weather outside it, a photo and a few lines about the type | working |
 | Weather: now, the next hours and days, what to wear (as icons), a rain radar, and pollen and air quality in the pollen season | working |
 | Tides: coming in or going out, when it turns, the curve for the next day and the next high and low waters, for a place by the sea | working |
 | Flight tracker: one flight you choose (flight number, callsign, registration or hex), followed anywhere in the world on a route map; it also goes first on the Overhead board when it passes | working |
@@ -53,14 +55,14 @@ npm run dev          # web app on :5173, proxies /api to the Worker
 ## Data sources and credits
 
 * Aircraft positions: [airplanes.live](https://airplanes.live), [adsb.lol](https://adsb.lol), [adsb.fi](https://adsb.fi), community-fed ADS-B. Please respect their fair-use guidance; the Worker caches for 5 s so many displays share one upstream request.
-* Routes and airlines: [adsbdb](https://www.adsbdb.com).
+* Routes, airlines and aircraft details (owner, country, photo): [adsbdb](https://www.adsbdb.com), with photos from [airport-data.com](https://www.airport-data.com).
 * Weather, cloud, pollen, air quality, tides and place search: [Open-Meteo](https://open-meteo.com) (forecast, air quality from CAMS, marine model, geocoding). The tides are a global model: a guide, not for navigation.
 * Rain radar: [RainViewer](https://www.rainviewer.com), over [OpenStreetMap](https://www.openstreetmap.org/copyright) map tiles (© OpenStreetMap contributors).
 * Aircraft radar background: [OpenStreetMap](https://www.openstreetmap.org/copyright) tiles, or [Sentinel-2 cloudless 2024 by EOX](https://s2maps.eu) satellite imagery (contains modified Copernicus Sentinel data; free for non-commercial use). Both are fine for this open-source hub; a commercial build should switch to a licensed provider in `src/web/mapTiles.ts`.
 * Aurora: Kp forecast from the [NOAA Space Weather Prediction Center](https://www.swpc.noaa.gov).
 * Space Station orbit: [CelesTrak](https://celestrak.org), with [satellite.js](https://github.com/shashwatak/satellite-js) (MIT). Sun and moon are calculated on the hub. Crew: the community-kept [people in space](https://github.com/corquaid/international-space-station-APIs) list. World map: NASA [Blue Marble](https://earthobservatory.nasa.gov/features/BlueMarble) via [GIBS](https://www.earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs) (public domain).
 * Town names on the radar: [GeoNames](https://www.geonames.org) (CC BY 4.0), built into small files with the app by `scripts/build-places.mjs`.
-* Article of the day: [Wikipedia](https://en.wikipedia.org) via the Wikimedia feed API (text CC BY-SA).
+* Article of the day: [Wikipedia](https://en.wikipedia.org) via the Wikimedia feed API (text CC BY-SA). Aircraft types on the plane card: Wikipedia too.
 * Calendar parsing: [ical.js](https://github.com/kewisch/ical.js) (MPL-2.0).
 * Inspired by [esp32flight](https://github.com/theqkash/esp32flight) (MIT), and by word clocks and airport split-flap boards.
 * Titles use [Gabarito](https://github.com/naipefoundry/gabarito) (SIL Open Font License, see `src/web/public/fonts/Gabarito-OFL.txt`).

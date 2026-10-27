@@ -2,6 +2,7 @@
 
 import type { ClockStyle, MotionLevel, NightSettings, PhotoStyle, Place, RadarMap, SavedAirport, ScreenId } from './settings';
 import type { AirInfo } from './air';
+import type { AlertLevel } from './notable';
 import type { Warmth, WeatherHour, WeatherNow } from './wear';
 
 export interface HubConfig {
@@ -35,6 +36,9 @@ export interface HubConfig {
   follow: string | null;
   /** Where the Tides screen reads the tide, or null (the screen sits out until one is chosen). */
   tidePlace: Place | null;
+  /** Which aircraft interrupt the display with an alert, and whether a chime sounds. */
+  alerts: AlertLevel;
+  alertSound: boolean;
 }
 
 export interface Aircraft {
@@ -52,6 +56,12 @@ export interface Aircraft {
   emergency: boolean;
   distanceNm: number;
   bearingDeg: number;
+  /** The type in full from the feed's aircraft database ("BOEING 737-800"), when it knows it. */
+  desc?: string | null;
+  /** Flagged military in the feed's aircraft database. */
+  military?: boolean;
+  /** Flagged "interesting" there: government, police, air ambulance and other special operators. */
+  interesting?: boolean;
 }
 
 export interface AircraftResponse {
@@ -88,8 +98,38 @@ export interface OverheadResponse {
   aircraft: Aircraft | null;
   route: RouteInfo | null;
   /** Why this aircraft was chosen. */
-  reason: 'emergency' | 'followed' | 'held' | 'nearest' | null;
+  reason: 'emergency' | 'notable' | 'followed' | 'held' | 'nearest' | null;
 }
+
+/** Everything known about one aircraft, for the plane card. */
+export interface PlaneDetail {
+  hex: string;
+  fetchedAt: number;
+  source?: string;
+  /** Live, measured from the display's place; null once it's out of reach of the feeds. */
+  aircraft: Aircraft | null;
+  route: RouteInfo | null;
+  /** From the feed's aircraft database. */
+  operator: string | null;
+  /** Where it's registered. */
+  country: string | null;
+  /** A photo of this aircraft itself (airport-data.com, via adsbdb). */
+  photo: string | null;
+  year: number | null;
+  /** ADS-B emitter category: A1 light … A5 heavy, A7 helicopter, B2 balloon, B6 drone. */
+  category: string | null;
+  /** What the aircraft itself reports, when it does. */
+  live: {
+    iasKt: number | null; tasKt: number | null; mach: number | null;
+    /** The altitude dialled in on the autopilot: where it's climbing or descending to. */
+    selectedAltFt: number | null;
+    windFromDeg: number | null; windKt: number | null; outsideTempC: number | null;
+  };
+  /** About the type, from Wikipedia. */
+  article: TypeArticle | null;
+}
+
+export interface TypeArticle { title: string; extract: string; url: string; image?: { url: string; width: number; height: number } }
 
 export type ArrivalStatus = 'en route' | 'descending' | 'approach' | 'landing' | 'landed';
 export type DepartureStatus = 'taxiing' | 'takeoff' | 'climbing' | 'departed';

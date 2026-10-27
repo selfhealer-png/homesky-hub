@@ -1,4 +1,5 @@
 import type { Aircraft, HubConfig, RouteInfo, TrackResponse } from '../../shared/types';
+import { typeName } from '../../shared/notable';
 import { getJson } from '../api';
 import { skyHome, skyQuery, type SkyHome } from '../location';
 import { TILE_SOURCES } from '../mapTiles';
@@ -15,6 +16,8 @@ const PLANE = 'M21 15.5v-2l-8-5V4a1.5 1.5 0 0 0-3 0v4.5l-8 5v2l8-2.5V18l-2 1.5V2
 const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 let timer: number | undefined;
+/** The followed plane while it's flying, for "About this plane" in the menu. */
+let followed: Aircraft | null = null;
 /** The map's tiles, kept between refreshes while the route and the box stay the same. */
 let tiles: { key: string; view: MapView } | undefined;
 
@@ -95,7 +98,7 @@ function panel(d: TrackResponse, a: Aircraft) {
   const side = h('section', 'ft-panel');
   side.append(h('p', 'ft-kicker', 'Following'));
   side.append(h('h1', 'ft-flight', r?.flightNumber ?? a.callsign ?? a.registration ?? d.query));
-  const who = [r?.airline?.name, a.type, a.registration].filter(Boolean).join(' · ');
+  const who = [r?.airline?.name, typeName(a.desc) ?? a.type, a.registration].filter(Boolean).join(' · ');
   if (who) side.append(h('p', 'ft-airline', who));
 
   if (r) {
@@ -157,7 +160,9 @@ export const flightScreen: Screen = {
     const load = async () => {
       try {
         const home = await skyHome(config);
-        render(el, config, await getJson<TrackResponse>(`/api/track?${skyQuery(home)}`), home);
+        const data = await getJson<TrackResponse>(`/api/track?${skyQuery(home)}`);
+        followed = data.aircraft;
+        render(el, config, data, home);
         shown = true;
       } catch {
         // Keep the last good view; only say so if there's nothing on screen yet.
@@ -167,8 +172,10 @@ export const flightScreen: Screen = {
     load();
     timer = window.setInterval(load, REFRESH_MS);
   },
+  currentAircraft: () => followed,
   unmount() {
     clearInterval(timer);
+    followed = null;
     tiles = undefined;
   },
 };

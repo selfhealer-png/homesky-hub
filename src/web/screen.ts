@@ -1,5 +1,5 @@
 import type { ScreenId } from '../shared/settings';
-import type { HubConfig } from '../shared/types';
+import type { Aircraft, HubConfig } from '../shared/types';
 
 // Every screen implements this. To add one, create a module in screens/ and list it in main.ts.
 export interface Screen {
@@ -18,6 +18,10 @@ export interface Screen {
   quiet?: boolean;
   /** Optional: the screen shows the time itself, so the corner time stays off. */
   ownClock?: boolean;
+  /** Optional: the aircraft under a tap (a plane on the radar), which opens its plane card. */
+  aircraftAt?(x: number, y: number, target: Element): Aircraft | null;
+  /** Optional: the aircraft the screen is about, for "About this plane" in the menu. */
+  currentAircraft?(): Aircraft | null;
 }
 
 let flashEl: HTMLElement | undefined;

@@ -8,6 +8,7 @@ import { handleIss } from './iss';
 import { handleLogo } from './logos';
 import { handleOverhead } from './overhead';
 import { handleDisplayPhotos } from './photos';
+import { handlePlane } from './plane';
 import { hubConfig } from './sky';
 import { handleTides } from './tides';
 import { handleTonight } from './tonight';
@@ -45,6 +46,7 @@ export default {
         case '/api/wiki': return handleWiki(env);
         case '/api/tonight': return handleTonight(env, url, request);
         case '/api/track': return handleTrack(env, url, request);
+        case '/api/plane': return handlePlane(env, url, request);
         case '/api/iss': return handleIss(env, url, request);
         case '/api/tides': return handleTides(env);
         default: return json({ error: 'Not found' }, { status: 404 });

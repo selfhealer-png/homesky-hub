@@ -1,4 +1,5 @@
 import type { Aircraft, BoardTheme, HubConfig, OverheadResponse, RouteInfo } from '../../shared/types';
+import { classify, typeName } from '../../shared/notable';
 import { getJson } from '../api';
 import { FlapRow, setFlapMotion, type FlapMotion } from '../flap';
 import { skyHome, skyQuery } from '../location';
@@ -15,6 +16,8 @@ let refresher: Refresher | undefined;
 let stopAge: (() => void) | undefined;
 let root: HTMLElement | undefined;
 let theme: BoardTheme = 'splitflap';
+/** The plane on the board, for "About this plane" in the menu. */
+let onBoard: Aircraft | null = null;
 
 /** The theme this display last chose on the overhead board; the airport board follows it. */
 export function storedTheme(fallback: BoardTheme): BoardTheme {
@@ -68,7 +71,11 @@ function render(ui: BoardUi, data: OverheadResponse) {
   }
 
   showLogo(ui, a.emergency ? null : r?.airline?.iata ?? null);
-  const airline = a.emergency ? `SQUAWK ${a.squawk ?? 'EMERGENCY'}` : r?.airline?.name ?? a.type ?? 'AIRCRAFT';
+  const notable = classify(a);
+  const type = typeName(a.desc) ?? a.type;
+  const airline = a.emergency ? `SQUAWK ${a.squawk ?? 'EMERGENCY'}`
+    : notable?.kind === 'rare' ? notable.title
+      : r?.airline?.name ?? type ?? 'AIRCRAFT';
   const callsign = a.callsign ?? a.registration ?? a.hex.toUpperCase();
   ui.airline.set(airline, 'center');
   ui.callsign.set(callsign, 'center');
@@ -96,7 +103,7 @@ function render(ui: BoardUi, data: OverheadResponse) {
   const facts = r
     ? [`${km(r.flownKm)} km from ${airportCode(r.origin)}`, `${km(r.remainingKm)} km to ${airportCode(r.destination)}`]
     : [];
-  if (r && a.type) facts.push(a.type);
+  if (r && type) facts.push(type);
   if (r && a.registration) facts.push(a.registration);
   ui.footer.textContent = facts.join(' · ');
 }
@@ -187,6 +194,7 @@ export const boardScreen: Screen = {
     stopAge = age.stop;
     const show = (data: OverheadResponse) => {
       shown = data;
+      onBoard = data.aircraft;
       render(ui, data);
       const ago = ageLabel(data.fetchedAt);
       if (ago) ui.footer.textContent = [ui.footer.textContent, ago].filter(Boolean).join(' · ');
@@ -220,6 +228,7 @@ export const boardScreen: Screen = {
     refresher = new Refresher(poll);
     refresher.now();
   },
+  currentAircraft: () => onBoard,
   onCenterTap() {
     applyTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]);
     return THEME_NAMES[theme];
@@ -230,5 +239,6 @@ export const boardScreen: Screen = {
     refresher?.stop();
     refresher = undefined;
     root = undefined;
+    onBoard = null;
   },
 };
