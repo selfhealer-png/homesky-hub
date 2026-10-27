@@ -3,6 +3,9 @@ import type { AdminState } from '../../shared/settings';
 import { accountsPage, googleConnection } from './accounts';
 import { aboutPage, CATEGORIES, hubProblems, motionPage, MOTION_LABELS, nightPage, nightSummary, orderPage, orderSummary, SCREENS, screenPage, screenRow, stripClockSwitch, timingPage, timingSummary } from './pages';
 import { placesPage } from './sky';
+import { DEFAULT_DISPLAY } from '../../shared/settings';
+import { setFlapMotion } from '../flap';
+import { setMotionLevel } from '../motion';
 import { displaySettings, onRender, placeName, setState, state } from './store';
 import { api, busy, field, group, h, HttpError, input, row, svg, tile, toast } from './ui';
 
@@ -26,7 +29,7 @@ let titleWatch: IntersectionObserver | undefined;
 function watchTitle() {
   titleWatch?.disconnect();
   navbar.classList.remove('scrolled');
-  const large = app.querySelector('h2');
+  const large = pageTitle();
   if (!large) return;
   titleWatch = new IntersectionObserver(([e]) => navbar.classList.toggle('scrolled', !e.isIntersecting),
     { rootMargin: `-${navbar.offsetHeight}px 0px 0px 0px` });
@@ -55,6 +58,7 @@ function renderLogin(message?: string) {
       await load();
     });
   });
+  app.className = '';
   app.replaceChildren(form);
   watchTitle();
   pw.focus();
@@ -97,20 +101,45 @@ function page(route: string): Node[] {
   }
 }
 
+/** Wide enough for the board and a page side by side: an iPad, or a laptop. */
+const wide = matchMedia('(min-width: 900px)');
+
+/** The large title of the page being shown (in split view, the right-hand one). */
+const pageTitle = () => (app.querySelector('.page h2') ?? app.querySelector('h2')) as HTMLElement | null;
+
 function render() {
   if (!state) return;
-  app.replaceChildren(...page(location.hash));
+  // The flaps move as much as the display is allowed to, the LED board's way.
+  setMotionLevel(displaySettings().motion ?? DEFAULT_DISPLAY.motion);
+  setFlapMotion('scramble');
   const root = !location.hash || location.hash === '#/';
-  setNav(app.querySelector('h2')?.textContent ?? '', root ? null : '#/');
+  if (wide.matches) {
+    // The board on the left, the page on the right: with nothing chosen, the first screen's.
+    const shown = root ? `#/screens/${SCREENS[0].id}` : location.hash;
+    const scrolled = app.querySelector('.side')?.scrollTop ?? 0;
+    const side = h('div', { class: 'side' }, ...listPage(shown));
+    side.querySelector(`.row a[href="${shown}"]`)?.closest('.row')?.classList.add('current');
+    app.className = 'split';
+    app.replaceChildren(side, h('div', { class: 'page' }, ...page(shown)));
+    side.scrollTop = scrolled;
+    setNav(pageTitle()?.textContent ?? '', null);
+  } else {
+    app.className = '';
+    app.replaceChildren(...page(location.hash));
+    setNav(pageTitle()?.textContent ?? '', root ? null : '#/');
+  }
   watchTitle();
 }
+
+wide.addEventListener('change', render);
 
 window.addEventListener('hashchange', () => {
   if (OLD_ANCHORS[location.hash]) return location.replace(OLD_ANCHORS[location.hash]);
   render();
   window.scrollTo(0, 0);
   // Move focus to the new page's title, so a screen reader announces where it landed.
-  (app.querySelector('h2[tabindex]') as HTMLElement | null)?.focus({ preventScroll: true });
+  const title = pageTitle();
+  if (title?.hasAttribute('tabindex')) title.focus({ preventScroll: true });
 });
 
 // ── the list ────────────────────────────────────────────────────────────────
@@ -139,13 +168,23 @@ function accountsSummary() {
   return parts.length ? parts.join(' · ') : 'Nothing connected';
 }
 
-function listPage() {
+/** The screens in one category, as a section of the departures board. */
+function boardGroup(title: string, screens: typeof SCREENS, shown: string, foot?: string) {
+  return h('section', { class: 'group' },
+    h('div', { class: 'board-head' }, h('span', {}, title), h('span', { 'aria-hidden': 'true' }, 'Status')),
+    ...screens.map(s => screenRow(s, shown === `#/screens/${s.id}`)),
+    foot ? h('p', { class: 'hint' }, foot) : null);
+}
+
+/** The list of everything: the screens as a departures board, then the hub-wide settings.
+ *  `shown` is the page open beside it in split view, which the list marks. */
+function listPage(shown = '') {
   const problems = hubProblems();
   const neutral = '#64748B';
   return [
-    h('h2', { class: 'listtitle', tabindex: '-1' }, 'Settings'),
-    ...CATEGORIES.map(([id, title], i) => group(title, SCREENS.filter(s => s.category === id).map(screenRow),
-      i === CATEGORIES.length - 1 ? 'Switched-off screens leave the display’s rotation within five minutes. A screen with nothing to show yet stays out until it has.' : undefined)),
+    h('h2', { class: 'listtitle', tabindex: shown ? undefined : '-1' }, 'Settings'),
+    ...CATEGORIES.map(([id, title], i) => boardGroup(title, SCREENS.filter(s => s.category === id), shown,
+      i === CATEGORIES.length - 1 ? 'Tap a status to switch a screen on or off. Switched-off screens leave the display’s rotation within five minutes; one with nothing to show yet stays out until it has.' : undefined)),
     group('Display', [
       row({ icon: tile(HUB_ICONS.order, neutral), title: 'Screen order', summary: orderSummary(), href: '#/order' }),
       row({ icon: tile(HUB_ICONS.timing, neutral), title: 'Screen timing', summary: timingSummary(), href: '#/timing' }),

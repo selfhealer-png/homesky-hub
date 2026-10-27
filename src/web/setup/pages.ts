@@ -9,7 +9,8 @@ import { PHOTO_LABELS, photoCount, photoSections } from './photos';
 import { airportCards, airportCodes, alertsCard, followCard, locationRow, MAP_LABELS, mapCard, rangeCard, tideCards, tidePlaceName } from './sky';
 import { displaySettings, isScreenOn, km, placeName, saveDisplay, setScreenOn, skySettings, state } from './store';
 import { screenOrder } from '../../shared/rotation';
-import { api, busy, card, choiceList, copyRow, h, iosSwitch, pageHead, quietly, row, segmented, svg, tile } from './ui';
+import { FlapRow } from '../flap';
+import { api, busy, card, choiceList, copyRow, h, iosSwitch, pageHead, quietly, row, segmented, svg, tile, toast } from './ui';
 
 // Every screen the hub can show, with its row on the Settings list and its own page, and the
 // hub-wide pages (Night, Motion, This hub).
@@ -103,12 +104,12 @@ export const SCREENS: ScreenDef[] = [
     body: () => [locationRow(), rangeCard('Overhead'), mapCard()],
   },
   {
-    id: 'airport', name: 'Airport boards', category: 'flights', color: '#F59E0B',
-    lede: 'Arrivals and departures boards for airports you choose.',
+    id: 'airport', name: 'Airport board', category: 'flights', color: '#F59E0B',
+    lede: 'An arrivals and departures board for an airport you choose.',
     icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h4M7 14h4M14 10h3M14 14h3"/>',
     summary: () => {
       const codes = airportCodes();
-      return codes.length ? { text: codes.join(' · ') } : { text: 'Add an airport to show it', needs: true };
+      return codes.length ? { text: codes[0] } : { text: 'Choose an airport to show it', needs: true };
     },
     body: () => airportCards(),
   },
@@ -183,21 +184,57 @@ export const SCREENS: ScreenDef[] = [
 
 /** The switch for a screen, on its row in the list and at the top of its page. */
 export function screenSwitch(s: ScreenDef) {
-  return iosSwitch(isScreenOn(s.id), `Show ${s.name}`, on => {
-    // Turning on a screen that needs something chosen first (airports, a flight, a place by the
-    // sea): go to its page to choose it.
-    if (on && ['airport', 'flight', 'tides'].includes(s.id) && s.summary().needs && location.hash !== `#/screens/${s.id}`) location.hash = `#/screens/${s.id}`;
-    return setScreenOn(s.id, on, s.name);
-  });
+  return iosSwitch(isScreenOn(s.id), `Show ${s.name}`, on => screenSwitchChange(s, on));
 }
 
-export function screenRow(s: ScreenDef) {
+function screenSwitchChange(s: ScreenDef, on: boolean) {
+  // Turning on a screen that needs something chosen first (airports, a flight, a place by the
+  // sea): go to its page to choose it.
+  if (on && ['airport', 'flight', 'tides'].includes(s.id) && s.summary().needs && location.hash !== `#/screens/${s.id}`) location.hash = `#/screens/${s.id}`;
+  return setScreenOn(s.id, on, s.name);
+}
+
+// The board's flap rows outlive each redraw, so a status that changes flips to its new value
+// instead of being drawn fresh.
+const flaps = new Map<string, FlapRow>();
+function flapRow(key: string, length: number, text: string) {
+  let f = flaps.get(key);
+  if (!f) {
+    flaps.set(key, f = new FlapRow(length, 'sm'));
+    f.el.setAttribute('aria-hidden', 'true');
+  }
+  f.set(text);
+  return f.el;
+}
+
+const NAME_TILES = 14;
+const STATUS_TILES = 6;
+const status = (on: boolean, needs?: boolean) => (!on ? 'OFF' : needs ? 'SET UP' : 'ON');
+
+/** One row of the departures board: the screen's name and status in flaps, and what it shows.
+ *  The row opens the screen's page; the status switches it on or off. */
+export function screenRow(s: ScreenDef, current: boolean) {
   const on = isScreenOn(s.id);
   const sum = s.summary();
-  return row({
-    icon: tile(s.icon, s.color), title: s.name, href: `#/screens/${s.id}`, control: screenSwitch(s),
-    summary: on ? sum.text : 'Off', needs: on && sum.needs,
+  const needs = on && sum.needs;
+  const toggle = h('button', { type: 'button', class: 'dep-status', role: 'switch', 'aria-checked': String(on), 'aria-label': `Show ${s.name}` },
+    flapRow(`${s.id}:status`, STATUS_TILES, status(on, needs)));
+  toggle.addEventListener('click', () => {
+    const next = toggle.getAttribute('aria-checked') !== 'true';
+    // Flip straight away; the redraw after the save settles it, or this flips back if it fails.
+    toggle.setAttribute('aria-checked', String(next));
+    flaps.get(`${s.id}:status`)!.set(status(next));
+    screenSwitchChange(s, next).catch(err => {
+      toggle.setAttribute('aria-checked', String(!next));
+      flaps.get(`${s.id}:status`)!.set(status(!next, needs));
+      toast((err as Error).message, 'error');
+    });
   });
+  return h('div', { class: `dep${current ? ' current' : ''}${on ? '' : ' off'}${needs ? ' needs-setup' : ''}` },
+    h('a', { href: `#/screens/${s.id}`, class: 'dep-link', 'aria-current': current ? 'page' : undefined },
+      h('span', { class: 'sr' }, s.name), flapRow(`${s.id}:name`, NAME_TILES, s.name)),
+    toggle,
+    h('small', { class: needs ? 'needs' : '' }, on ? sum.text : 'Left out of the rotation'));
 }
 
 export function screenPage(s: ScreenDef) {
