@@ -1,5 +1,5 @@
 import { arrivalStatus, departureStatus, etaMinutes, mayBeArriving, mayBeDeparting } from '../shared/arrivals';
-import type { SavedAirport } from '../shared/settings';
+import { MAX_AIRPORTS, type SavedAirport } from '../shared/settings';
 import type { AirportBoardResponse, AirportFlight } from '../shared/types';
 import { getAircraft, type AircraftUnavailable } from './aircraft';
 import { cached } from './cache';
@@ -7,7 +7,7 @@ import { json, type Env } from './env';
 import { lookupRoute, withProgress } from './routes';
 import { loadSettings } from './settings';
 
-// Arrivals and departures boards for the airports chosen in /setup, worked out from open data:
+// The arrivals and departures board for the airport chosen in /setup, worked out from open data:
 // live positions round the airport, and each callsign's route from adsbdb. A plane is an
 // arrival when its route ends here, a departure when it starts here. There's no timetable, so
 // the board only knows flights that are already in the air (or taxiing) within RADIUS_NM.
@@ -23,9 +23,9 @@ const MAX_ROWS = 12;
 
 export async function handleAirportBoard(env: Env, url: URL): Promise<Response> {
   const code = (url.searchParams.get('code') ?? '').toUpperCase();
-  const airport = (await loadSettings(env)).sky?.airports?.find(a => a.icao === code);
-  // Only airports chosen in /setup, so the board can't be used to query anywhere at all.
-  if (!airport) return json({ error: 'That airport isn’t set up. Add it in /setup › Airport boards.' }, { status: 404 });
+  const airport = (await loadSettings(env)).sky?.airports?.slice(0, MAX_AIRPORTS).find(a => a.icao === code);
+  // Only the airport chosen in /setup, so the board can't be used to query anywhere at all.
+  if (!airport) return json({ error: 'That airport isn’t set up. Choose it in /setup › Airport board.' }, { status: 404 });
   try {
     return json(await cached(env, `airport:v1:${airport.icao}`, BOARD_SECONDS, () => buildBoard(env, airport)));
   } catch (err) {

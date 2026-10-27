@@ -343,9 +343,9 @@ function cleanPlace(p: Partial<Place>): Place {
 }
 
 function cleanAirports(raw: Array<Partial<SavedAirport>>): SavedAirport[] {
-  if (raw.length > MAX_AIRPORTS) throw new BadRequest(`Up to ${MAX_AIRPORTS} airports.`);
+  // Hubs set up when several airports were allowed still send them all; the first one stays.
   const seen = new Set<string>();
-  return raw.flatMap(a => {
+  return raw.slice(0, MAX_AIRPORTS).flatMap(a => {
     const icao = String(a.icao ?? '').toUpperCase();
     const lat = Number(a.lat), lon = Number(a.lon);
     if (!/^[A-Z0-9]{4}$/.test(icao)) throw new BadRequest('An airport has an invalid ICAO code.');

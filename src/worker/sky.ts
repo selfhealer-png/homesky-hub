@@ -1,5 +1,5 @@
 import { DEFAULT_ALERTS } from '../shared/notable';
-import { DEFAULT_DISPLAY, DEFAULT_NIGHT, DEFAULT_RADAR_MAP } from '../shared/settings';
+import { DEFAULT_DISPLAY, DEFAULT_NIGHT, DEFAULT_RADAR_MAP, MAX_AIRPORTS } from '../shared/settings';
 import { screenOrder } from '../shared/rotation';
 import type { HubConfig, BoardTheme } from '../shared/types';
 import type { Env } from './env';
@@ -68,7 +68,7 @@ export async function hubConfig(env: Env, request?: Request): Promise<HubConfig>
     motion: settings.display?.motion ?? DEFAULT_DISPLAY.motion,
     warmth: settings.display?.warmth ?? 'normal',
     photoStyle: settings.display?.photoStyle ?? 'fill',
-    airports: sky?.airports ?? [],
+    airports: (sky?.airports ?? []).slice(0, MAX_AIRPORTS),
     night: settings.display?.night ?? DEFAULT_NIGHT,
     wikiPictures: settings.display?.wikiPictures ?? true,
     screensOff: settings.display?.screensOff ?? [],

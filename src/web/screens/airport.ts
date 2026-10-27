@@ -6,18 +6,19 @@ import { ageLabel, isStale, recall, Refresher, remember, watchAge, type Outcome 
 import { h, type Screen } from '../screen';
 import { MOTION, storedTheme } from './board';
 
-// An airport arrivals board, split-flap style, for each airport chosen in /setup. Each visit
-// shows the next airport's arrivals; a tap in the middle turns to its departures, then on to
-// the next airport. Rows are flights already in the air (or taxiing) within 100 nm: the ETA is
-// worked out from where the plane is, not taken from a timetable.
+// The airport board, split-flap style, for the airport chosen in /setup: arrivals above,
+// departures below, as one board. Rows are flights already in the air (or taxiing) within
+// 100 nm: the ETA is worked out from where the plane is, not taken from a timetable.
 
-const ROWS = 8;
-/** Upright, the board is as wide as it can be, so the extra height goes to more flights. */
-const PORTRAIT_ROWS = 14;
+/** Rows in each half of the board; upright, the board is narrower and taller, so it gets more. */
+const ROWS = 6;
+const PORTRAIT_ROWS = 10;
 const rowCount = () => (window.matchMedia('(orientation: portrait)').matches ? PORTRAIT_ROWS : ROWS);
 type Kind = 'arrivals' | 'departures';
+const KINDS: Kind[] = ['arrivals', 'departures'];
 
 interface Column { key: string; label: string; width: number; align?: 'left' | 'right' }
+// The same widths in both halves, so their columns line up.
 const COLUMNS: Record<Kind, Column[]> = {
   arrivals: [
     { key: 'city', label: 'FROM', width: 12 },
@@ -37,18 +38,11 @@ const COLUMNS: Record<Kind, Column[]> = {
   ],
 };
 
-/** Each visit moves on one airport; a tap moves on one view (arrivals, departures, next airport…). */
-let view = -1;
 let refresher: Refresher | undefined;
-let rebuild: (() => void) | undefined;
-/** What the board is showing now ("Departures · London"), for the message after a tap. */
-let describe: (() => string) | undefined;
 let stopAge: (() => void) | undefined;
 /** An arrival whose estimate passed this long ago has landed or gone elsewhere: it leaves the board. */
 const PASSED_MS = 2 * 60_000;
 const kindName = (kind: Kind) => (kind === 'arrivals' ? 'Arrivals' : 'Departures');
-
-const views = (config: HubConfig) => config.airports.flatMap(a => (['arrivals', 'departures'] as Kind[]).map(kind => ({ airport: a, kind })));
 
 function cells(f: AirportFlight, kind: Kind, tz: string, fetchedAt: number): Record<string, string> {
   const time = kind === 'arrivals'
@@ -64,66 +58,77 @@ function cells(f: AirportFlight, kind: Kind, tz: string, fetchedAt: number): Rec
   };
 }
 
+type Rows = Array<Record<string, FlapRow>>;
+
 interface BoardUi {
-  el: HTMLElement;
-  title: HTMLElement; place: FlapRow; code: HTMLElement;
-  rows: Array<Record<string, FlapRow>>;
-  labels: HTMLElement[];
+  place: FlapRow; code: HTMLElement;
+  rows: Record<Kind, Rows>;
   footer: HTMLElement;
 }
 
 function build(el: HTMLElement): BoardUi {
   const board = h('div', 'ab');
   const head = h('div', 'ab-head');
-  const title = h('div', 'ab-title');
   const place = new FlapRow(12, 'md');
   const code = h('span', 'ab-code');
-  head.append(title, h('div', 'ab-place'));
+  head.append(h('div', 'ab-place'));
   head.lastElementChild!.append(place.el, code);
+  board.append(head);
 
-  const grid = h('div', 'ab-grid');
-  const labels = COLUMNS.arrivals.map(c => h('div', `ab-label ab-col-${c.key}${c.align === 'right' ? ' right' : ''}`, c.label));
-  grid.append(...labels);
-  const rows = Array.from({ length: rowCount() }, () => {
-    const row: Record<string, FlapRow> = {};
-    for (const c of COLUMNS.arrivals) {
-      row[c.key] = new FlapRow(c.width, 'sm');
-      row[c.key].el.classList.add(`ab-col-${c.key}`);
-      grid.append(row[c.key].el);
-    }
-    return row;
-  });
+  const rows = {} as Record<Kind, Rows>;
+  for (const kind of KINDS) {
+    const section = h('section', `ab-section ab-${kind}`);
+    const title = h('div', 'ab-title');
+    title.append(planeIcon(kind), h('span', undefined, kindName(kind)));
+    const grid = h('div', 'ab-grid');
+    grid.append(...COLUMNS[kind].map(c => h('div', `ab-label ab-col-${c.key}${c.align === 'right' ? ' right' : ''}`, c.label)));
+    rows[kind] = Array.from({ length: rowCount() }, () => {
+      const row: Record<string, FlapRow> = {};
+      for (const c of COLUMNS[kind]) {
+        row[c.key] = new FlapRow(c.width, 'sm');
+        row[c.key].el.classList.add(`ab-col-${c.key}`);
+        grid.append(row[c.key].el);
+      }
+      return row;
+    });
+    section.append(title, grid);
+    board.append(section);
+  }
+
   const footer = h('div', 'footer');
-  board.append(head, grid, footer);
+  board.append(footer);
   el.append(board);
-  return { el, title, place, code, rows, labels, footer };
+  return { place, code, rows, footer };
 }
 
-function render(ui: BoardUi, data: AirportBoardResponse, kind: Kind, config: HubConfig) {
-  const columns = COLUMNS[kind];
+function showPlace(ui: BoardUi, airport: { city: string; iata: string; icao: string }) {
+  ui.place.set(airport.city);
+  ui.code.textContent = airport.iata || airport.icao;
+}
+
+function render(ui: BoardUi, data: AirportBoardResponse, config: HubConfig) {
   const now = Date.now();
-  const flights = kind === 'arrivals'
-    ? data.arrivals.filter(f => f.status === 'landed' || f.etaMin === null || data.fetchedAt + f.etaMin * 60_000 > now - PASSED_MS)
-    : data.departures;
-  ui.title.replaceChildren(planeIcon(kind), h('span', undefined, kindName(kind)));
-  ui.place.set(data.airport.city, 'right');
-  ui.code.textContent = data.airport.iata || data.airport.icao;
-  columns.forEach((c, i) => { ui.labels[i].textContent = c.label; });
+  const lists: Record<Kind, AirportFlight[]> = {
+    arrivals: data.arrivals.filter(f => f.status === 'landed' || f.etaMin === null || data.fetchedAt + f.etaMin * 60_000 > now - PASSED_MS),
+    departures: data.departures,
+  };
+  showPlace(ui, data.airport);
+  for (const kind of KINDS) {
+    ui.rows[kind].forEach((row, n) => {
+      const f = lists[kind][n];
+      const text = f ? cells(f, kind, config.timezone, data.fetchedAt) : null;
+      for (const c of COLUMNS[kind]) row[c.key].set(text?.[c.key] ?? '', c.align ?? 'left');
+      row.status.el.dataset.status = f?.status ?? '';
+    });
+  }
 
-  ui.rows.forEach((row, n) => {
-    const f = flights[n];
-    const text = f ? cells(f, kind, config.timezone, data.fetchedAt) : null;
-    for (const c of columns) row[c.key].set(text?.[c.key] ?? '', c.align ?? 'left');
-    row.status.el.dataset.status = f?.status ?? '';
-  });
-
-  const shown = ui.rows.length;
-  const more = flights.length > shown ? `+${flights.length - shown} more` : '';
-  const what = kind === 'arrivals'
-    ? flights.length ? `${flights.length} inbound within ${data.radiusNm} nm` : `No arrivals within ${data.radiusNm} nm just now`
-    : flights.length ? `${flights.length} outbound within ${data.radiusNm} nm` : 'No departures seen just now';
-  const note = kind === 'arrivals' && flights.length ? 'times estimated from position and speed' : '';
-  ui.footer.textContent = [what, more, note, `via ${data.source}`, ageLabel(data.fetchedAt)].filter(Boolean).join(' · ');
+  const count = (kind: Kind, word: string) => {
+    const n = lists[kind].length, shown = ui.rows[kind].length;
+    return `${n} ${word}${n > shown ? ` (+${n - shown} more)` : ''}`;
+  };
+  const what = `${count('arrivals', 'inbound')} · ${count('departures', 'outbound')} within ${data.radiusNm} nm`;
+  const note = lists.arrivals.length ? 'arrival times estimated from position and speed' : '';
+  ui.footer.textContent = [what, note, `via ${data.source}`, ageLabel(data.fetchedAt)].filter(Boolean).join(' · ');
 }
 
 function planeIcon(kind: Kind) {
@@ -139,7 +144,7 @@ const placeOf = (a: SavedAirport) => ({ lat: a.lat, lon: a.lon, name: a.icao });
 
 export const airportScreen: Screen = {
   id: 'airport',
-  title: 'Airports',
+  title: 'Airport',
   durationSec: 60,
   isAvailable: config => config.airports.length > 0,
   mount(el: HTMLElement, config: HubConfig) {
@@ -147,28 +152,25 @@ export const airportScreen: Screen = {
     setFlapMotion(MOTION[theme]);
     el.setAttribute('data-theme', theme);
     const ui = build(el);
+    const airport = config.airports[0];
 
-    // Each visit starts on the next airport's arrivals.
-    const all = views(config);
-    view = view < 0 ? 0 : (Math.floor(view / 2) + 1) * 2 % all.length;
-    let shown: AirportBoardResponse | null = null;
+    // The last board seen, straight away, while a fresh one loads.
+    let shown = recall<AirportBoardResponse>('airport', placeOf(airport));
+    if (shown?.airport.icao !== airport.icao) shown = null;
+    if (shown) render(ui, shown, config);
+    else {
+      showPlace(ui, airport);
+      ui.footer.textContent = 'Looking for flights…';
+    }
 
-    const current = () => all[view % all.length];
-    describe = () => { const { airport, kind } = current(); return `${kindName(kind)} · ${airport.city}`; };
-    const show = () => {
-      const { airport, kind } = current();
-      if (shown?.airport.icao === airport.icao) render(ui, shown, kind, config);
-    };
+    const age = watchAge(el, config.timezone, () => shown?.fetchedAt ?? null, () => { if (shown) render(ui, shown, config); });
+    stopAge = age.stop;
 
-    let generation = 0;
     const poll = async (): Promise<Outcome> => {
-      const mine = generation;
-      const { airport } = current();
       try {
         const data = await getJson<AirportBoardResponse>(`/api/airport?code=${encodeURIComponent(airport.icao)}`);
-        if (mine !== generation) return 'failed';
         shown = data;
-        show();
+        render(ui, data, config);
         age.check();
         remember('airport', placeOf(airport), data);
         return data.arrivals.length || data.departures.length ? 'found' : 'empty';
@@ -177,45 +179,13 @@ export const airportScreen: Screen = {
         return 'failed';
       }
     };
-
-    const age = watchAge(el, config.timezone, () => shown?.fetchedAt ?? null, () => show());
-    stopAge = age.stop;
-
-    rebuild = () => {
-      generation++;
-      const { airport, kind } = current();
-      el.classList.toggle('departures', kind === 'departures');
-      if (shown?.airport.icao !== airport.icao) {
-        shown = recall<AirportBoardResponse>('airport', placeOf(airport));
-        if (!shown) {
-          // Nothing known yet: name the board while the first answer loads.
-          ui.title.replaceChildren(planeIcon(kind), h('span', undefined, kindName(kind)));
-          ui.place.set(airport.city, 'right');
-          ui.code.textContent = airport.iata || airport.icao;
-          ui.rows.forEach(row => Object.values(row).forEach(r => r.set('')));
-          ui.footer.textContent = 'Looking for flights…';
-        }
-      }
-      show();
-      age.check();
-      refresher?.stop();
-      refresher = new Refresher(poll);
-      refresher.now();
-    };
-    rebuild();
-  },
-  onCenterTap() {
-    if (!rebuild) return;
-    view++;
-    rebuild();
-    // Say what the tap turned to, since the board takes a moment to flip there.
-    return describe?.();
+    age.check();
+    refresher = new Refresher(poll);
+    refresher.now();
   },
   unmount() {
     refresher?.stop();
     refresher = undefined;
-    rebuild = undefined;
-    describe = undefined;
     stopAge?.();
     stopAge = undefined;
   },

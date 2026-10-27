@@ -1,5 +1,5 @@
 import { ALERT_LEVELS, DEFAULT_ALERTS, type AlertLevel } from '../../shared/notable';
-import { cleanFollow, DEFAULT_RADAR_MAP, isFollow, MAX_AIRPORTS, RADAR_MAPS, RADIUS_CHOICES, type Place, type RadarMap, type SavedAirport } from '../../shared/settings';
+import { cleanFollow, DEFAULT_RADAR_MAP, isFollow, RADAR_MAPS, RADIUS_CHOICES, type Place, type RadarMap, type SavedAirport } from '../../shared/settings';
 import { km, placeName, saveSky, skySettings } from './store';
 import { busy, card, h, input, iosSwitch, pageHead, quietly, row, segmented, svg, toast } from './ui';
 
@@ -108,28 +108,20 @@ export const airportCodes = () => (skySettings().airports ?? []).map(a => a.iata
 
 export function airportCards(): Node[] {
   const sky = skySettings();
-  const airports = sky.airports ?? [];
+  // Hubs set up when several were allowed keep the first.
+  const airport = sky.airports?.[0] ?? null;
   const save = (next: SavedAirport[], message: string) => saveSky({ ...sky, airports: next }, message);
 
-  const list = h('div', { class: 'places' });
-  const move = (from: number, to: number) => {
-    const next = [...airports];
-    next.splice(to, 0, ...next.splice(from, 1));
-    return save(next, 'Order saved.');
-  };
-  airports.forEach((a, i) => {
-    const up = h('button', { type: 'button', class: 'ghost small', 'aria-label': `Move ${a.city} up` }, '↑');
-    up.addEventListener('click', () => busy(up, () => move(i, i - 1)));
+  const yours = h('div', { class: 'places' });
+  if (airport) {
     const remove = h('button', { type: 'button', class: 'ghost small danger' }, 'Remove');
-    remove.addEventListener('click', () => busy(remove, () => save(airports.filter((_, n) => n !== i), `${a.city} removed.`)));
-    list.append(h('div', { class: 'place' },
-      h('span', { class: 'gcheck' }, h('span', {}, h('b', {}, `${a.city} ${a.iata || a.icao}`), h('small', {}, a.name))),
-      h('span', { class: 'actions' }, i > 0 ? up : null, remove)));
-  });
-  if (!airports.length) list.append(h('p', { class: 'empty' }, 'No airports yet. Add one below and the board joins the rotation.'));
-  const yours = card('Your airports', list,
-    h('p', { class: 'hint' }, 'The display shows them in this order. Tap the middle of the board to switch between arrivals, departures and your other airports.'));
-  if (airports.length >= MAX_AIRPORTS) return [yours, card(null, h('p', { class: 'hint' }, `That’s the most the board can cycle through (${MAX_AIRPORTS}). Remove one to add another.`))];
+    remove.addEventListener('click', () => busy(remove, () => save([], `${airport.city} removed.`)));
+    yours.append(h('div', { class: 'place' },
+      h('span', { class: 'gcheck' }, h('span', {}, h('b', {}, `${airport.city} ${airport.iata || airport.icao}`), h('small', {}, airport.name))),
+      h('span', { class: 'actions' }, remove)));
+  } else {
+    yours.append(h('p', { class: 'empty' }, 'No airport yet. Choose one below and the board joins the rotation.'));
+  }
 
   const query = input({ type: 'text', placeholder: 'Airport, city or code (e.g. MAN)', 'aria-label': 'Search for an airport', id: 'airport-search' });
   const search = h('button', { type: 'submit', class: 'ghost' }, 'Search');
@@ -146,15 +138,15 @@ export function airportCards(): Node[] {
         b.addEventListener('click', () => {
           results.replaceChildren();
           query.value = '';
-          if (airports.some(a => a.icao === icao)) return toast('That airport is already on the list.');
-          busy(search, () => save([...airports, { icao, iata, name, city: city || name, lat, lon }], `${city || name} added.`));
+          if (airport?.icao === icao) return toast('That’s already your airport.');
+          busy(search, () => save([{ icao, iata, name, city: city || name, lat, lon }], `${city || name} chosen.`));
         });
         return b;
       }) : [h('p', { class: 'empty' }, 'No airport with scheduled flights matches. Try its city or three-letter code.')]));
     });
   });
-  return [yours, card('Add an airport', form, results,
-    h('p', { class: 'hint' }, 'Each airport gets a split-flap arrivals and departures board, showing flights within 100 nm of it. Airports: OurAirports. Flights come from the same open ADS-B data as the radar, with routes from adsbdb, so only flights already in the air or taxiing are shown, and arrival times are estimates.'))];
+  return [card('Your airport', yours), card(airport ? 'Change airport' : 'Choose an airport', form, results,
+    h('p', { class: 'hint' }, 'The board shows its arrivals and departures together, for flights within 100 nm of it. Airports: OurAirports. Flights come from the same open ADS-B data as the radar, with routes from adsbdb, so only flights already in the air or taxiing are shown, and arrival times are estimates.'))];
 }
 
 // ── Flight tracker ──────────────────────────────────────────────────────────

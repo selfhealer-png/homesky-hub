@@ -51,9 +51,10 @@ export type Connection = IcsConnection | FeedConnection | GoogleConnection;
 
 export interface Place { id: string; name: string; lat: number; lon: number }
 
-/** An airport with an arrivals board, chosen in /setup from the OurAirports list. */
+/** The airport with an arrivals and departures board, chosen in /setup from the OurAirports list. */
 export interface SavedAirport { icao: string; iata: string; name: string; city: string; lat: number; lon: number }
-export const MAX_AIRPORTS = 6;
+/** One board, one airport. Hubs set up when several were allowed keep the first. */
+export const MAX_AIRPORTS = 1;
 
 export interface SkySettings {
   places: Place[];

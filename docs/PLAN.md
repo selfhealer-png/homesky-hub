@@ -107,7 +107,7 @@ The "what's that plane?" screen. One aircraft is shown as a flip board:
 
 ### Airport boards
 
-Up to six airports are chosen in `/setup › Sky › Airport boards`, searched from the OurAirports list (public domain; `scripts/build-airports.mjs` builds `airports.json` at build time). Each gets a split-flap board styled like an airport arrivals board, served by `/api/airport?code=<ICAO>` (only airports chosen in setup). Each visit to the screen shows the next airport's arrivals; a tap in the middle turns to departures, then the next airport.
+One airport is chosen in `/setup › Airport board`, searched from the OurAirports list (public domain; `scripts/build-airports.mjs` builds `airports.json` at build time); choosing another replaces it, and hubs that saved several earlier keep the first. It gets one split-flap board, arrivals above departures, served by `/api/airport?code=<ICAO>` (only the airport chosen in setup).
 
 * **Inbound now** (free, open data, default; *built*): every ~25 s the Worker fetches live aircraft within 100 nm of the airport. Only planes pointing at the airport (or low and near it) are looked up, nearest first, with at most 25 new adsbdb lookups per board so a free-plan request stays under its 50 outside requests. It looks up each callsign's route (cached) and keeps those whose destination is that airport. ETA is distance ÷ ground speed, adjusted for planes on approach. The board shows these columns:
 
@@ -121,7 +121,6 @@ Up to six airports are chosen in `/setup › Sky › Airport boards`, searched f
   Status comes from altitude, vertical rate and distance: en route, descending, approach, landing, landed.
 * **Departures** (outbound, also free; *built*): aircraft whose origin is the airport, taxiing or moving away within 80 nm. Status: taxiing, takeoff, climbing, departed. Planes on the ground are capped (2 landed, 3 taxiing) so the airborne traffic still shows at a busy airport.
 * **Timetable** (optional): scheduled and estimated times, gates, delays and cancellations. These need a schedule provider with its own key. The provider interface comes first; AeroDataBox is the likely default because it has a small free tier, and its units-per-call cost needs checking. It stays off unless a key is set.
-* Board rotation: when there are several airports, the board flips between them, or each one can be its own screen in the playlist.
 
 ### Watchlist
 

@@ -366,24 +366,27 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 [data-motion="still"] .board-plaque { transition: none; }
 
 /* ── Airport board ──────────────────────────────────────────────────────────
-   Shares the overhead board's themes. Natural size 1240 x 520, scaled like the board. */
+   Shares the overhead board's themes. Arrivals above departures, six rows each: natural size
+   1210 x 760, scaled like the board. */
 .ab {
   --s: 0.8px;
-  display: flex; flex-direction: column; gap: calc(20 * var(--s));
+  display: flex; flex-direction: column; gap: calc(22 * var(--s));
   color: var(--glyph); font-family: var(--board-font);
 }
 @supports (width: 1cqw) {
-  .ab { --s: min(1.5px, calc(96cqw / 1240), calc(94cqh / 520)); }
-  /* Portrait: type and altitude drop out so the rest can stay large, and there are 14 rows
-     (airport.ts) instead of 8 to use the height. */
+  .ab { --s: min(1.5px, calc(96cqw / 1210), calc(94cqh / 760)); }
+  /* Portrait: type and altitude drop out so the rest can stay large, and there are 10 rows
+     a half (airport.ts) instead of 6 to use the height. */
   @container (aspect-ratio < 1) {
-    .ab { --s: min(1.5px, calc(96cqw / 960), calc(94cqh / 760)); }
+    .ab { --s: min(1.5px, calc(96cqw / 960), calc(94cqh / 1100)); }
     .ab .ab-col-type, .ab .ab-col-alt { display: none; }
   }
 }
 .ab-head { display: flex; align-items: center; justify-content: space-between; gap: calc(30 * var(--s)); }
-.ab-title { display: flex; align-items: center; gap: calc(14 * var(--s)); font: 700 calc(38 * var(--s))/1 system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
-.ab-icon { width: calc(40 * var(--s)); height: calc(40 * var(--s)); }
+.ab-section { display: flex; flex-direction: column; gap: calc(10 * var(--s)); }
+.ab-section + .ab-section { padding-top: calc(18 * var(--s)); border-top: 1px solid var(--track); }
+.ab-title { display: flex; align-items: center; gap: calc(12 * var(--s)); font: 700 calc(28 * var(--s))/1 system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.ab-icon { width: calc(30 * var(--s)); height: calc(30 * var(--s)); }
 .ab-icon svg { width: 100%; height: 100%; display: block; }
 .ab-place { display: flex; align-items: center; gap: calc(14 * var(--s)); }
 .ab-code { font: 700 calc(26 * var(--s))/1 system-ui, sans-serif; letter-spacing: 0.1em; color: var(--label); }
@@ -1146,12 +1149,12 @@ body.pinned #dots .gear { color: var(--accent); }
   .radar-sub { font-size: 12px; }
   .radar-list { grid-template-columns: minmax(0, 1fr); margin-top: 6px; }
   .radar-row { padding: 7px 0; }
+  .radar-dot { margin-top: 5px; }
   .radar-main b { font-size: 15px; }
   .radar-alt { font-size: 13px; }
   .radar-route { margin-top: 1px; font-size: 12px; }
   .radar-meta { font-size: 11px; }
   .radar-legend { display: none; }
-  .radar-dot { margin-top: 5px; }
 
   .screen-tonight { gap: 20px; align-content: start; }
   .tn-verdict { font-size: 30px; margin-top: 6px; }
