@@ -3,11 +3,10 @@ import type { AdminState } from '../../shared/settings';
 import { accountsPage, googleConnection } from './accounts';
 import { aboutPage, CATEGORIES, hubProblems, motionPage, MOTION_LABELS, nightPage, nightSummary, orderPage, orderSummary, SCREENS, screenPage, screenRow, stripClockSwitch, timingPage, timingSummary } from './pages';
 import { placesPage } from './sky';
-import { inQuietHours, minutesIn } from '../../shared/night';
-import { DEFAULT_DISPLAY, DEFAULT_NIGHT } from '../../shared/settings';
+import { DEFAULT_DISPLAY } from '../../shared/settings';
 import { setFlapMotion } from '../flap';
 import { setMotionLevel } from '../motion';
-import { displaySettings, isScreenOn, onRender, placeName, setState, state } from './store';
+import { displaySettings, onRender, placeName, setState, state } from './store';
 import { api, busy, field, group, h, HttpError, input, row, svg, tile, toast } from './ui';
 
 // The admin setup page, laid out like a phone's Settings app: a list of the hub's screens (each
@@ -110,9 +109,9 @@ const pageTitle = () => (app.querySelector('.page h2') ?? app.querySelector('h2'
 
 function render() {
   if (!state) return;
-  // The flaps flip like the split-flap board, as much as the display is allowed to move.
+  // The flaps move as much as the display is allowed to, the LED board's way.
   setMotionLevel(displaySettings().motion ?? DEFAULT_DISPLAY.motion);
-  setFlapMotion('flip');
+  setFlapMotion('scramble');
   const root = !location.hash || location.hash === '#/';
   if (wide.matches) {
     // The board on the left, the page on the right: with nothing chosen, the first screen's.
@@ -169,19 +168,6 @@ function accountsSummary() {
   return parts.length ? parts.join(' · ') : 'Nothing connected';
 }
 
-/** In quiet hours the display shows only the calm screens, which can look like the others have
- *  gone: say so above the board. Worked out in this device's timezone, which is the hub's when
- *  setup is opened on the display. */
-function quietNote() {
-  const night = displaySettings().night ?? DEFAULT_NIGHT;
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  if (night.mode !== 'quiet' || !inQuietHours(minutesIn(tz, Date.now()), night.from, night.to)) return null;
-  const showing = SCREENS.filter(s => s.quiet && isScreenOn(s.id)).map(s => s.name);
-  const list = showing.length > 1 ? `${showing.slice(0, -1).join(', ')} and ${showing[showing.length - 1]}` : showing[0] ?? 'the Clock';
-  return h('p', { class: 'quietnote' }, `Quiet hours until ${night.to}, so the display shows only `, h('b', {}, list),
-    '. The other screens come back then.');
-}
-
 /** The screens in one category, as a section of the departures board. */
 function boardGroup(title: string, screens: typeof SCREENS, shown: string, foot?: string) {
   return h('section', { class: 'group' },
@@ -197,7 +183,6 @@ function listPage(shown = '') {
   const neutral = '#64748B';
   return [
     h('h2', { class: 'listtitle', tabindex: shown ? undefined : '-1' }, 'Settings'),
-    ...[quietNote()].filter((n): n is HTMLParagraphElement => n !== null),
     ...CATEGORIES.map(([id, title], i) => boardGroup(title, SCREENS.filter(s => s.category === id), shown,
       i === CATEGORIES.length - 1 ? 'Tap a status to switch a screen on or off. Switched-off screens leave the display’s rotation within five minutes; one with nothing to show yet stays out until it has.' : undefined)),
     group('Display', [
