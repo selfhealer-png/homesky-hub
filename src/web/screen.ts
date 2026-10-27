@@ -18,8 +18,9 @@ export interface Screen {
   quiet?: boolean;
   /** Optional: the screen shows the time itself, so the corner time stays off. */
   ownClock?: boolean;
-  /** Optional: the aircraft under a tap (a plane on the radar), which opens its plane card. */
-  aircraftAt?(x: number, y: number, target: Element): Aircraft | null;
+  /** Optional: the aircraft under a tap (a plane on the radar), which opens its plane card.
+   *  `reach` is how far from a plane a tap still counts, in CSS pixels: more for a finger. */
+  aircraftAt?(x: number, y: number, target: Element, reach: number): Aircraft | null;
   /** Optional: the aircraft the screen is about, for "About this plane" in the menu. */
   currentAircraft?(): Aircraft | null;
 }

@@ -772,15 +772,16 @@ export const radarScreen: Screen = {
     retarget!();
     return `Centred on ${next === 'device' ? 'this display' : currentConfig!.places.find(p => p.id === next)?.name ?? 'home'}`;
   },
-  aircraftAt(x: number, y: number, target: Element) {
+  aircraftAt(x: number, y: number, target: Element, reach: number) {
     // A row in the list, or the plane nearest the tap on the radar (within a fingertip).
+    // Planes in the air win over the crowd parked at an airport, unless the tap is right on one.
     const hex = target.closest<HTMLElement>('[data-hex]')?.dataset.hex;
     if (hex) return current?.data?.aircraft.find(a => a.hex === hex) ?? null;
     if (!canvasEl || target !== canvasEl) return null;
     const box = canvasEl.getBoundingClientRect();
     const hit = drawn
-      .map(d => ({ a: d.a, gap: Math.hypot(d.x - (x - box.left), d.y - (y - box.top)) }))
-      .filter(d => d.gap < 24)
+      .map(d => ({ a: d.a, gap: Math.hypot(d.x - (x - box.left), d.y - (y - box.top)) + (d.a.onGround ? 12 : 0) }))
+      .filter(d => d.gap < reach)
       .sort((p, q) => p.gap - q.gap)[0];
     return hit?.a ?? null;
   },

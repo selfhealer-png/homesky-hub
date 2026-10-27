@@ -130,7 +130,7 @@ function wireGestures() {
     clearTimeout(pressTimer);
     if (longPressed) return;
     // A tap on a plane opens its card, wherever it is on the screen.
-    const plane = screens[index].aircraftAt?.(e.clientX, e.clientY, e.target as Element);
+    const plane = screens[index].aircraftAt?.(e.clientX, e.clientY, e.target as Element, e.pointerType === 'mouse' ? 24 : 40);
     if (plane) return openPlane(plane.hex, config, plane);
     const x = e.clientX / window.innerWidth;
     if (x < 1 / 3) showChosen(index - 1);
