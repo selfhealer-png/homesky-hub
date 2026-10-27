@@ -620,8 +620,9 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
   const airborne = data ? data.aircraft.filter(a => a.altFt !== null) : [];
   const grounded = data ? onGround(data).length : 0;
   const age = data ? ageLabel(data.fetchedAt) : null;
+  // The range rings already say how far out the radar looks, so the count stays on one line.
   head.append(h('p', 'radar-sub', data
-    ? `${airborne.length} aircraft within ${Math.round(config.radarRadiusNm * NM_KM)} km of ${state.home.name}${grounded ? ` · ${grounded} on the ground` : ''}${age ? ` · ${age}` : ''}`
+    ? [`${airborne.length} in the air`, grounded ? `${grounded} on the ground` : null, age].filter(Boolean).join(' · ')
     : `Looking for aircraft near ${state.home.name}…`));
   const clock = new Intl.DateTimeFormat('en-GB', { timeZone: config.timezone, hour: '2-digit', minute: '2-digit' });
   const list = h('ol', 'radar-list');
@@ -635,28 +636,30 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
       const li = h('li', `radar-row${a.emergency ? ' emergency' : ''}`);
       li.dataset.hex = a.hex;
       li.style.setProperty('--alt', a.emergency ? '#F87171' : altitudeColor(a.altFt));
+      // Three lines, each with one job: who it is and how high, where it's going, then the
+      // smaller figures. The squawk and the rest are on the plane card.
       const main = h('div', 'radar-main');
+      const top = h('div', 'radar-top');
       const who = h('span', 'radar-name');
       const logo = route?.airlineIata ? airlineLogo(route.airlineIata) : null;
       if (logo) who.append(logo);
       who.append(h('b', undefined, name(a)));
-      // The squawk, unless it's an emergency one: that's already spelled out below the name.
-      if (a.squawk && !a.emergency) who.append(h('span', 'radar-squawk', a.squawk));
-      main.append(who);
+      const alt = h('span', 'radar-alt', fmtAlt(a));
+      const climb = climbMark(a);
+      if (climb) alt.append(climb);
+      top.append(who, alt);
+      main.append(top, h('span', 'radar-route', a.emergency ? `Squawk ${a.squawk ?? 'emergency'}`
+        : notable?.kind === 'rare' ? notable.title
+          : route ? `${route.fromCity} → ${route.toCity}` : [typeName(a.desc) ?? a.type, regRepeats(a) ? null : a.registration].filter(Boolean).join(' · ') || '—'));
       // When it should land, roughly, from how far it has to go and how fast it's going.
       // (Positions remembered from before routes carried the distance left have no figure.)
       const togo = route && Number.isFinite(route.remainingKm) ? minutesToGo(route.remainingKm, a) : null;
-      const lands = togo !== null ? ` · lands ${clock.format(new Date(data.fetchedAt + togo * 60_000))}` : '';
-      main.append(h('span', 'radar-route', a.emergency ? `Squawk ${a.squawk ?? 'emergency'}`
-        : notable?.kind === 'rare' ? notable.title
-          : route ? `${route.fromCity} → ${route.toCity}${lands}` : [typeName(a.desc) ?? a.type, regRepeats(a) ? null : a.registration].filter(Boolean).join(' · ') || '—'));
-      const figs = h('div', 'radar-figs');
-      const alt = h('span', undefined, fmtAlt(a));
-      const climb = climbMark(a);
-      if (climb) alt.append(climb);
-      const speed = a.groundSpeedKt != null ? h('span', undefined, `${Math.round(a.groundSpeedKt * NM_KM).toLocaleString('en-GB')} km/h`) : null;
-      figs.append(...[alt, speed, h('span', undefined, `${(a.distanceNm * NM_KM).toFixed(a.distanceNm < 5 ? 1 : 0)} km`)].filter(e => !!e));
-      li.append(h('span', 'radar-dot'), main, figs);
+      main.append(h('span', 'radar-meta', [
+        togo !== null ? `lands ${clock.format(new Date(data.fetchedAt + togo * 60_000))}` : null,
+        a.groundSpeedKt != null ? `${Math.round(a.groundSpeedKt * NM_KM).toLocaleString('en-GB')} km/h` : null,
+        `${(a.distanceNm * NM_KM).toFixed(a.distanceNm < 5 ? 1 : 0)} km away`,
+      ].filter(Boolean).join(' · ')));
+      li.append(h('span', 'radar-dot'), main);
       list.append(li);
     }
     if (!rows.length) list.append(h('li', 'radar-empty', 'Clear skies right now.'));

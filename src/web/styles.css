@@ -143,26 +143,27 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
 .radar-sub { margin: 6px 0 0; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
 
 .radar-list { list-style: none; margin: 22px 0 0; padding: 0; }
-.radar-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.radar-row { display: grid; grid-template-columns: 10px minmax(0, 1fr); align-items: start; column-gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); }
 .radar-row:last-child, .radar-row:has(+ .radar-more) { border-bottom: 1px solid var(--line); }
-.radar-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--alt); box-shadow: 0 0 0 3px color-mix(in srgb, var(--alt) 22%, transparent); }
+.radar-dot { width: 10px; height: 10px; margin-top: 7px; border-radius: 50%; background: var(--alt); box-shadow: 0 0 0 3px color-mix(in srgb, var(--alt) 22%, transparent); }
 .radar-main { min-width: 0; display: flex; flex-direction: column; }
+.radar-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
 .radar-main b { font-size: 17px; font-weight: 600; letter-spacing: 0.01em; }
 .radar-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
-/* Logos are drawn for light backgrounds, so they sit on a small white plaque, shown once loaded. */
+.radar-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .radar-logo { display: none; flex: none; height: 20px; width: auto; max-width: 62px; padding: 2px 5px; border-radius: 5px; background: #fff; object-fit: contain; }
 .radar-logo.on { display: block; }
 [data-night] .radar-logo { filter: brightness(0.78); }
-.radar-squawk { flex: none; padding: 1px 6px; border: 1px solid var(--line); border-radius: 5px; font-size: 12px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+.radar-alt { flex: none; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .radar-climb { margin-left: 4px; font-weight: 700; }
 .radar-climb.up { color: #86EFAC; }
 .radar-climb.down { color: #FDBA74; }
-.radar-route { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.radar-figs { display: flex; flex-direction: column; align-items: flex-end; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.radar-figs span:first-child { color: var(--ink); font-weight: 500; }
+.radar-route, .radar-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.radar-route { margin-top: 4px; font-size: 14px; color: #CBD5E1; }
+.radar-meta { margin-top: 2px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .radar-row.emergency b, .radar-row.emergency .radar-route { color: #FCA5A5; }
 .radar-empty { padding: 12px 0; color: var(--muted); border-top: 1px solid var(--line); }
-.radar-more { padding: 10px 0 0 22px; font-size: 13px; color: var(--muted); }
+.radar-more { padding: 12px 0 0 24px; font-size: 13px; color: var(--muted); }
 
 .radar-legend { margin-top: auto; padding-top: 18px; }
 .legend-title { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
@@ -581,9 +582,12 @@ html:not([data-night]) body:has(.screen[data-theme="minimal"]) #strip-time { col
   .radar-head h2 { font-size: 19px; }
   .radar-sub { font-size: 12px; margin-top: 2px; }
   .radar-list { margin-top: 10px; }
-  .radar-row { padding: 6px 0; gap: 10px; }
+  .radar-row { padding: 6px 0; column-gap: 10px; }
+  .radar-dot { margin-top: 5px; }
   .radar-main b { font-size: 15px; }
-  .radar-route, .radar-figs { font-size: 12px; }
+  .radar-alt { font-size: 13px; }
+  .radar-route { margin-top: 1px; font-size: 12px; }
+  .radar-meta { margin-top: 0; font-size: 11px; }
   .radar-legend { padding-top: 8px; }
   .legend-title { margin-bottom: 4px; }
 }
@@ -1143,8 +1147,11 @@ body.pinned #dots .gear { color: var(--accent); }
   .radar-list { grid-template-columns: minmax(0, 1fr); margin-top: 6px; }
   .radar-row { padding: 7px 0; }
   .radar-main b { font-size: 15px; }
-  .radar-route, .radar-figs { font-size: 12px; }
+  .radar-alt { font-size: 13px; }
+  .radar-route { margin-top: 1px; font-size: 12px; }
+  .radar-meta { font-size: 11px; }
   .radar-legend { display: none; }
+  .radar-dot { margin-top: 5px; }
 
   .screen-tonight { gap: 20px; align-content: start; }
   .tn-verdict { font-size: 30px; margin-top: 6px; }
