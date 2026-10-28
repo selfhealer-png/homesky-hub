@@ -8,8 +8,10 @@ import { busy, card, h, input, iosSwitch, pageHead, quietly, row, segmented, svg
 export function placesPage() {
   const sky = skySettings();
   const list = h('div', { class: 'places', role: 'radiogroup', 'aria-label': 'Centre the screens on' });
+  // The place in use, worked out as placeName() does: an unknown id falls back to the first place, or the device.
+  const inUse = sky.active === 'device' || sky.places.some(p => p.id === sky.active) ? sky.active : sky.places[0]?.id ?? 'device';
   const option = (id: string, title: string, sub: string, removable: boolean) => {
-    const radio = h('input', { type: 'radio', name: 'sky-active', value: id, checked: sky.active === id });
+    const radio = h('input', { type: 'radio', name: 'sky-active', value: id, checked: inUse === id });
     radio.addEventListener('change', () => quietly(saveSky({ ...sky, active: id })));
     const r = h('div', { class: 'place' }, h('label', { class: 'gcheck' }, radio, h('span', {}, h('b', {}, title), h('small', {}, sub))));
     if (removable) {

@@ -341,7 +341,7 @@ export function hubProblems() {
 export function aboutPage() {
   const s = state.status;
   const item = (ok: boolean, title: string, detail: Node | string) =>
-    h('li', { class: ok ? 'ok' : 'todo' }, h('span', { class: 'mark', 'aria-hidden': 'true' }, ok ? '✓' : '!'), h('div', {}, h('b', {}, title), h('div', { class: 'detail' }, detail)));
+    h('li', { class: ok ? 'ok' : 'todo' }, h('span', { class: 'mark' }, svg(ok ? '<path d="m6 12.5 4 4 8-9"/>' : '<path d="M12 6.5v6.5M12 17.5h.01"/>', 14)), h('div', {}, h('b', {}, title), h('div', { class: 'detail' }, detail)));
   return [pageHead('This hub'), card(null,
     h('ul', { class: 'checklist' },
       item(s.kv, 'Settings storage', s.kv ? 'KV namespace connected.' : 'No KV namespace bound. Run npm run setup.'),

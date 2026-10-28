@@ -69,7 +69,7 @@ h3 { font: 700 17px/1.25 var(--font-display); margin: 22px 0 10px; }
 h4 { font: 700 11px/1 var(--font-ui); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 18px 0 8px; }
 
 main { max-width: 760px; margin: 0 auto; padding: 4px max(16px, env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 16px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: 0 1px 2px var(--shadow), 0 8px 20px -12px var(--shadow); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; box-shadow: 0 1px 2px var(--shadow), 0 8px 20px -12px var(--shadow); }
 .muted-card { background: transparent; box-shadow: none; border-style: dashed; }
 .lede { color: var(--muted); margin: 0 0 12px; }
 .note { background: var(--amberbg); color: var(--amber); border-radius: 10px; padding: 8px 12px; font-size: 14px; }
@@ -104,7 +104,8 @@ main { max-width: 760px; margin: 0 auto; padding: 4px max(16px, env(safe-area-in
 /* Status checklist */
 .checklist { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 12px; }
 .checklist li { display: flex; gap: 12px; align-items: flex-start; }
-.checklist .mark { flex: 0 0 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; }
+.checklist .mark { flex: 0 0 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; }
+.checklist .mark svg { stroke-width: 3; }
 .checklist .ok .mark { background: var(--goodbg); color: var(--good); }
 .checklist .todo .mark { background: var(--amberbg); color: var(--amber); }
 .checklist .detail { color: var(--muted); font-size: 14px; }
@@ -167,7 +168,10 @@ main { max-width: 760px; margin: 0 auto; padding: 4px max(16px, env(safe-area-in
 
 /* Sky */
 .places { display: flex; flex-direction: column; gap: 6px; }
-.place { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--rowbg); border: 1px solid var(--line); }
+.place { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--rowbg); border: 1px solid var(--line); transition: background-color .15s, border-color .15s; }
+/* The label fills the row up to any button on its right, so a tap anywhere on the row chooses it. */
+.place > label.gcheck { flex: 1; align-self: stretch; margin: -10px 0 -10px -12px; padding: 10px 0 10px 12px; cursor: pointer; }
+.place:has(input[type=radio]:checked) { background: color-mix(in srgb, var(--blue) 7%, var(--rowbg)); border-color: color-mix(in srgb, var(--blue) 45%, var(--line)); }
 .place .gcheck span { display: flex; flex-direction: column; }
 .place small { color: var(--muted); font-size: 13px; }
 .searchrow { display: flex; gap: 8px; }
@@ -177,13 +181,15 @@ main { max-width: 760px; margin: 0 auto; padding: 4px max(16px, env(safe-area-in
 .results:empty { display: none; }
 .hint { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
 /* Full width with equal segments, like an iOS segmented control; five ranges fit on a phone. */
-.segmented { display: flex; width: 100%; border: 1.5px solid var(--border2); border-radius: 12px; overflow: hidden; background: var(--input-bg); }
+.segmented { display: flex; width: 100%; padding: 2px; border: 1.5px solid var(--border2); border-radius: 12px; background: var(--input-bg); }
 .segmented label { position: relative; flex: 1 1 0; min-width: 0; text-align: center; }
 .segmented input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.segmented span { display: block; padding: 8px 6px; white-space: nowrap; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
-.segmented label + label span { border-left: 1px solid var(--line); }
+.segmented span { display: block; padding: 7px 6px; border-radius: 9px; white-space: nowrap; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; transition: background-color .15s, color .15s; }
+/* Hairlines between segments, hidden either side of the chosen one. */
+.segmented label + label::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; border-left: 1px solid var(--line); }
+.segmented label:has(input:checked)::before, .segmented label:has(input:checked) + label::before { border-color: transparent; }
 .segmented input:checked + span { background: var(--blue); color: #fff; }
-.segmented input:focus-visible + span { outline: 2px solid var(--blue); outline-offset: -4px; }
+.segmented input:focus-visible + span { outline: 2px solid var(--blue); outline-offset: 1px; }
 .quiethours { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 14px; font-size: 15px; }
 .quiethours > span:first-child { font-weight: 600; margin-right: 4px; }
 .quiethours input { font: inherit; font-variant-numeric: tabular-nums; color: var(--ink); padding: 8px 10px; border-radius: 10px; border: 1.5px solid var(--border2); background: var(--input-bg); color-scheme: light dark; }
@@ -231,6 +237,7 @@ progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--blue)
 /* Settings app: grouped lists of rows, iOS switches, drill-in pages */
 .listtitle { font-size: 32px; margin: 2px 0 0; }
 .group h4 { margin: 0 0 8px 16px; }
+.group + .group { margin-top: 12px; }
 .group .hint { margin: 8px 16px 0; }
 .rows { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 2px var(--shadow); }
 .row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 14px; }
@@ -261,15 +268,15 @@ input.ios:checked::before { transform: translateX(20px); }
 input.ios:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
 .pagehead h2 { font-size: 32px; margin: 2px 0 4px; }
-.pagehead h2:focus { outline: none; }
+h2[tabindex]:focus { outline: none; }
 .pagehead .lede { margin: 0; }
 .card > h3:first-child { margin-top: 0; }
 .cardhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .cardhead h3 { margin: 0; }
 .place .actions { display: flex; gap: 6px; flex: 0 0 auto; }
 .primary.button-link { color: #fff; }
-.ghost.icon { display: grid; place-items: center; width: 36px; padding: 0; }
-.actions .spacer { display: inline-block; width: 36px; }
+.ghost.icon { display: grid; place-items: center; width: 40px; height: 40px; min-height: 40px; padding: 0; }
+.actions .spacer { display: inline-block; width: 40px; }
 .row .actions { position: relative; z-index: 1; display: flex; gap: 6px; flex: 0 0 auto; }
 .row-button { all: unset; box-sizing: border-box; display: block; width: 100%; min-height: 50px; padding: 13px 16px; text-align: center; font-weight: 600; cursor: pointer; }
 .row-button.danger { color: var(--bad); }
