@@ -4,7 +4,7 @@ import { accountsPage, googleConnection } from './accounts';
 import { aboutPage, CATEGORIES, hubProblems, motionPage, MOTION_LABELS, nightPage, nightSummary, orderPage, orderSummary, SCREENS, screenPage, screenRow, stripClockSwitch, timingPage, timingSummary } from './pages';
 import { placesPage } from './sky';
 import { displaySettings, onRender, placeName, setState, state } from './store';
-import { api, busy, field, group, h, HttpError, input, row, svg, tile, toast } from './ui';
+import { api, busy, field, group, h, HttpError, input, row, sectionCards, svg, tile, toast } from './ui';
 
 // The admin setup page, laid out like a phone's Settings app: a list of the hub's screens (each
 // with an on/off switch and its own page), then the hub-wide settings. Pages are hash routes
@@ -15,11 +15,11 @@ const navbar = document.getElementById('navbar')!;
 const navLeft = document.getElementById('nav-left')!;
 const navTitle = document.getElementById('nav-title')!;
 
-/** The bar along the top, as on iOS: Back on the left, and the page's name in the middle once its
+/** The bar along the top, as on iOS: a round Back button on the left (its label only for screen readers), and the page's name in the middle once its
  *  large title has scrolled up under the bar. */
 function setNav(title: string, back: string | null) {
   navTitle.textContent = title;
-  navLeft.replaceChildren(back ? h('a', { href: back, class: 'nav-back' }, svg('<path d="m15 5-7 7 7 7"/>', 22), 'Settings') : '');
+  navLeft.replaceChildren(back ? h('a', { href: back, class: 'nav-back' }, svg('<path d="m15 5-7 7 7 7"/>', 22), h('span', {}, 'Settings')) : '');
 }
 
 let titleWatch: IntersectionObserver | undefined;
@@ -100,6 +100,7 @@ function page(route: string): Node[] {
 function render() {
   if (!state) return;
   app.replaceChildren(...page(location.hash));
+  sectionCards(app);
   const root = !location.hash || location.hash === '#/';
   setNav(app.querySelector('h2')?.textContent ?? '', root ? null : '#/');
   watchTitle();
@@ -141,7 +142,7 @@ function accountsSummary() {
 
 function listPage() {
   const problems = hubProblems();
-  const neutral = '#64748B';
+  const neutral = '#8E8E93';
   return [
     h('h2', { class: 'listtitle', tabindex: '-1' }, 'Settings'),
     ...CATEGORIES.map(([id, title], i) => group(title, SCREENS.filter(s => s.category === id).map(screenRow),
@@ -152,10 +153,10 @@ function listPage() {
       row({ icon: tile(HUB_ICONS.time, neutral), title: 'Time on every screen', summary: 'In the bottom corner, beside the screen’s name', control: stripClockSwitch() }),
     ], 'Home, the Clock and the photo frame always show the time themselves.'),
     group('Hub', [
-      row({ icon: tile(HUB_ICONS.places, '#0EA5E9'), title: 'Places', summary: placeName(), href: '#/places' }),
-      row({ icon: tile(HUB_ICONS.accounts, '#2563FF'), title: 'Accounts', summary: accountsSummary(), href: '#/accounts' }),
-      row({ icon: tile(HUB_ICONS.night, '#4F46E5'), title: 'Night', summary: nightSummary(), href: '#/night' }),
-      row({ icon: tile(HUB_ICONS.motion, neutral), title: 'Motion', summary: MOTION_LABELS[displaySettings().motion][0], href: '#/motion' }),
+      row({ icon: tile(HUB_ICONS.places, '#007AFF'), title: 'Places', summary: placeName(), href: '#/places' }),
+      row({ icon: tile(HUB_ICONS.accounts, '#34C759'), title: 'Accounts', summary: accountsSummary(), href: '#/accounts' }),
+      row({ icon: tile(HUB_ICONS.night, '#5856D6'), title: 'Night', summary: nightSummary(), href: '#/night' }),
+      row({ icon: tile(HUB_ICONS.motion, '#007AFF'), title: 'Motion', summary: MOTION_LABELS[displaySettings().motion][0], href: '#/motion' }),
       row({ icon: tile(HUB_ICONS.about, neutral), title: 'This hub', summary: problems ? 'Needs attention' : 'Storage, add another screen', needs: problems > 0, href: '#/about' }),
     ]),
   ];

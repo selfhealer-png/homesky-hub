@@ -45,7 +45,7 @@ const WARMTH_LABELS: Record<Warmth, string> = { cold: 'I run cold', normal: 'Typ
 
 export const SCREENS: ScreenDef[] = [
   {
-    id: 'home', name: 'Home', category: 'everyday', color: '#2563FF', quiet: true,
+    id: 'home', name: 'Home', category: 'everyday', color: '#FF3B30', quiet: true,
     lede: 'Today’s calendar and tasks, readable across the room.',
     icon: '<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>',
     summary: () => {
@@ -56,7 +56,7 @@ export const SCREENS: ScreenDef[] = [
     body: () => calendarChoices(),
   },
   {
-    id: 'weather', name: 'Weather', category: 'weather', color: '#0EA5E9',
+    id: 'weather', name: 'Weather', category: 'weather', color: '#32ADE6',
     lede: 'Now, the next hours and days, and what to wear.',
     icon: '<path d="M8.5 3.5v1.6M3.5 8.5h1.6M5 5l1.1 1.1M12.4 5.1 11.3 6.2"/><path d="M5.6 11.3a3.4 3.4 0 0 1 6.2-2.3"/><path d="M9.5 20h8a3.6 3.6 0 0 0 .5-7.15 5.2 5.2 0 0 0-9.9-1A3.7 3.7 0 0 0 9.5 20Z"/>',
     summary: () => ({ text: `${placeName()} · ${WARMTH_LABELS[displaySettings().warmth ?? 'normal']}` }),
@@ -72,14 +72,14 @@ export const SCREENS: ScreenDef[] = [
     },
   },
   {
-    id: 'rain', name: 'Rain map', category: 'weather', color: '#0284C7',
+    id: 'rain', name: 'Rain map', category: 'weather', color: '#007AFF',
     lede: 'The last hour of rain radar around your place, with the chance of rain hour by hour.',
     icon: '<path d="M7 15.5h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.2 7.1 4.2 4.2 0 0 0 7 15.5Z"/><path d="M8.5 18.5 7.5 21M12.5 18.5l-1 2.5M16.5 18.5l-1 2.5"/>',
     summary: () => ({ text: placeName() }),
     body: () => [locationRow(), card(null, h('p', { class: 'hint' }, 'The map is about 300 km across, so it shows the rain that’s on its way. Radar: RainViewer; map: OpenStreetMap.'))],
   },
   {
-    id: 'tides', name: 'Tides', category: 'weather', color: '#0D9488',
+    id: 'tides', name: 'Tides', category: 'weather', color: '#30B0C7',
     lede: 'Whether the tide is coming in or going out, when it turns, and the day’s high and low water.',
     icon: '<path d="M3 9c1.5-1.3 3-1.3 4.5 0s3 1.3 4.5 0 3-1.3 4.5 0 3 1.3 4.5 0"/><path d="M3 14c1.5-1.3 3-1.3 4.5 0s3 1.3 4.5 0 3-1.3 4.5 0 3 1.3 4.5 0"/><path d="M3 19c1.5-1.3 3-1.3 4.5 0s3 1.3 4.5 0 3-1.3 4.5 0 3 1.3 4.5 0"/>',
     summary: () => {
@@ -89,21 +89,21 @@ export const SCREENS: ScreenDef[] = [
     body: () => tideCards(),
   },
   {
-    id: 'board', name: 'Overhead', category: 'flights', color: '#7C3AED',
+    id: 'board', name: 'Overhead', category: 'flights', color: '#AF52DE',
     lede: 'A split-flap board of the planes passing over right now.',
     icon: '<path d="M21 15.5v-2l-8-5V4a1.5 1.5 0 0 0-3 0v4.5l-8 5v2l8-2.5V18l-2 1.5V21l3.5-1 3.5 1v-1.5L13 18v-5Z"/>',
     summary: () => ({ text: `${placeName()} · ${km(skySettings().radiusNm)}` }),
     body: () => [locationRow(), rangeCard('Flight radar'), alertsCard()],
   },
   {
-    id: 'radar', name: 'Flight radar', category: 'flights', color: '#2e9d6e',
+    id: 'radar', name: 'Flight radar', category: 'flights', color: '#34C759',
     lede: 'Live aircraft on a radar sweep around your place.',
     icon: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="m12 12 5.5-5.5"/>',
     summary: () => ({ text: `${placeName()} · ${km(skySettings().radiusNm)} · ${MAP_LABELS[skySettings().map ?? DEFAULT_RADAR_MAP]}` }),
     body: () => [locationRow(), rangeCard('Overhead'), mapCard()],
   },
   {
-    id: 'airport', name: 'Airport boards', category: 'flights', color: '#F59E0B',
+    id: 'airport', name: 'Airport boards', category: 'flights', color: '#FF9500',
     lede: 'Arrivals and departures boards for airports you choose.',
     icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h4M7 14h4M14 10h3M14 14h3"/>',
     summary: () => {
@@ -113,7 +113,7 @@ export const SCREENS: ScreenDef[] = [
     body: () => airportCards(),
   },
   {
-    id: 'flight', name: 'Flight tracker', category: 'flights', color: '#DB2777',
+    id: 'flight', name: 'Flight tracker', category: 'flights', color: '#FF2D55',
     lede: 'One flight you choose, followed anywhere in the world: its route, how far along it is, how high and fast.',
     icon: '<circle cx="5" cy="18" r="2"/><circle cx="19" cy="6" r="2"/><path d="M6.5 16.5C9 11 13 13 17.5 7.5" stroke-dasharray="2 2.5"/>',
     summary: () => {
@@ -123,21 +123,21 @@ export const SCREENS: ScreenDef[] = [
     body: () => [followCard()],
   },
   {
-    id: 'tonight', name: 'Tonight', category: 'weather', color: '#4F46E5', quiet: true,
+    id: 'tonight', name: 'Tonight', category: 'weather', color: '#5856D6', quiet: true,
     lede: 'The night sky: the moon, planets and what’s worth looking up for.',
     icon: '<path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10Z"/>',
     summary: () => ({ text: placeName() }),
     body: () => [locationRow()],
   },
   {
-    id: 'iss', name: 'Space Station', category: 'weather', color: '#0F766E',
+    id: 'iss', name: 'Space Station', category: 'weather', color: '#00C7BE',
     lede: 'Where the International Space Station is right now, its path round the world, and who’s on board.',
     icon: '<path d="M2 9h6v6H2zM16 9h6v6h-6zM8 12h8"/><rect x="10" y="8.5" width="4" height="7" rx="1"/>',
     summary: () => ({ text: 'Live position and crew' }),
     body: () => [locationRow(), card(null, h('p', { class: 'hint' }, 'The position is worked out on the display from the station’s orbit, every second; your location gives the distance to it and the next time you can see it pass over. Orbit: CelesTrak; crew: the community-kept people-in-space list; map: NASA Blue Marble.'))],
   },
   {
-    id: 'clock', name: 'Clock', category: 'everyday', color: '#64748B', quiet: true,
+    id: 'clock', name: 'Clock', category: 'everyday', color: '#8E8E93', quiet: true,
     lede: 'A big clock. It’s also what the display falls back to if every screen is off.',
     icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     summary: () => ({ text: CLOCK_LABELS[displaySettings().clock][0] }),
@@ -154,7 +154,7 @@ export const SCREENS: ScreenDef[] = [
     },
   },
   {
-    id: 'photos', name: 'Photos', category: 'pictures', color: '#E11D48',
+    id: 'photos', name: 'Photos', category: 'pictures', color: '#FF9500',
     lede: 'A photo frame of pictures you pick from Google Photos.',
     icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/>',
     summary: () => {
@@ -167,7 +167,7 @@ export const SCREENS: ScreenDef[] = [
     body: () => photoSections(),
   },
   {
-    id: 'wiki', name: 'Wikipedia', category: 'pictures', color: '#475569',
+    id: 'wiki', name: 'Wikipedia', category: 'pictures', color: '#8E8E93',
     lede: 'Wikipedia’s featured article of the day.',
     icon: '<path d="M4 5h5a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H4Z"/><path d="M20 5h-5a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h6Z"/>',
     summary: () => ({ text: (displaySettings().wikiPictures ?? true) ? 'With its picture' : 'Words only' }),

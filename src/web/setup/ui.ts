@@ -160,6 +160,23 @@ export function card(title: string | null, ...children: Array<Node | string | nu
   return h('section', { class: 'card' }, title ? h('h3', {}, title) : null, ...children);
 }
 
+/** Lays each card out as an iOS grouped section: its title moves above the box as the section's
+ *  heading, and the hints at its end below it as the footnote. Run after a page is built. */
+export function sectionCards(root: ParentNode) {
+  for (const c of root.querySelectorAll<HTMLElement>('.card:not(.login)')) {
+    if (c.parentElement?.classList.contains('group')) continue;
+    const head = c.firstElementChild?.tagName === 'H3' ? c.firstElementChild : null;
+    const foot: Element[] = [];
+    for (let el = c.lastElementChild; el && el !== head && el.matches('p.hint'); el = el.previousElementSibling) foot.unshift(el);
+    const section = h('section', { class: 'group' });
+    c.replaceWith(section);
+    if (head) section.append(head);
+    // A card that was only a note leaves no empty box behind.
+    if (c.childElementCount > foot.length) section.append(c);
+    section.append(...foot);
+  }
+}
+
 /** A row of mutually exclusive buttons. */
 export function segmented<T extends string | number | boolean>(name: string, label: string, options: Array<[T, string]>, value: T, onChange: (v: T) => void) {
   const box = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': label });
