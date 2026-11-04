@@ -1,6 +1,6 @@
 import {
   CALENDAR_COLORS, CLOCK_STYLES, DEFAULT_NIGHT, MAX_AIRPORTS, MOTION_LEVELS, NIGHT_MODES, PHOTO_STYLES, RADAR_MAPS, RADIUS_CHOICES, WARMTH_LEVELS, secretKey,
-  ROTATE_CHOICES, SCREEN_IDS, cleanFollow, isClockTime, isFollow, type ClockStyle, type GoogleWants, type ScreenId, type MotionLevel, type NightSettings,
+  ROTATE_CHOICES, SCREEN_IDS, SCREEN_SEC_STEPS, cleanFollow, isClockTime, isFollow, type ClockStyle, type GoogleWants, type ScreenId, type MotionLevel, type NightSettings,
   type AdminState, type Place, type SavedAirport, type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type IcsConnection, type Settings,
 } from '../shared/settings';
 import { ALERT_LEVELS } from '../shared/notable';
@@ -382,5 +382,12 @@ async function saveDisplay(env: Env, b: Record<string, unknown>) {
   // A number from the choices, null for each screen's own pace, or left as it was when not sent.
   if (b.rotateSec !== undefined && b.rotateSec !== null && !ROTATE_CHOICES.includes(b.rotateSec as number)) throw new BadRequest('Unknown screen timing.');
   const rotateSec = (s: number | null | undefined) => (b.rotateSec === undefined ? s : b.rotateSec as number | null) ?? undefined;
-  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle, night: night(s.display?.night), wikiPictures: wikiPictures(s.display?.wikiPictures), screensOff: screensOff(s.display?.screensOff), order: order(s.display?.order), rotateSec: rotateSec(s.display?.rotateSec), stripClock: stripClock(s.display?.stripClock) } }));
+  // Seconds per screen, each one of the slider's stops; an empty object goes back to each screen's own pace.
+  if (b.screenSec !== undefined && (typeof b.screenSec !== 'object' || b.screenSec === null || Array.isArray(b.screenSec))) throw new BadRequest('screenSec must map screens to seconds.');
+  const sent = (b.screenSec ?? {}) as Record<string, unknown>;
+  for (const [id, sec] of Object.entries(sent)) {
+    if (!SCREEN_IDS.includes(id as ScreenId) || !SCREEN_SEC_STEPS.includes(sec as number)) throw new BadRequest('Unknown screen timing.');
+  }
+  const screenSec = (s: Partial<Record<ScreenId, number>> | undefined) => b.screenSec === undefined ? s : sent as Partial<Record<ScreenId, number>>;
+  return mutate(env, s => ({ ...s, display: { clock, motion, warmth, photoStyle, night: night(s.display?.night), wikiPictures: wikiPictures(s.display?.wikiPictures), screensOff: screensOff(s.display?.screensOff), order: order(s.display?.order), rotateSec: rotateSec(s.display?.rotateSec), screenSec: screenSec(s.display?.screenSec), stripClock: stripClock(s.display?.stripClock) } }));
 }

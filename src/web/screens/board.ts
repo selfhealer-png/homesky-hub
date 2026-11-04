@@ -181,7 +181,6 @@ function build(el: HTMLElement): BoardUi {
 export const boardScreen: Screen = {
   id: 'board',
   title: 'Overhead',
-  durationSec: 60,
   mount(el: HTMLElement, config: HubConfig) {
     root = el;
     applyTheme(storedTheme(config.boardTheme));

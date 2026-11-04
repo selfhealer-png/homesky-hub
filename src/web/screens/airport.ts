@@ -145,7 +145,6 @@ const placeOf = (a: SavedAirport) => ({ lat: a.lat, lon: a.lon, name: a.icao });
 export const airportScreen: Screen = {
   id: 'airport',
   title: 'Airport',
-  durationSec: 60,
   isAvailable: config => config.airports.length > 0,
   mount(el: HTMLElement, config: HubConfig) {
     const theme = storedTheme(config.boardTheme);

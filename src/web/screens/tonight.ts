@@ -136,7 +136,6 @@ function passRow(p: IssPass, day: string, at: string) {
 export const tonightScreen: Screen = {
   id: 'tonight',
   title: 'Tonight',
-  durationSec: 35,
   quiet: true,
   mount(el: HTMLElement, config: HubConfig) {
     el.append(h('p', 'tn-loading', 'Looking at tonight’s sky…'));

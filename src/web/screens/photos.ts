@@ -163,7 +163,6 @@ function wallLayer(style: WallStyle, slide: PhotoInfo[], imgs: HTMLImageElement[
 export const photosScreen: Screen = {
   id: 'photos',
   title: 'Photos',
-  durationSec: 90,
   isAvailable: config => config.features.photos,
   ownClock: true,
   mount(el: HTMLElement, config: HubConfig) {

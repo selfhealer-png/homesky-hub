@@ -683,7 +683,6 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
 export const radarScreen: Screen = {
   id: 'radar',
   title: 'Radar',
-  durationSec: 60,
   mount(el: HTMLElement, config: HubConfig) {
     currentConfig = config;
     const stage = h('div', 'radar-stage');

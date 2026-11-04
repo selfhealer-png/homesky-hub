@@ -101,7 +101,6 @@ function render(el: HTMLElement, data: WeatherResponse, home: { name: string; la
 export const weatherScreen: Screen = {
   id: 'weather',
   title: 'Weather',
-  durationSec: 45,
   mount(el: HTMLElement, config: HubConfig) {
     el.append(h('p', 'wx-loading', 'Checking the weather…'));
     const load = async () => {

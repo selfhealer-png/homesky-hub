@@ -151,7 +151,6 @@ function svgPlane() {
 export const flightScreen: Screen = {
   id: 'flight',
   title: 'Flight tracker',
-  durationSec: 60,
   isAvailable: config => !!config.follow,
   mount(el: HTMLElement, config: HubConfig) {
     el.append(h('p', 'wx-loading', `Looking for ${config.follow}…`));

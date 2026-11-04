@@ -76,9 +76,9 @@ async function check() {
 
 function show(a: Aircraft, n: Notable) {
   hide();
-  const el = h('button', `alert alert-${n.kind}`);
-  el.type = 'button';
-  el.setAttribute('role', 'alert');
+  // Announced as it appears; inside are two real buttons, the plane (opens its card) and Dismiss.
+  const el = h('div', `alert alert-${n.kind}`);
+  el.setAttribute('role', n.kind === 'emergency' ? 'alert' : 'status');
   const title = n.kind === 'rare' || n.kind === 'emergency' ? n.title : typeName(a.desc) ?? a.type ?? `${NOTABLE_LABEL[n.kind]} aircraft`;
   const where = [
     a.callsign ?? a.registration,
@@ -89,19 +89,18 @@ function show(a: Aircraft, n: Notable) {
   const text = h('span', 'alert-text');
   text.append(h('b', undefined, title), h('span', undefined, where));
   const look = whereToLook(a);
-  el.append(h('span', 'alert-tag', NOTABLE_LABEL[n.kind]), text);
-  if (look) el.append(h('span', 'alert-look', look));
-  const dismiss = h('span', 'alert-close');
-  dismiss.setAttribute('role', 'button');
+  const main = h('button', 'alert-main');
+  main.type = 'button';
+  main.append(h('span', 'alert-tag', NOTABLE_LABEL[n.kind]), text);
+  if (look) main.append(h('span', 'alert-look', look));
+  const dismiss = h('button', 'alert-close');
+  dismiss.type = 'button';
   dismiss.setAttribute('aria-label', 'Dismiss');
-  dismiss.textContent = '×';
-  el.append(dismiss);
+  dismiss.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+  el.append(main, dismiss);
   el.addEventListener('pointerdown', e => e.stopPropagation());
-  el.addEventListener('click', e => {
-    e.stopPropagation();
-    hide();
-    if (e.target !== dismiss) openPlane(a.hex, config, a);
-  });
+  main.addEventListener('click', e => { e.stopPropagation(); hide(); openPlane(a.hex, config, a); });
+  dismiss.addEventListener('click', e => { e.stopPropagation(); hide(); });
   document.body.append(el);
   banner = el;
   shownKind = n.kind;

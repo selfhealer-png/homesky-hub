@@ -101,18 +101,33 @@ export interface DisplaySettings {
    *  later release) slot in after the screen they follow by default. */
   order?: ScreenId[];
   /** Seconds before the display moves to the next screen. Absent: each screen's own pace
-   *  (null when saving says "go back to that"). */
+   *  (null when saving says "go back to that"). Hubs set up before per-screen timing may have
+   *  it; the timing sliders replace it with screenSec. */
   rotateSec?: number | null;
+  /** Seconds on each screen, as set on the timing sliders. A screen missing from it keeps
+   *  rotateSec, or else its own pace (DEFAULT_SCREEN_SEC). */
+  screenSec?: Partial<Record<ScreenId, number>>;
   /** The time in the bottom corner of screens that don't show it themselves. Off unless chosen. */
   stripClock?: boolean;
 }
 
-/** How often the display can be set to change screens, in seconds. */
+/** How often the display could be set to change screens, in seconds (the one pace for every
+ *  screen, from before per-screen timing; still accepted from older setup pages). */
 export const ROTATE_CHOICES = [15, 30, 60, 120, 300, 600];
 
 export type ScreenId = 'home' | 'weather' | 'rain' | 'tides' | 'board' | 'radar' | 'airport' | 'flight' | 'tonight' | 'iss' | 'clock' | 'photos' | 'wiki';
 /** Every screen, in the default rotation order. */
 export const SCREEN_IDS: ScreenId[] = ['home', 'weather', 'rain', 'tides', 'board', 'radar', 'airport', 'flight', 'tonight', 'iss', 'clock', 'photos', 'wiki'];
+
+/** The stops on a timing slider, in seconds: fine steps for short stays, coarser ones up to 15 minutes. */
+export const SCREEN_SEC_STEPS = [10, 15, 20, 30, 40, 45, 60, 90, 120, 180, 300, 600, 900];
+/** Each screen's own pace: busier screens stay longer. Every value is one of SCREEN_SEC_STEPS. */
+export const DEFAULT_SCREEN_SEC: Record<ScreenId, number> = {
+  home: 60, weather: 45, rain: 40, tides: 40, board: 60, radar: 60, airport: 60, flight: 60, tonight: 40, iss: 45, clock: 45, photos: 90, wiki: 40,
+};
+/** How long a screen stays up: its own setting, else the old one pace for all, else its default. */
+export const screenSeconds = (id: ScreenId, d: { screenSec?: Partial<Record<ScreenId, number>> | null; rotateSec?: number | null }) =>
+  d.screenSec?.[id] ?? d.rotateSec ?? DEFAULT_SCREEN_SEC[id];
 
 /** What the Flight tracker accepts, as typed in /setup: spaces dropped, then (isFollow) up to ten
  *  letters, digits and dashes. Nothing is cut off, so a typo is refused rather than half-saved. */

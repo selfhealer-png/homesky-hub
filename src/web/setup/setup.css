@@ -4,8 +4,9 @@
 
 :root {
   color-scheme: light;
-  /* iOS system colours: grouped background, cells, labels, separators, fills, tint. */
-  --bg: #F2F2F7; --card: #FFFFFF; --ink: #000000; --muted: rgba(60, 60, 67, .6); --faint: rgba(60, 60, 67, .3);
+  /* iOS system colours: grouped background, cells, labels, separators, fills, tint. The secondary
+     label is a little darker than iOS's (.74, not .6) so small text passes 4.5:1 on white and grey. */
+  --bg: #F2F2F7; --card: #FFFFFF; --ink: #000000; --muted: rgba(60, 60, 67, .74); --faint: rgba(60, 60, 67, .3);
   --line: rgba(60, 60, 67, .29); --fill: rgba(118, 118, 128, .12); --press: #D1D1D6;
   --switch-off: #E9E9EA; --pill: #FFFFFF;
   --glass: rgba(255, 255, 255, .72); --glass-rim: rgba(255, 255, 255, .9); --glass-shadow: rgba(0, 0, 0, .08);
@@ -48,6 +49,8 @@ button { -webkit-appearance: none; appearance: none; cursor: pointer; }
 a { color: var(--blue); text-decoration: none; }
 code { font: 13px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: 0; background: var(--fill); border-radius: 6px; padding: 2px 6px; overflow-wrap: anywhere; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+/* Text fields have no border, so focus is a ring that follows their rounded shape. */
+:root { --focus-ring: 0 0 0 2px var(--blue), 0 0 0 5px color-mix(in srgb, var(--blue) 22%, transparent); }
 
 /* The nav bar, as in iOS 26 and 27: no bar at all, just glass buttons floating over the page, and
    the page fading out where it scrolls under the top edge. The small title appears once the large
@@ -109,7 +112,7 @@ main { max-width: 760px; margin: 0 auto; padding: 0 max(16px, env(safe-area-inse
 .field input[type=text], .field input[type=url], .field input[type=password] {
   font-size: 17px; padding: 10px 14px; border-radius: 14px; border: 0; background: var(--fill); min-width: 0; width: 100%;
 }
-.field input:focus { outline: none; }
+.field input:focus { outline: none; box-shadow: var(--focus-ring); }
 
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
 .swatch { position: relative; width: 30px; height: 30px; }
@@ -226,7 +229,7 @@ main { max-width: 760px; margin: 0 auto; padding: 0 max(16px, env(safe-area-inse
 .place small { color: var(--muted); font-size: 15px; line-height: 1.33; }
 .searchrow { display: flex; gap: 8px; margin: 5px 0; }
 .searchrow input { flex: 1; min-width: 0; font-size: 17px; padding: 10px 16px; border-radius: 999px; border: 0; background: var(--fill); }
-.searchrow input:focus { outline: none; }
+.searchrow input:focus { outline: none; box-shadow: var(--focus-ring); }
 .searchrow button:not(.primary):not(.ghost) { border: 0; border-radius: 999px; padding: 0 20px; min-height: 44px; background: var(--blue); color: #fff; font-weight: 600; }
 .results { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 8px 0 5px; }
 .results:empty { display: none; }
@@ -246,7 +249,7 @@ main { max-width: 760px; margin: 0 auto; padding: 0 max(16px, env(safe-area-inse
 .quiethours > span:first-child { flex: 1 0 auto; white-space: nowrap; }
 .quiethours > span:not(:first-child) { color: var(--muted); }
 .quiethours input { font: inherit; font-variant-numeric: tabular-nums; color: var(--ink); padding: 6px 12px; border-radius: 999px; border: 0; background: var(--fill); color-scheme: light dark; }
-.quiethours input:focus { outline: none; color: var(--blue); }
+.quiethours input:focus { outline: none; color: var(--blue); box-shadow: var(--focus-ring); }
 
 /* Photos */
 .button-link { display: inline-flex; align-items: center; text-decoration: none; }
@@ -358,3 +361,25 @@ h2[tabindex]:focus { outline: none; }
 .row-button.danger { color: var(--bad); }
 .row-button:active { background: var(--press); }
 .row-button:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; border-radius: 26px; }
+
+/* Screen timing: a row per screen, its name and time on top and an iOS-style slider under them. */
+.row.timing { align-items: flex-start; padding-top: 12px; padding-bottom: 10px; }
+.row.timing > .tile { margin-top: 1px; }
+.row.timing.off .tile { opacity: .45; }
+.timing-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.timing-top { display: flex; align-items: baseline; gap: 8px; min-height: 30px; padding-top: 4px; }
+.timing-top label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timing-top small { color: var(--muted); font-size: 15px; }
+.timing-value { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.timing-hint { margin: 7px 20px 0; }
+.timing-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 30px; margin: 0; background: transparent; cursor: pointer; --p: 0%; }
+.timing-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--blue) var(--p), var(--fill) var(--p)); }
+.timing-slider::-moz-range-track { height: 4px; border-radius: 2px; background: var(--fill); }
+.timing-slider::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--blue); }
+.timing-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -12px; border-radius: 50%; background: #fff; box-shadow: 0 0.5px 4px rgba(0, 0, 0, .12), 0 6px 13px rgba(0, 0, 0, .12); transition: transform .15s; }
+.timing-slider::-moz-range-thumb { width: 28px; height: 28px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 0.5px 4px rgba(0, 0, 0, .12), 0 6px 13px rgba(0, 0, 0, .12); }
+.timing-slider:active::-webkit-slider-thumb { transform: scale(1.1); }
+.timing-slider:focus-visible { outline: none; }
+.timing-slider:focus-visible::-webkit-slider-thumb { box-shadow: var(--focus-ring); }
+.timing-slider:focus-visible::-moz-range-thumb { box-shadow: var(--focus-ring); }
+.rows .row.timing + .row.timing::before { left: 65px; }

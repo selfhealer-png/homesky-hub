@@ -120,7 +120,6 @@ function render(el: HTMLElement, config: HubConfig, d: TideResponse) {
 export const tidesScreen: Screen = {
   id: 'tides',
   title: 'Tides',
-  durationSec: 40,
   isAvailable: config => !!config.tidePlace,
   mount(el: HTMLElement, config: HubConfig) {
     el.append(h('p', 'wx-loading', 'Reading the tide…'));

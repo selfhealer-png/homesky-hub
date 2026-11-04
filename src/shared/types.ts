@@ -29,6 +29,8 @@ export interface HubConfig {
   order: ScreenId[];
   /** Seconds on each screen, or null for each screen's own pace. */
   rotateSec: number | null;
+  /** Seconds on each screen set one by one, which win over rotateSec (see screenSeconds). */
+  screenSec: Partial<Record<ScreenId, number>>;
   /** Show the time in the bottom corner of screens without their own clock. */
   stripClock: boolean;
   features: { agenda: boolean; photos: boolean; trending: boolean };

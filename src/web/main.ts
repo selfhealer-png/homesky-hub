@@ -2,7 +2,8 @@ import './styles.css';
 import type { HubConfig } from '../shared/types';
 import { getJson, NotPairedError } from './api';
 import { pickRotation } from '../shared/rotation';
-import { flash, type Screen } from './screen';
+import { screenSeconds } from '../shared/settings';
+import { flash, holdFocus, type Screen } from './screen';
 import { setMotionLevel } from './motion';
 import { currentNight, startNight, updateNight } from './night';
 import { showWelcome } from './welcome';
@@ -60,8 +61,8 @@ function show(i: number) {
 
 function schedule() {
   clearTimeout(timer);
-  // The pace chosen in /setup, or else each screen's own.
-  if (!pinned) timer = window.setTimeout(() => show(index + 1), (config.rotateSec ?? screens[index].durationSec) * 1000);
+  // The time chosen for this screen in /setup, or else its own pace.
+  if (!pinned) timer = window.setTimeout(() => show(index + 1), screenSeconds(screens[index].id, config) * 1000);
 }
 
 /** A screen someone chose with a tap, not the rotation. */
@@ -168,11 +169,14 @@ function openMenu() {
   };
   // Escape, a tap outside, or 15 seconds untouched all close it.
   let idle = window.setTimeout(close, MENU_IDLE_MS);
+  let release: (() => void) | undefined;
   const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
   function close() {
     clearTimeout(idle);
     document.removeEventListener('keydown', onKey);
     scrim.remove();
+    release?.();
+    release = undefined;
   }
   document.addEventListener('keydown', onKey);
   scrim.addEventListener('pointerdown', () => { clearTimeout(idle); idle = window.setTimeout(close, MENU_IDLE_MS); });
@@ -188,6 +192,7 @@ function openMenu() {
   scrim.append(menu);
   scrim.addEventListener('click', e => { if (e.target === scrim) close(); });
   document.body.append(scrim);
+  release = holdFocus(menu);
   (menu.querySelector('button') as HTMLButtonElement).focus();
 }
 
@@ -226,7 +231,7 @@ async function refreshConfig() {
   try {
     const fresh = await getJson<HubConfig>('/api/config');
     const clockChanged = fresh.clock !== config.clock;
-    const paceChanged = fresh.rotateSec !== config.rotateSec;
+    const paceChanged = fresh.rotateSec !== config.rotateSec || JSON.stringify(fresh.screenSec) !== JSON.stringify(config.screenSec);
     const rotationChanged = JSON.stringify([fresh.features, fresh.airports, fresh.screensOff, fresh.order, fresh.follow, fresh.tidePlace]) !== JSON.stringify([config.features, config.airports, config.screensOff, config.order, config.follow, config.tidePlace]);
     Object.assign(config, fresh);
     setMotionLevel(config.motion);
