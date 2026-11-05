@@ -1,6 +1,6 @@
 import type { Aircraft, AircraftResponse, RouteSummary, TrailPoint } from '../shared/types';
 import { cached } from './cache';
-import { json, USER_AGENT, type Env } from './env';
+import { allowedSources, json, USER_AGENT, type Env } from './env';
 import { lookupRoute, withProgress } from './routes';
 import { skyContext, type SkyContext } from './sky';
 
@@ -132,7 +132,7 @@ export async function fetchFromSources(env: Env, lat: number, lon: number, nm: n
   {
     const attempts: Array<[string, string, Provider['parse']]> = [];
     if (env.LOCAL_ADSB_URL) attempts.push(['local', `${env.LOCAL_ADSB_URL.replace(/\/$/, '')}/data/aircraft.json`, undefined]);
-    for (const p of PUBLIC_PROVIDERS) attempts.push([p.name, p.url(lat, lon, nm), p.parse]);
+    for (const p of allowedSources(env, PUBLIC_PROVIDERS)) attempts.push([p.name, p.url(lat, lon, nm), p.parse]);
 
     const errors: string[] = [];
     for (const [name, url, parse] of attempts) {

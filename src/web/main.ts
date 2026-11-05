@@ -1,12 +1,13 @@
 import './styles.css';
 import type { HubConfig } from '../shared/types';
-import { getJson, NotPairedError } from './api';
+import { getJson, IN_APP, NotPairedError, SETUP_PATH } from './api';
 import { pickRotation } from '../shared/rotation';
 import { screenSeconds } from '../shared/settings';
 import { flash, holdFocus, type Screen } from './screen';
 import { setMotionLevel } from './motion';
 import { currentNight, startNight, updateNight } from './night';
 import { showWelcome } from './welcome';
+import { runOnboarding } from './onboarding';
 import { startAlerts } from './alerts';
 import { openPlane } from './planeCard';
 import { startKeepAwake } from './wakeLock';
@@ -186,7 +187,7 @@ function openMenu() {
     item(pinned ? 'Carry on rotating' : 'Stay on this screen', () => setPinned(!pinned), true),
     plane ? item('About this plane', () => openPlane(plane.hex, config, plane)) : '',
     // Straight to this screen's own settings page; Back there leads to the rest.
-    item('Settings', () => { location.href = `/setup#/screens/${screens[index].id}`; }),
+    item('Settings', () => { location.href = `${SETUP_PATH}#/screens/${screens[index].id}`; }),
     item('Close', () => {}),
   );
   scrim.append(menu);
@@ -196,7 +197,15 @@ function openMenu() {
   (menu.querySelector('button') as HTMLButtonElement).focus();
 }
 
+let onboarded = false;
+
 async function start() {
+  // The app has nothing to sign in to, so a brand-new install goes straight to the first-run steps.
+  if (IN_APP && !onboarded) {
+    onboarded = true;
+    const fresh = await getJson<{ fresh: boolean }>('/api/welcome').then(d => d.fresh).catch(() => false);
+    if (fresh) return runOnboarding(notice, start);
+  }
   try {
     config = await getJson<HubConfig>('/api/config');
   } catch (err) {

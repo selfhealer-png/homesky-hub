@@ -1,3 +1,4 @@
+import { TILE_SOURCES } from './mapTiles';
 import { motionLevel } from './motion';
 
 // A small rain radar for the weather screen: RainViewer's radar over OpenStreetMap, both free
@@ -64,7 +65,7 @@ export function mountRainRadar(box: HTMLElement, lat: number, lon: number): () =
   const centre = worldPixel(lat, lon);
 
   box.append(
-    layer(size, centre, (x, y) => `https://tile.openstreetmap.org/${ZOOM}/${x}/${y}.png`, 'rr-layer rr-base'),
+    layer(size, centre, (x, y) => TILE_SOURCES.map.url(ZOOM, x, y), 'rr-layer rr-base'),
     Object.assign(document.createElement('span'), { className: 'rr-home', ariaHidden: 'true' }),
   );
   const label = Object.assign(document.createElement('span'), { className: 'rr-time' });

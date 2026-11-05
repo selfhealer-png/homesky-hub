@@ -45,6 +45,8 @@ export interface GoogleConnection {
   scopes?: string[];
   calendars: GoogleItem[];
   taskLists: GoogleItem[];
+  /** Signed in from the iOS app with its own client: PKCE, and no client secret. */
+  native?: boolean;
 }
 
 export type Connection = IcsConnection | FeedConnection | GoogleConnection;
@@ -156,7 +158,16 @@ export interface Settings {
   connections: Connection[];
   sky?: SkySettings;
   display?: DisplaySettings;
+  /** iOS app only: which of the iPad's own calendars and reminder lists the Home screen shows. */
+  device?: DeviceSettings;
+  /** iOS app only: an Apple Photos album the frame shows live, alongside any picked photos. */
+  photoSource?: PhotoSourceSettings;
 }
+
+/** Ticks and colours for the iPad's calendars (EventKit), the way GoogleItem keeps them for Google. */
+export interface DeviceSettings { calendars: GoogleItem[]; reminderLists: GoogleItem[] }
+
+export interface PhotoSourceSettings { kind: 'apple'; albumId: string; title: string }
 
 export const EMPTY_SETTINGS: Settings = { version: 1, connections: [] };
 
@@ -179,6 +190,10 @@ export interface AdminState {
     origin: string;
     googleRedirectUri: string;
     envFeed: boolean; // AGENDA_FEED_URL set as a deployment variable
+    /** The iOS app: the iPad's calendars and photos can be offered. */
+    device?: boolean;
+    /** The iOS app's own Google client (no client ID or secret to paste). */
+    nativeGoogle?: boolean;
   };
 }
 

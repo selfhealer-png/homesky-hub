@@ -8,7 +8,7 @@ import { agendaWindow, ProviderError, type ProviderResult } from './common';
 export const PHOTOS_SCOPE = GOOGLE_SCOPE.photos;
 
 /** Asks only for the parts chosen (plus the email address, to show who's connected). */
-export function googleAuthUrl(clientId: string, redirectUri: string, state: string, wants: GoogleWants): string {
+export function googleAuthUrl(clientId: string, redirectUri: string, state: string, wants: GoogleWants, pkceChallenge?: string): string {
   const scopes = ['openid', 'email', ...(Object.keys(GOOGLE_SCOPE) as Array<keyof GoogleWants>).filter(p => wants[p]).map(p => GOOGLE_SCOPE[p])];
   const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   u.search = new URLSearchParams({
@@ -20,6 +20,8 @@ export function googleAuthUrl(clientId: string, redirectUri: string, state: stri
     prompt: 'consent', // always return a refresh token, even on reconnect
     include_granted_scopes: 'true',
     state,
+    // The iOS app's client has no secret, so it proves itself with PKCE instead.
+    ...(pkceChallenge ? { code_challenge: pkceChallenge, code_challenge_method: 'S256' } : {}),
   }).toString();
   return u.toString();
 }
@@ -27,6 +29,8 @@ export function googleAuthUrl(clientId: string, redirectUri: string, state: stri
 interface TokenResponse { access_token?: string; refresh_token?: string; expires_in?: number; id_token?: string; scope?: string; error?: string; error_description?: string }
 
 async function tokenRequest(params: Record<string, string>): Promise<TokenResponse> {
+  // An iOS OAuth client has no secret: sending an empty one is refused, so leave it out.
+  if (!params.client_secret) delete params.client_secret;
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -37,8 +41,8 @@ async function tokenRequest(params: Record<string, string>): Promise<TokenRespon
 }
 
 /** Exchanges the OAuth code for tokens. Returns the refresh token and the account's email. */
-export async function exchangeCode(clientId: string, clientSecret: string, code: string, redirectUri: string) {
-  const t = await tokenRequest({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri, grant_type: 'authorization_code' });
+export async function exchangeCode(clientId: string, clientSecret: string, code: string, redirectUri: string, codeVerifier?: string) {
+  const t = await tokenRequest({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri, grant_type: 'authorization_code', ...(codeVerifier ? { code_verifier: codeVerifier } : {}) });
   if (!t.refresh_token) throw new ProviderError(t.error_description ?? t.error ?? 'Google did not return a refresh token.');
   // The id_token came straight from Google's token endpoint over TLS, so reading its payload
   // without verifying the signature is fine here.

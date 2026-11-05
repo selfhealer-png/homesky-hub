@@ -1,0 +1,36 @@
+# Compiles the iOS app for the Simulator, unsigned. Needs no Apple account or secrets, so it
+# checks the native code (Swift plugins, Info.plist, Swift packages) from Windows: push, then read
+# the result here. macOS runners are free for public repositories.
+name: iOS compile check
+
+on:
+  push:
+    paths: ['ios/**', 'src/**', 'capacitor.config.ts', 'package*.json', '.github/workflows/ios-compile.yml']
+  workflow_dispatch:
+
+jobs:
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:app
+      - run: npx cap sync ios
+      - name: Build for the iOS Simulator
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build | tee xcodebuild.log | grep -E "error:|warning: .*deprecated|\*\* BUILD" || true
+          grep -q "\*\* BUILD SUCCEEDED \*\*" xcodebuild.log
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: xcodebuild.log

@@ -2,7 +2,7 @@ import { minutesToGo } from '../../shared/arrivals';
 import { classify, typeName } from '../../shared/notable';
 import type { RadarMap } from '../../shared/settings';
 import type { Aircraft, AircraftResponse, HubConfig, PlaceName, RouteSummary } from '../../shared/types';
-import { getJson } from '../api';
+import { getJson, setApiImage } from '../api';
 import { tileDisc, TILE_SOURCES } from '../mapTiles';
 import { airportsAround, type NearbyAirport } from '../nearbyAirports';
 import { placesAround } from '../placeNames';
@@ -600,7 +600,7 @@ function airlineLogo(iata: string): HTMLImageElement | null {
   if (logoKnown.get(iata)) img.classList.add('on');
   img.addEventListener('load', () => { logoKnown.set(iata, true); img.classList.add('on'); });
   img.addEventListener('error', () => { logoKnown.set(iata, false); img.remove(); });
-  img.src = `/api/logo/${encodeURIComponent(iata)}`;
+  void setApiImage(img, `/api/logo/${encodeURIComponent(iata)}`);
   return img;
 }
 

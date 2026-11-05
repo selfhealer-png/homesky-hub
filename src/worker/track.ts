@@ -2,7 +2,7 @@ import { cleanFollow, isFollow } from '../shared/settings';
 import type { Aircraft, TrackResponse } from '../shared/types';
 import { normalize, type ReadsbAircraft } from './aircraft';
 import { cached } from './cache';
-import { json, USER_AGENT, type Env } from './env';
+import { allowedSources, json, USER_AGENT, type Env } from './env';
 import { lookupRoute, withProgress } from './routes';
 import { loadSettings } from './settings';
 import { skyContext } from './sky';
@@ -63,7 +63,7 @@ export async function lookupsFor(env: Env, query: string): Promise<Lookup[]> {
 export async function fetchLookup(env: Env, l: Lookup): Promise<{ source: string; aircraft: ReadsbAircraft[] }> {
   return cached(env, `track:${l.kind}:${l.value}`, LIVE_SECONDS, async () => {
     const errors: string[] = [];
-    for (const s of SOURCES) {
+    for (const s of allowedSources(env, SOURCES)) {
       try {
         const res = await fetch(s.url(l), { headers: { 'user-agent': USER_AGENT, accept: 'application/json' }, signal: AbortSignal.timeout(4000) });
         if (!res.ok) throw new Error(`answered ${res.status}`);

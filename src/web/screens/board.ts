@@ -1,6 +1,6 @@
 import type { Aircraft, BoardTheme, HubConfig, OverheadResponse, RouteInfo } from '../../shared/types';
 import { classify, typeName } from '../../shared/notable';
-import { getJson } from '../api';
+import { getJson, setApiImage } from '../api';
 import { FlapRow, setFlapMotion, type FlapMotion } from '../flap';
 import { skyHome, skyQuery } from '../location';
 import { ageLabel, recall, Refresher, remember, watchAge, type Outcome } from '../skyCache';
@@ -115,7 +115,7 @@ function showLogo(ui: BoardUi, iata: string | null) {
   if (ui.logo.dataset.src === src) return;
   ui.logo.dataset.src = src;
   ui.plaque.classList.remove('on');
-  if (src) ui.logo.src = src;
+  if (src) void setApiImage(ui.logo, src);
   else ui.logo.removeAttribute('src');
 }
 

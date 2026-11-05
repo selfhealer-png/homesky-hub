@@ -2,6 +2,7 @@ import type { AgendaResponse } from '../shared/types';
 import { secretKey, type Connection } from '../shared/settings';
 import { cached } from './cache';
 import { demoFeed } from './demo';
+import { readDevice } from './device';
 import { json, type Env } from './env';
 import { ProviderError, type ProviderResult } from './providers/common';
 import { readFeed } from './providers/feed';
@@ -24,8 +25,9 @@ export async function readConnection(env: Env, conn: Connection, secrets: Record
     case 'google': {
       const clientSecret = secrets[secretKey.googleClientSecret];
       const refreshToken = secrets[secretKey.googleRefreshToken];
-      if (!clientSecret || !refreshToken) throw new ProviderError('Google is not connected.');
-      return readGoogle(conn, { clientId: conn.clientId, clientSecret, refreshToken });
+      // The iOS app's own client has no secret (it signs in with PKCE).
+      if ((!clientSecret && !conn.native) || !refreshToken) throw new ProviderError('Google is not connected.');
+      return readGoogle(conn, { clientId: conn.clientId, clientSecret: clientSecret ?? '', refreshToken });
     }
   }
 }
@@ -52,6 +54,12 @@ export async function handleAgenda(env: Env): Promise<Response> {
   } else if (env.AGENDA_FEED_URL) {
     tasks.push(cached(env, 'agenda:envfeed', CACHE_SECONDS, () => readFeed('env', env.AGENDA_FEED_URL!, env.AGENDA_FEED_TOKEN)));
     names.push('Agenda feed');
+  }
+
+  // The iPad's own calendars and reminders (iOS app only), read on the device: not cached.
+  if (env.DEVICE && (settings.device?.calendars.some(c => c.enabled) || settings.device?.reminderLists.some(l => l.enabled))) {
+    tasks.push(readDevice(env, settings).then(r => r ?? { sources: [], events: [], tasks: [] }));
+    names.push('This iPad');
   }
 
   if (!tasks.length && !connections.length) return json({ configured: false } satisfies AgendaResponse);

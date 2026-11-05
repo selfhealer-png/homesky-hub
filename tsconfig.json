@@ -10,5 +10,6 @@
     "isolatedModules": true,
     "types": ["vite/client"]
   },
-  "include": ["src/web", "src/shared"]
+  "include": ["src/web", "src/shared"],
+  "exclude": ["src/web/app"]
 }

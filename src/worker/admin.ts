@@ -10,6 +10,7 @@ import { readConnection } from './agenda';
 import { json, type Env } from './env';
 import { agendaWindow, ProviderError } from './providers/common';
 import { exchangeCode, googleAuthUrl, listGoogleChoices } from './providers/google';
+import { deviceAlbums, deviceChoices } from './device';
 import { deletePhotos, listPhotos, pollPicking, servePhoto, setCaptions, startPicking } from './photos';
 import { loadSecrets, loadSettings, saveSettings, SettingsUnavailable, updateSecrets } from './settings';
 
@@ -64,6 +65,12 @@ export async function handleAdmin(request: Request, env: Env, url: URL): Promise
       case '/api/admin/google/choices': return json(await googleChoices(env));
       case '/api/admin/google/selection': return json(await googleSelection(env, body));
       case '/api/admin/google/disconnect': return json(await googleDisconnect(env));
+      case '/api/admin/google/native-start': return json(await googleNativeStart(env, body));
+      case '/api/admin/google/native-finish': return json(await googleNativeFinish(env, body));
+      case '/api/admin/device/choices': return json(await deviceChoices(env, await loadSettings(env), { calendars: body.calendars !== false, reminders: body.reminders !== false }));
+      case '/api/admin/device/selection': return json(await deviceSelection(env, body));
+      case '/api/admin/device/albums': return json(await deviceAlbums(env));
+      case '/api/admin/photos/source': return json(await savePhotoSource(env, body));
       case '/api/admin/sky': return json(await saveSky(env, body));
       case '/api/admin/display': return json(await saveDisplay(env, body));
       case '/api/admin/photos': return json(await listPhotos(env));
@@ -90,6 +97,8 @@ async function state(env: Env, url: URL): Promise<AdminState> {
       origin: url.origin,
       googleRedirectUri: `${url.origin}${GOOGLE_CALLBACK}`,
       envFeed: !!env.AGENDA_FEED_URL,
+      device: !!env.DEVICE,
+      nativeGoogle: !!env.GOOGLE_IOS_CLIENT_ID,
     },
   };
 }
@@ -258,6 +267,62 @@ async function googleCallback(env: Env, url: URL): Promise<Response> {
   }
 }
 
+// ── Google from the iOS app: its own client (no secret), PKCE, and a redirect to the app ─────
+// The app opens the returned URL in the system sign-in sheet, Google sends the person back to
+// the app at its reversed client ID, and the app hands the code and its PKCE verifier here.
+
+const nativeRedirect = (clientId: string) => `com.googleusercontent.apps.${clientId.replace(/\.apps\.googleusercontent\.com$/, '')}:/oauth2redirect`;
+
+async function googleNativeStart(env: Env, b: Record<string, unknown>) {
+  const clientId = env.GOOGLE_IOS_CLIENT_ID;
+  if (!clientId) throw new BadRequest('This build of the app has no Google client.');
+  const challenge = str(b.challenge, 'PKCE challenge', 128);
+  const asked = b.wants as Partial<GoogleWants> | undefined;
+  const wants: GoogleWants = { calendar: !!asked?.calendar, tasks: !!asked?.tasks, photos: !!asked?.photos };
+  if (!wants.calendar && !wants.tasks && !wants.photos) throw new BadRequest('Choose at least one thing to use Google for.');
+  await mutate(env, s => {
+    const g = googleConn(s);
+    if (g && g.clientId === clientId) { g.wants = wants; g.native = true; return s; }
+    const others = s.connections.filter(c => c.kind !== 'google');
+    return { ...s, connections: [...others, { id: 'google', kind: 'google', enabled: true, clientId, native: true, wants, account: null, calendars: [], taskLists: [] }] };
+  });
+  const state = newId() + newId();
+  return { url: googleAuthUrl(clientId, nativeRedirect(clientId), state, wants, challenge), redirect: nativeRedirect(clientId), state };
+}
+
+async function googleNativeFinish(env: Env, b: Record<string, unknown>) {
+  const conn = googleConn(await loadSettings(env));
+  if (!conn?.native) throw new BadRequest('Start connecting Google first.');
+  const { refreshToken, account, scopes } = await exchangeCode(conn.clientId, '', str(b.code, 'Code', 2000), nativeRedirect(conn.clientId), str(b.verifier, 'PKCE verifier', 128));
+  await updateSecrets(env, { [secretKey.googleRefreshToken]: refreshToken, [secretKey.googleClientSecret]: null });
+  const choices = await listGoogleChoices({ clientId: conn.clientId, clientSecret: '', refreshToken }, { scopes });
+  return mutate(env, s => {
+    const g = googleConn(s)!;
+    g.account = account;
+    g.scopes = scopes;
+    g.enabled = true;
+    g.calendars = mergeChoices(g.calendars, choices.calendars);
+    g.taskLists = mergeChoices(g.taskLists, choices.taskLists);
+    return s;
+  });
+}
+
+// ── The iPad's own calendars and photos (iOS app) ───────────────────────────
+
+async function deviceSelection(env: Env, b: Record<string, unknown>) {
+  const pick = (incoming: unknown) => (Array.isArray(incoming) ? (incoming as Array<Partial<GoogleItem>>) : [])
+    .filter(x => typeof x.id === 'string' && typeof x.name === 'string')
+    .map(x => ({ id: x.id!, name: x.name!.slice(0, 80), color: color(x.color), enabled: !!x.enabled }));
+  return mutate(env, s => ({ ...s, device: { calendars: pick(b.calendars), reminderLists: pick(b.reminderLists) } }));
+}
+
+async function savePhotoSource(env: Env, b: Record<string, unknown>) {
+  if (b.kind === null || b.kind === undefined) return mutate(env, s => { delete s.photoSource; return s; });
+  if (b.kind !== 'apple') throw new BadRequest('Unknown photo source.');
+  const source = { kind: 'apple' as const, albumId: str(b.albumId, 'Album', 300), title: str(b.title, 'Album name', 120) };
+  return mutate(env, s => ({ ...s, photoSource: source }));
+}
+
 /** Keeps the person's ticks and colours for items that still exist; adds new ones. */
 function mergeChoices(saved: GoogleItem[], fresh: GoogleItem[]): GoogleItem[] {
   return fresh.map(f => {
@@ -271,7 +336,7 @@ async function googleChoices(env: Env) {
   const conn = googleConn(settings);
   const secrets = await loadSecrets(env);
   if (!conn?.account || !secrets[secretKey.googleRefreshToken]) throw new BadRequest('Google is not connected.');
-  const choices = await listGoogleChoices({ clientId: conn.clientId, clientSecret: secrets[secretKey.googleClientSecret], refreshToken: secrets[secretKey.googleRefreshToken] }, conn);
+  const choices = await listGoogleChoices({ clientId: conn.clientId, clientSecret: secrets[secretKey.googleClientSecret] ?? '', refreshToken: secrets[secretKey.googleRefreshToken] }, conn);
   return mutate(env, s => {
     const g = googleConn(s)!;
     g.calendars = mergeChoices(g.calendars, choices.calendars);

@@ -383,3 +383,7 @@ h2[tabindex]:focus { outline: none; }
 .timing-slider:focus-visible::-webkit-slider-thumb { box-shadow: var(--focus-ring); }
 .timing-slider:focus-visible::-moz-range-thumb { box-shadow: var(--focus-ring); }
 .rows .row.timing + .row.timing::before { left: 65px; }
+
+/* Data sources in the app (This hub) */
+.credits { margin: 0; padding-left: 18px; line-height: 1.55; font-size: 14px; }
+.credits li { margin: 3px 0; }

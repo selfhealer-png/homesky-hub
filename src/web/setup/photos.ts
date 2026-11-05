@@ -1,6 +1,8 @@
+import { applePhotosCard } from './device';
 import { PHOTO_STYLES, googleGranted, type PhotoInfo, type PhotoStyle, type PickStatus } from '../../shared/settings';
 import { connectGoogle, googleConnection, startGoogleForPhotos } from './accounts';
 import { displaySettings, render, saveDisplay, state } from './store';
+import { setApiImage } from '../api';
 import { api, busy, card, field, h, input, quietly, segmented, toast } from './ui';
 
 // The photo frame: how photos are shown, picking them in Google Photos, and the library.
@@ -55,9 +57,10 @@ export function photoSections(): Node[] {
     add.append(picking ? pickingPanel() : pickForm());
   }
 
+  const apple = applePhotosCard();
   const library = card('Library');
   libraryInto(library);
-  return [style, add, library];
+  return [style, ...(apple ? [apple] : []), add, library];
 }
 
 function pickForm() {
@@ -118,7 +121,7 @@ function libraryInto(el: HTMLElement) {
       del.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
       del.addEventListener('click', () => busy(del, async () => { photoLibrary = await api<PhotoInfo[]>('/api/admin/photos/delete', { ids: [p.id] }); render(); }));
       const edit = h('button', { type: 'button', class: 'thumb-edit', 'aria-label': p.caption ? `Label: ${p.caption}. Change it` : 'Add a label to this photo' },
-        h('img', { src: `/api/admin/photos/thumb/${p.id}`, alt: '', loading: 'lazy' }));
+        thumb(p.id));
       edit.addEventListener('click', async () => {
         const next = prompt('Label for this photo (a place, or who’s in it). Leave empty to remove.', p.caption ?? '');
         if (next === null) return;
@@ -174,4 +177,10 @@ async function pollPick() {
     const wait = current.status.state === 'waiting' ? current.status.pollMs : 300;
     await new Promise(r => setTimeout(r, wait));
   }
+}
+
+function thumb(id: string): HTMLImageElement {
+  const img = h('img', { alt: '', loading: 'lazy' });
+  void setApiImage(img, `/api/admin/photos/thumb/${id}`);
+  return img;
 }

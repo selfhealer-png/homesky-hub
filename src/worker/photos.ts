@@ -1,4 +1,5 @@
 import { secretKey, type GoogleConnection, type PhotoInfo, type PickStatus } from '../shared/settings';
+import { devicePhotos, serveDevicePhoto } from './device';
 import { json, type Env } from './env';
 import { ProviderError } from './providers/common';
 import { accessToken, PHOTOS_SCOPE } from './providers/google';
@@ -31,7 +32,7 @@ async function photosToken(env: Env): Promise<string> {
   const secrets = await loadSecrets(env);
   if (!g?.account || !secrets[secretKey.googleRefreshToken]) throw new PhotosUnavailable('Connect Google first (in Calendars and tasks).');
   if (g.scopes && !g.scopes.includes(PHOTOS_SCOPE)) throw new PhotosUnavailable('Google is connected without photo access. Press “Reconnect Google” to allow it.');
-  return accessToken(g.clientId, secrets[secretKey.googleClientSecret], secrets[secretKey.googleRefreshToken]);
+  return accessToken(g.clientId, secrets[secretKey.googleClientSecret] ?? '', secrets[secretKey.googleRefreshToken]);
 }
 
 async function picker<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
@@ -136,6 +137,13 @@ const CAPTIONS_KEY = 'photos:captions:v1';
 const loadCaptions = async (env: Env) => ((await env.HUB_KV?.get(CAPTIONS_KEY, 'json')) as Record<string, string> | null) ?? {};
 
 export async function listPhotos(env: Env): Promise<PhotoInfo[]> {
+  // An Apple Photos album (iOS app) is read live, alongside anything picked from Google.
+  const settings = env.DEVICE ? await loadSettings(env) : null;
+  const live = settings ? await devicePhotos(env, settings) : [];
+  return [...(await storedPhotos(env)), ...live];
+}
+
+async function storedPhotos(env: Env): Promise<PhotoInfo[]> {
   if (!env.PHOTOS) return [];
   if (libraryCache && Date.now() - libraryCache.at < 5 * 60_000) return libraryCache.photos;
   const captions = await loadCaptions(env);
@@ -155,7 +163,7 @@ export async function listPhotos(env: Env): Promise<PhotoInfo[]> {
 }
 
 export async function deletePhotos(env: Env, which: { ids?: unknown; collection?: unknown }): Promise<PhotoInfo[]> {
-  const all = await listPhotos(env);
+  const all = await storedPhotos(env); // an Apple Photos album is changed in Photos, not here
   const ids = Array.isArray(which.ids) ? new Set(which.ids.filter((x): x is string => typeof x === 'string')) : null;
   const doomed = all.filter(p => (ids ? ids.has(p.id) : typeof which.collection === 'string' && p.collection === which.collection));
   const keys = doomed.flatMap(p => [`photos/${p.id}`, `thumbs/${p.id}`]);
@@ -189,17 +197,21 @@ export async function setCaptions(env: Env, b: { ids?: unknown; collection?: unk
 
 /** Serves a stored photo or thumbnail. Ids are content-derived, so caching forever is safe. */
 export async function servePhoto(env: Env, kind: 'photos' | 'thumbs', id: string, request: Request): Promise<Response> {
-  if (!env.PHOTOS || !/^[0-9a-f]{20}$/.test(id)) return new Response('Not found', { status: 404 });
-  const obj = await env.PHOTOS.get(`${kind}/${id}`, { onlyIf: request.headers });
-  if (!obj) return new Response('Not found', { status: 404 });
+  if (!/^[0-9a-f]{20}$/.test(id)) return new Response('Not found', { status: 404 });
+  const obj: R2Object | R2ObjectBody | null = env.PHOTOS ? await env.PHOTOS.get(`${kind}/${id}`, { onlyIf: request.headers }) : null;
+  if (!obj) {
+    const fromAlbum = env.DEVICE ? await serveDevicePhoto(env, await loadSettings(env), id, kind === 'thumbs' ? 320 : DISPLAY_SIZE.w) : null;
+    return fromAlbum ?? new Response('Not found', { status: 404 });
+  }
   const headers = new Headers({ 'cache-control': 'private, max-age=31536000, immutable', etag: obj.httpEtag });
   obj.writeHttpMetadata(headers);
   if (!('body' in obj)) return new Response(null, { status: 304, headers });
-  return new Response(obj.body, { headers });
+  return new Response((obj as R2ObjectBody).body, { headers });
 }
 
 export async function handleDisplayPhotos(env: Env, url: URL, request: Request): Promise<Response> {
   const m = url.pathname.match(/^\/api\/photos\/([0-9a-f]{20})$/);
   if (m) return servePhoto(env, 'photos', m[1], request);
-  return json({ configured: !!env.PHOTOS, photos: await listPhotos(env) });
+  const configured = !!env.PHOTOS || (!!env.DEVICE && (await loadSettings(env)).photoSource?.kind === 'apple');
+  return json({ configured, photos: await listPhotos(env) });
 }

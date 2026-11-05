@@ -13,3 +13,4 @@ wrangler.toml
 src/web/public/places/
 src/web/public/airports.json
 homesky-secrets.txt
+dist-app/

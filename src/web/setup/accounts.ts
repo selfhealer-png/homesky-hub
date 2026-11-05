@@ -1,9 +1,11 @@
+import { deviceCalendarsCard } from './device';
 import {
   CALENDAR_COLORS, googleGranted,
   type Connection, type ConnectionTest, type FeedConnection, type GoogleConnection, type GoogleItem, type GooglePart, type GoogleWants, type IcsConnection, type Settings,
 } from '../../shared/settings';
 import { render, setSettings, state } from './store';
 import { api, busy, card, copyRow, field, guide, h, input, pageHead, swatches, testResult, toast } from './ui';
+import { connectGoogleNative, SignInCancelled } from '../googleNative';
 
 // Accounts: where calendars, tasks and photos come from. Connecting and managing them lives here;
 // choosing which calendars the Home screen shows lives on the Home page (calendarChoices below).
@@ -56,6 +58,7 @@ export function accountsPage(): Node[] {
   return [
     pageHead('Accounts', 'Where calendars, tasks and photos come from. Everything is read-only: the hub can show your calendars but never change them.'),
     connected,
+    deviceCalendarsCard(),
     google ? googlePanel(google) : null,
     add,
   ].filter((n): n is HTMLElement => !!n);
@@ -251,6 +254,18 @@ function googleQuestion(conn: GoogleConnection | undefined, onChange: () => void
 }
 
 export async function connectGoogle(btn: HTMLButtonElement, wants: GoogleWants) {
+  // The iOS app signs in with its own client, in the system sheet, and comes straight back.
+  if (state.status.nativeGoogle) {
+    return busy(btn, async () => {
+      try {
+        setSettings(await connectGoogleNative(wants));
+        googleDraft = null;
+        toast('Google connected. Choose what to show below.');
+      } catch (err) {
+        if (!(err instanceof SignInCancelled)) throw err;
+      }
+    });
+  }
   await busy(btn, async () => {
     const { url } = await api<{ url: string }>('/api/admin/google/start', { wants });
     googleDraft = null;
@@ -277,6 +292,18 @@ function googlePanel(conn: GoogleConnection | undefined) {
   }
   panel.append(googleQuestion(conn, render));
   const wants = googleWantsNow(conn);
+
+  if (state.status.nativeGoogle) {
+    const connect = h('button', { type: 'button', class: 'primary' }, 'Connect Google');
+    const nothing = !wants.calendar && !wants.tasks && !wants.photos;
+    if (nothing) connect.setAttribute('disabled', '');
+    connect.addEventListener('click', () => connectGoogle(connect, wants));
+    panel.append(
+      h('p', { class: 'lede' }, 'Sign in to Google. The app only ever gets read-only access, and for photos it only sees the ones you pick. Everything stays on this iPad.'),
+      h('div', { class: 'buttons' }, connect));
+    if (nothing) panel.append(h('p', { class: 'hint' }, 'Tick at least one thing to use Google for.'));
+    return panel;
+  }
 
   const redirect = state.status.googleRedirectUri;
   const link = (href: string, text: string) => h('a', { href, target: '_blank', rel: 'noopener' }, text);

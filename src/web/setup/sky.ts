@@ -1,3 +1,4 @@
+import { devicePosition } from '../native';
 import { ALERT_LEVELS, DEFAULT_ALERTS, type AlertLevel } from '../../shared/notable';
 import { cleanFollow, DEFAULT_RADAR_MAP, isFollow, RADAR_MAPS, RADIUS_CHOICES, type Place, type RadarMap, type SavedAirport } from '../../shared/settings';
 import { km, placeName, saveSky, skySettings } from './store';
@@ -30,13 +31,13 @@ export function placesPage() {
   const { form, results } = placeSearch(add);
   const here = h('button', { type: 'button', class: 'ghost' }, 'Use where I am now');
   here.addEventListener('click', () => {
-    if (!('geolocation' in navigator)) return toast('This browser can’t share its location.', 'error');
     here.disabled = true;
-    navigator.geolocation.getCurrentPosition(pos => {
+    void devicePosition(15_000, 0).then(pos => {
       here.disabled = false;
+      if (!pos) return toast('Location permission was refused or unavailable.', 'error');
       const name = prompt('Name for this place', 'Home')?.trim();
-      if (name) busy(here, () => add({ name: name.slice(0, 40), lat: pos.coords.latitude, lon: pos.coords.longitude }));
-    }, () => { here.disabled = false; toast('Location permission was refused or unavailable.', 'error'); }, { timeout: 15_000 });
+      if (name) busy(here, () => add({ name: name.slice(0, 40), lat: pos.lat, lon: pos.lon }));
+    });
   });
 
   return [

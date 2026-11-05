@@ -1,7 +1,7 @@
 import { minutesToGo } from '../shared/arrivals';
 import { approaching, classify, compassWord, typeName, whereToLook, type Notable } from '../shared/notable';
 import type { Aircraft, HubConfig, PlaneDetail } from '../shared/types';
-import { getJson } from './api';
+import { getJson, setApiImage } from './api';
 import { skyHome, skyQuery } from './location';
 import { h, holdFocus } from './screen';
 
@@ -134,7 +134,7 @@ function render(config: HubConfig, hex: string, d: PlaneDetail | null, known: Ai
   if (r?.airline?.iata) {
     const logo = h('img', 'plane-logo');
     logo.alt = '';
-    logo.src = `/api/logo/${encodeURIComponent(r.airline.iata)}`;
+    void setApiImage(logo, `/api/logo/${encodeURIComponent(r.airline.iata)}`);
     logo.addEventListener('error', () => logo.remove());
     head.append(logo);
   }
