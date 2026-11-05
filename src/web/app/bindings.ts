@@ -45,9 +45,15 @@ interface R2Meta { size: number; etag: string; uploaded: number; httpMetadata: {
 
 const LIST_LIMIT = 1000;
 
-/** R2: put/get (with If-None-Match)/list/delete, metadata kept apart so listing never loads bodies. */
+/**
+ * R2: put/get (with If-None-Match)/list/delete, metadata kept apart so listing never loads bodies.
+ *
+ * With capBytes, it's a cache with a ceiling: photos copied from Google Photos (photos/<id>, with
+ * a thumbs/<id> beside each) are dropped oldest first once they'd take more than that. The frame
+ * then shows the newest few hundred, which on an always-on display is plenty.
+ */
 export class LocalBucket {
-  constructor(private db: Idb) {}
+  constructor(private db: Idb, private capBytes = 0) {}
 
   async put(key: string, value: ArrayBuffer | ArrayBufferView | string, opts: { httpMetadata?: { contentType?: string }; customMetadata?: Record<string, string> } = {}) {
     const body = typeof value === 'string' ? new TextEncoder().encode(value).buffer
@@ -57,7 +63,26 @@ export class LocalBucket {
     const meta: R2Meta = { size: body.byteLength, etag, uploaded: Date.now(), httpMetadata: opts.httpMetadata ?? {}, customMetadata: opts.customMetadata ?? {} };
     await this.db.put('r2body', key, body);
     await this.db.put('r2meta', key, meta);
+    if (this.capBytes && key.startsWith('photos/')) await this.trim(key);
     return object(key, meta);
+  }
+
+  /** Drops the oldest photos (and their thumbnails) until everything fits under capBytes. */
+  private async trim(keep: string) {
+    const keys = await this.db.keys('r2meta', '');
+    const metas = await this.db.getMany<R2Meta>('r2meta', keys);
+    let total = metas.reduce((n, m) => n + (m?.size ?? 0), 0);
+    if (total <= this.capBytes) return;
+    const size = new Map(keys.map((k, i) => [k, metas[i]?.size ?? 0]));
+    const photos = keys.map((k, i) => ({ k, at: metas[i]?.uploaded ?? 0 }))
+      .filter(p => p.k.startsWith('photos/') && p.k !== keep)
+      .sort((a, b) => a.at - b.at);
+    for (const p of photos) {
+      if (total <= this.capBytes) break;
+      const thumb = `thumbs/${p.k.slice('photos/'.length)}`;
+      await this.delete([p.k, thumb]);
+      total -= (size.get(p.k) ?? 0) + (size.get(thumb) ?? 0);
+    }
   }
 
   async head(key: string) {

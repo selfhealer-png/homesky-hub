@@ -13,6 +13,8 @@ const config: CapacitorConfig = {
     scheme: 'Home&Sky Hub',
     contentInset: 'never',
     backgroundColor: '#0B0F1A',
+    // Data sources (Wikimedia, adsbdb…) ask apps to say who they are; GETs go out with this UA.
+    appendUserAgent: 'homesky-hub/0.1 (iPad app)',
     // Debug builds can be inspected from a Windows WebKit inspector (docs/IOS-PLAN.md §10).
     webContentsDebuggingEnabled: process.env.HUB_RELEASE !== '1',
     // Long-running always-on display: never let a link leave the app's own pages.

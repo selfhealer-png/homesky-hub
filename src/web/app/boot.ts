@@ -64,7 +64,8 @@ async function makeEnv(): Promise<{ env: Env; cookie: string }> {
     ADMIN_PASSWORD: secrets.admin,
     AGENDA_FEED_URL: import.meta.env.VITE_AGENDA_FEED_URL || undefined,
     HUB_KV: new LocalKV(isNative() ? prefsStore((await import('@capacitor/preferences')).Preferences) : idb),
-    PHOTOS: new LocalBucket(idb),
+    // Photos copied from Google Photos: at most ~300 MB on the iPad, oldest dropped first.
+    PHOTOS: new LocalBucket(idb, 300 * 1024 * 1024),
     DEVICE: isNative() ? nativeDevice() : import.meta.env.VITE_FAKE_DEVICE === '1' ? sampleDevice() : undefined,
     GOOGLE_IOS_CLIENT_ID: import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID || undefined,
   } as unknown as Env;

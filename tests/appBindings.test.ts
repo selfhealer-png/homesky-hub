@@ -105,3 +105,20 @@ test('the Preferences-backed KV store round-trips text, JSON and binary, and lis
   await kv.delete('settings');
   assert.equal(await kv.get('settings'), null);
 });
+
+test('a capped bucket drops the oldest photos and their thumbnails, never the one just added', async () => {
+  const r2 = new LocalBucket(memoryIdb(), 1000);
+  const realNow = Date.now;
+  try {
+    for (let i = 0; i < 4; i++) {
+      Date.now = () => 1_000_000 + i * 1000;
+      await r2.put(`thumbs/p${i}`, new Uint8Array(50));
+      await r2.put(`photos/p${i}`, new Uint8Array(300));
+    }
+  } finally {
+    Date.now = realNow;
+  }
+  // 4 × 350 bytes = 1400 > 1000: p0 (oldest) goes; 1050 is still over, so p1 goes too.
+  const left = (await r2.list({})).objects.map(o => o.key).sort();
+  assert.deepEqual(left, ['photos/p2', 'photos/p3', 'thumbs/p2', 'thumbs/p3']);
+});
