@@ -9,19 +9,36 @@ This is the hands-on companion to [IOS-PLAN.md](IOS-PLAN.md). Everything that ca
 | P1 | Worker inside the page | **Done, tested in the browser.** `npm run dev:app` runs every screen with no Worker. |
 | — | Setup wizard (pick screens, then one page each) | **Done, tested in the browser.** Also used by the self-hosted web version. |
 | P2 | Capacitor iOS project (`ios/`) | **Done.** iPad only, landscape, full screen, icon and splash, permission texts. Generated and synced on Windows. |
-| P3 | Cloud builds | **Written, not yet run:** `.github/workflows/ios-compile.yml` (compile check, no account needed) and `codemagic.yaml` (signed build → TestFlight). Needs the accounts below. |
+| P3 | Cloud builds | **Compile check passing** on GitHub (github.com/selfhealer-png/homesky-hub): typecheck, tests, the Xcode build including the Swift plugin, and an unsigned `.ipa` to sideload (§0). `codemagic.yaml` (signed build → TestFlight) is written, not yet run: it needs the accounts in §1. |
 | P4 | Device features | **Done, not yet run on a device:** keep-awake, Core Location, Keychain for the secret, settings in UserDefaults, native HTTP, status bar hidden. |
 | P5 | iPad calendars and reminders, Apple Photos albums, Google sign-in from the app | **Done in TypeScript and tested in the browser with sample data (`VITE_FAKE_DEVICE=1`). The Swift plugin (`ios/App/App/HubNativePlugin.swift`) is written but has never been compiled:** the first compile check will tell. |
 | P5a | Dropbox and Google Drive folders | **Not started.** Each needs its own developer app and OAuth keys (see "Later"). |
 | P6 | Compliance | **Done:** adsb.lol only in the app, a setting for the map tile provider, credits and privacy note in Settings › This hub, [privacy policy](privacy.md), privacy manifest. Google verification needs you. |
 | P7 | Release | Steps below. |
 
+## 0. Without a paid account: sideload onto your own iPad
+
+To try the app on your own iPad before paying for the Developer Program. A free Apple ID signs apps for 7 days at a time, for your own devices only (up to 3 such apps per device). TestFlight, the App Store and sharing with other households all need the paid account (§1).
+
+1. **Get the .ipa.** Every run of "iOS compile check" on GitHub (Actions → the latest green run → Artifacts) has **HomeSkyHub-unsigned-ipa**. Download it and unzip it to get `HomeSkyHub-unsigned.ipa`. To make a fresh one without pushing, open the workflow and press "Run workflow". Artifacts are kept 30 days.
+2. **Install a signing tool on the PC.** Either:
+   - **AltStore** (altstore.io): install AltServer on Windows (it needs iTunes and iCloud from Apple's website, not the Microsoft Store versions), then use it to install AltStore on the iPad over USB. In AltStore → My Apps → +, pick the `.ipa`. AltStore refreshes the app by itself before the 7 days are up, whenever the iPad and the PC (with AltServer running) are on the same Wi-Fi. Turn on "Background App Refresh" for AltStore on the iPad.
+   - **Sideloadly** (sideloadly.io): drag the `.ipa` in, enter your Apple ID, press Start, with the iPad plugged in. Repeat each week by hand (or turn on its auto-refresh, which also needs the PC on).
+3. **On the iPad, once:** Settings › Privacy & Security › Developer Mode → on (it restarts). Then Settings › General › VPN & Device Management → your Apple ID → Trust.
+4. Open Home&Sky Hub. If the 7 days run out before a refresh, the app won't open until it's refreshed; its settings are kept.
+
+What differs from the TestFlight build: there's no Google sign-in from the app (the GitHub build has no Google iOS client, §4: use the iPad's own calendars, or a calendar link, instead), and the web view can be inspected (`webContentsDebuggingEnabled`), which is handy for debugging. Everything else works: location, iPad calendars and reminders, Apple Photos albums and keep-awake.
+
+**Locking it to the app:** Settings › Accessibility › Guided Access → on, then in the app triple-click the top button. The iPad stays in Home&Sky Hub until the passcode is entered (but not across a restart).
+
+TrollStore and jailbreaks don't help on an up-to-date iPad: they only work on old iPadOS versions, which you can't go back to.
+
 ## 1. Accounts (once)
 
 1. **Apple Developer Program** ($99 a year, or the local equivalent). Enrol at developer.apple.com/programs, or in the Apple Developer app on the iPad. An individual account needs an Apple ID with two-factor authentication. Approval usually takes a day or two.
 2. **App Store Connect app record.** At appstoreconnect.apple.com → Apps → +: platform iOS, name "Home&Sky Hub" (or what you like; the name must be unique on the store), primary language, bundle ID `app.homesky.hub` (register it first under Certificates, Identifiers & Profiles → Identifiers if it isn't offered), SKU anything. If you change the bundle ID, change it in `capacitor.config.ts`, `ios/App/App.xcodeproj/project.pbxproj` (two places) and `codemagic.yaml`, **before** the first upload: it can't change after.
 3. **App Store Connect API key.** Users and Access → Integrations → App Store Connect API → +, role **App Manager**. Download the `.p8` file (only offered once) and note the Key ID and Issuer ID.
-4. **GitHub repository** (for the free compile check). Push this repository to GitHub. A public repository gets macOS runners free. Open Actions and run "iOS compile check": it compiles the app, including the Swift plugin, for the iPad simulator. **Do this first: it's the cheapest way to find Swift mistakes.**
+4. **GitHub repository** (for the free compile check): done, github.com/selfhealer-png/homesky-hub (public, so macOS runners are free). Every push that touches the app runs "iOS compile check".
 5. **Codemagic** (codemagic.io, sign in with GitHub). Add the repository. Teams → Integrations → Developer Portal: add the API key from step 3 under the name **`homesky ASC key`** (the name `codemagic.yaml` uses). Codemagic then makes and renews the signing certificate and provisioning profile itself, so you never handle certificates.
 6. In Codemagic → the app → Environment variables, create a group named **`google`**. It can stay empty for now (see step 3 of Google, below). In `codemagic.yaml`, replace `APP_STORE_APPLE_ID: 0000000000` with the app's Apple ID: the number on its App Information page in App Store Connect.
 

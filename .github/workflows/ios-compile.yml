@@ -1,6 +1,7 @@
-# Compiles the iOS app for the Simulator, unsigned. Needs no Apple account or secrets, so it
-# checks the native code (Swift plugins, Info.plist, Swift packages) from Windows: push, then read
-# the result here. macOS runners are free for public repositories.
+# Compiles the iOS app for the Simulator, unsigned, and builds an unsigned .ipa for a real iPad.
+# Needs no Apple account or secrets, so it checks the native code (Swift plugins, Info.plist,
+# Swift packages) from Windows: push, then read the result here and download the .ipa from the
+# run's Artifacts. macOS runners are free for public repositories.
 name: iOS compile check
 
 on:
@@ -29,8 +30,26 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO build | tee xcodebuild.log | grep -E "error:|warning: .*deprecated|\*\* BUILD" || true
           grep -q "\*\* BUILD SUCCEEDED \*\*" xcodebuild.log
+      # An unsigned .ipa for a real iPad, to sideload with a free Apple ID (AltStore or Sideloadly
+      # sign it on the way in). See docs/IOS-RELEASE.md, "Without a paid account".
+      - name: Build an unsigned .ipa for a real iPad
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tee xcodebuild-device.log | grep -E "error:|\*\* BUILD" || true
+          grep -q "\*\* BUILD SUCCEEDED \*\*" xcodebuild-device.log
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry HomeSkyHub-unsigned.ipa Payload
+          ls -l HomeSkyHub-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HomeSkyHub-unsigned-ipa
+          path: HomeSkyHub-unsigned.ipa
+          retention-days: 30
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
-          path: xcodebuild.log
+          path: xcodebuild*.log
