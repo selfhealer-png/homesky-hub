@@ -3,8 +3,12 @@ export class NotPairedError extends Error {}
 export async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin' });
   if (res.status === 401) throw new NotPairedError('Display not paired');
-  if (!res.ok) throw new Error(`${path} answered ${res.status}`);
-  return res.json() as Promise<T>;
+  if (!res.ok) {
+    const detail = await res.json().then((b: { error?: string }) => b.error, () => undefined);
+    throw new Error(`${path} answered ${res.status}${detail ? `: ${detail}` : ''}`);
+  }
+  // A page instead of JSON (in the app, a request that missed the in-page Worker) says so.
+  return res.json().catch(() => { throw new Error(`${path} didn’t answer with JSON (${res.headers.get('content-type') ?? 'no type'})`); }) as Promise<T>;
 }
 
 /** True in the app build, where the Worker runs inside the page (src/web/app/boot.ts). */

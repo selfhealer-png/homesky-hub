@@ -81,9 +81,32 @@ function urlOf(input: RequestInfo | URL): URL {
   return new URL(String(input), location.href);
 }
 
+/**
+ * True for an address on this page's own site. Compares scheme and host rather than URL.origin:
+ * in the iOS app the page is at capacitor://localhost, and WebKit gives a custom scheme's URL an
+ * opaque origin ("null"), so an origin check would send every /api/… request out to the network.
+ */
+function sameSite(url: URL): boolean {
+  return url.protocol === location.protocol && url.host === location.host;
+}
+
+function errorResponse(err: unknown): Response {
+  const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  return new Response(JSON.stringify({ error: message }), { status: 500, headers: { 'content-type': 'application/json' } });
+}
+
 /** Answers an /api/… request with the in-page Worker. */
 async function local(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const { env, cookie } = await (ready ??= makeEnv());
+  let made: Awaited<ReturnType<typeof makeEnv>>;
+  try {
+    made = await (ready ??= makeEnv());
+  } catch (err) {
+    // Setting up failed (Keychain, storage…): say why, and try again on the next request.
+    ready = null;
+    console.error('[app] Could not start the hub', err);
+    return errorResponse(err);
+  }
+  const { env, cookie } = made;
   const request = new Request(input, init);
   // `cookie` is a forbidden header on a Request, but a standalone Headers object accepts it.
   const headers = new Headers(request.headers);
@@ -93,7 +116,7 @@ async function local(input: RequestInfo | URL, init?: RequestInit): Promise<Resp
     return await worker.fetch(request, env);
   } catch (err) {
     console.error('[app] Worker error', request.url, err);
-    return new Response(JSON.stringify({ error: (err as Error).message }), { status: 500, headers: { 'content-type': 'application/json' } });
+    return errorResponse(err);
   }
 }
 
@@ -120,7 +143,7 @@ if (isNative()) {
 
 window.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   const url = urlOf(input);
-  if (url.origin === location.origin && url.pathname.startsWith('/api/')) return local(input, init);
-  if (url.origin !== location.origin && !isNative() && /^https?:$/.test(url.protocol)) return viaDevProxy(url, input, init);
+  if (sameSite(url) && url.pathname.startsWith('/api/')) return local(input, init);
+  if (!sameSite(url) && !isNative() && /^https?:$/.test(url.protocol)) return viaDevProxy(url, input, init);
   return realFetch(input, init);
 };

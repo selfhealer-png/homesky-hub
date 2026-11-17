@@ -217,6 +217,13 @@ async function start() {
     offlineSince ??= new Date();
     notice.hidden = false;
     notice.textContent = `Can’t reach the hub since ${offlineSince.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. Trying again every 15 seconds.`;
+    // In the app the hub is inside the page, so this is a bug, not the network: show what broke.
+    if (IN_APP) {
+      const why = document.createElement('small');
+      why.className = 'notice-detail';
+      why.textContent = err instanceof Error ? err.message : String(err);
+      notice.append(document.createElement('br'), why);
+    }
     setTimeout(start, 15000);
     return;
   }
