@@ -8,7 +8,7 @@ This is the hands-on companion to [IOS-PLAN.md](IOS-PLAN.md). Everything that ca
 |---|---|---|
 | P1 | Worker inside the page | **Done, tested in the browser.** `npm run dev:app` runs every screen with no Worker. |
 | — | Setup wizard (pick screens, then one page each) | **Done, tested in the browser.** Also used by the self-hosted web version. |
-| P2 | Capacitor iOS project (`ios/`) | **Done.** iPad only, landscape, full screen, icon and splash, permission texts. Generated and synced on Windows. |
+| P2 | Capacitor iOS project (`ios/`) | **Done.** iPad only, landscape or portrait, full screen, icon and splash, permission texts. Generated and synced on Windows. |
 | P3 | Cloud builds | **Compile check passing** on GitHub (github.com/selfhealer-png/homesky-hub): typecheck, tests, the Xcode build including the Swift plugin, and an unsigned `.ipa` to sideload (§0). `codemagic.yaml` (signed build → TestFlight) is written, not yet run: it needs the accounts in §1. |
 | P4 | Device features | **Done, not yet run on a device:** keep-awake, Core Location, Keychain for the secret, settings in UserDefaults, native HTTP, status bar hidden. |
 | P5 | iPad calendars and reminders, Apple Photos albums, Google sign-in from the app | **Done in TypeScript and tested in the browser with sample data (`VITE_FAKE_DEVICE=1`). The Swift plugin (`ios/App/App/HubNativePlugin.swift`) is written but has never been compiled:** the first compile check will tell. |
@@ -52,7 +52,7 @@ TrollStore and jailbreaks don't help on an up-to-date iPad: they only work on ol
 
 Tick these off on the first TestFlight build. Anything that fails: note what you saw, and paste the Codemagic or compile-check log if there is one.
 
-- [ ] It opens full screen in landscape, with no status bar, on the dark splash then the wizard.
+- [ ] It opens full screen, turns between landscape and portrait, with no status bar, on the dark splash then the wizard.
 - [ ] Location: one iOS prompt (not two), and the weather is for the right town.
 - [ ] Planes appear on the radar (native HTTP reaching adsb.lol), with airline logos on the board (binary downloads through native HTTP: the likeliest thing to need a fix).
 - [ ] "Calendars and reminders on this iPad": the iOS prompts appear, calendars from iCloud and other accounts are listed, and events show on Home.
