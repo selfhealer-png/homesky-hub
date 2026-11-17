@@ -16,7 +16,13 @@ const src = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 function appBoot(): Plugin {
   return {
     name: 'homesky-app-boot',
-    transformIndexHtml: () => [{ tag: 'script', attrs: { type: 'module', src: '/app/boot.ts' }, injectTo: 'head-prepend' }],
+    // 'pre': added before Vite reads the page's scripts, so a build bundles boot.ts like any other
+    // entry. Added afterwards, the tag stays pointing at /app/boot.ts, which only the dev server
+    // has: the built app then ran with no Worker and every /api request got index.html.
+    transformIndexHtml: {
+      order: 'pre',
+      handler: () => [{ tag: 'script', attrs: { type: 'module', src: '/app/boot.ts' }, injectTo: 'head-prepend' }],
+    },
   };
 }
 
