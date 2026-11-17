@@ -42,8 +42,19 @@ async function installSecrets(): Promise<{ admin: string }> {
     const { SecureStorage } = await import('@aparajita/capacitor-secure-storage');
     const found = await SecureStorage.getItem(SECRETS_KEY).catch(() => null);
     if (found) return { admin: found };
+    // An app without Keychain access (an unsigned simulator build, some sideloads) gets
+    // errSecMissingEntitlement (-34018). The secret only protects tokens kept in the same app's
+    // storage, so keep it there rather than leave the hub unable to start.
+    const { Preferences } = await import('@capacitor/preferences');
+    const fallback = (await Preferences.get({ key: SECRETS_KEY })).value;
+    if (fallback) return { admin: fallback };
     const admin = randomSecret();
-    await SecureStorage.setItem(SECRETS_KEY, admin);
+    try {
+      await SecureStorage.setItem(SECRETS_KEY, admin);
+    } catch (err) {
+      console.warn('[app] No Keychain access; keeping the secret in app storage', err);
+      await Preferences.set({ key: SECRETS_KEY, value: admin });
+    }
     return { admin };
   }
   const found = await idb.get<{ admin: string }>('kv', SECRETS_KEY);
