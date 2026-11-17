@@ -20,7 +20,7 @@ This is the hands-on companion to [IOS-PLAN.md](IOS-PLAN.md). Everything that ca
 
 To try the app on your own iPad before paying for the Developer Program. A free Apple ID signs apps for 7 days at a time, for your own devices only (up to 3 such apps per device). TestFlight, the App Store and sharing with other households all need the paid account (§1).
 
-1. **Get the .ipa.** Every run of "iOS compile check" on GitHub (Actions → the latest green run → Artifacts) has **HomeSkyHub-unsigned-ipa**. Download it and unzip it to get `HomeSkyHub-unsigned.ipa`. To make a fresh one without pushing, open the workflow and press "Run workflow". Artifacts are kept 30 days.
+1. **Get the .ipa.** Every run of "iOS compile check" on GitHub (Actions → the latest green run → Artifacts) has **HomeSkyHub-unsigned-ipa**. Download it and unzip it to get `HomeSkyHub-unsigned.ipa`. On the iPad it's called "HomeSky Hub": AltStore can't register a name with an `&` in it. To make a fresh one without pushing, open the workflow and press "Run workflow". Artifacts are kept 30 days.
 2. **Install a signing tool on the PC.** Either:
    - **AltStore** (altstore.io): install AltServer on Windows (it needs iTunes and iCloud from Apple's website, not the Microsoft Store versions), then use it to install AltStore on the iPad over USB. In AltStore → My Apps → +, pick the `.ipa`. AltStore refreshes the app by itself before the 7 days are up, whenever the iPad and the PC (with AltServer running) are on the same Wi-Fi. Turn on "Background App Refresh" for AltStore on the iPad.
    - **Sideloadly** (sideloadly.io): drag the `.ipa` in, enter your Apple ID, press Start, with the iPad plugged in. Repeat each week by hand (or turn on its auto-refresh, which also needs the PC on).
