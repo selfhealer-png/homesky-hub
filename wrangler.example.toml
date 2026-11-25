@@ -18,12 +18,15 @@ RADAR_RADIUS_NM = "25"
 TIMEZONE = "Europe/London"
 # Optional: a local readsb/dump1090 base URL that serves /data/aircraft.json, tried before the public feeds.
 # LOCAL_ADSB_URL = "http://192.168.1.50:8080"
+# Optional: a relay with its own address for the public feeds, when they refuse Cloudflare's (docs/RELAY.md).
+# ADSB_RELAY_URL = "https://203-0-113-7.sslip.io"
 
 # Secrets: set with `wrangler secret put NAME` (and in .dev.vars for local dev):
 #   DISPLAY_TOKEN       long random string; pair a display by opening https://<host>/pair#<token>
 #   ADMIN_PASSWORD      long random string; signs you in to /setup and encrypts stored connection secrets
 #   AGENDA_FEED_URL     endpoint implementing docs/feed-contract.md
 #   AGENDA_FEED_TOKEN   bearer token for that endpoint
+#   ADSB_RELAY_TOKEN    the token relay/install.sh printed, if you use the relay (docs/RELAY.md)
 
 # Settings from /setup, encrypted connection secrets, and the route cache:
 [[kv_namespaces]]

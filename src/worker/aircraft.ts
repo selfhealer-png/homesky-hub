@@ -1,6 +1,6 @@
 import type { Aircraft, AircraftResponse, RouteSummary, TrailPoint } from '../shared/types';
 import { cached } from './cache';
-import { allowedSources, json, USER_AGENT, type Env } from './env';
+import { allowedSources, fetchFeed, json, USER_AGENT, type Env } from './env';
 import { lookupRoute, withProgress } from './routes';
 import { skyContext, type SkyContext } from './sky';
 
@@ -93,8 +93,8 @@ export function normalize(raw: ReadsbAircraft, lat0: number, lon0: number): Airc
   };
 }
 
-async function fetchProvider(name: string, url: string, parse?: Provider['parse']): Promise<ReadsbAircraft[]> {
-  const res = await fetch(url, { headers: { 'user-agent': USER_AGENT, accept: 'application/json' }, signal: AbortSignal.timeout(4000) });
+async function fetchProvider(env: Env, name: string, url: string, parse?: Provider['parse']): Promise<ReadsbAircraft[]> {
+  const res = await fetchFeed(env, url, { headers: { 'user-agent': USER_AGENT, accept: 'application/json' }, signal: AbortSignal.timeout(4000) });
   if (res.status === 429) {
     // "Too many requests": wait as long as the source asks, else a minute.
     const wait = Number(res.headers.get('retry-after') ?? res.headers.get('x-rate-limit-retry-after-seconds'));
@@ -141,7 +141,7 @@ export async function fetchFromSources(env: Env, lat: number, lon: number, nm: n
         continue;
       }
       try {
-        const list = await fetchProvider(name, url, parse);
+        const list = await fetchProvider(env, name, url, parse);
         const aircraft = list
           .map(a => normalize(a, lat, lon))
           .filter((a): a is Aircraft => !!a && a.distanceNm <= nm)
