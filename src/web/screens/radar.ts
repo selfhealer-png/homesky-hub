@@ -2,13 +2,15 @@ import { minutesToGo } from '../../shared/arrivals';
 import { classify, typeName } from '../../shared/notable';
 import type { RadarMap } from '../../shared/settings';
 import type { Aircraft, AircraftResponse, HubConfig, PlaceName, RouteSummary } from '../../shared/types';
-import { getJson } from '../api';
+import { getJson, setApiImage } from '../api';
 import { tileDisc, TILE_SOURCES } from '../mapTiles';
 import { airportsAround, type NearbyAirport } from '../nearbyAirports';
 import { placesAround } from '../placeNames';
 import { nextPlace, skyHome, skyQuery, type SkyHome } from '../location';
 import { motionLevel } from '../motion';
 import { ageLabel, recall, Refresher, remember, watchAge, type Outcome } from '../skyCache';
+import { countSky, skyToday } from '../skyToday';
+import { lookUpParts, nextOverhead, tallyLines, tallyRecords, targetShort, windAloft, windText, type LookUp } from '../../shared/skyFacts';
 import { h, type Screen } from '../screen';
 
 // An ambient radar for a room: calm at a glance, detailed on a closer look.
@@ -122,6 +124,15 @@ interface State {
   airports: NearbyAirport[];
   /** The next answer should bring the trails the shared fetcher remembers (just opened, or moved). */
   wantTrails: boolean;
+  /** The plane the look-up card is about, ringed on the radar. */
+  lookHex?: string;
+  /** Its predicted pass, from the positions measured at `dataAt` (epoch ms). */
+  look?: { pass: LookUp; dataAt: number };
+  /** The soft wave from home when the look-up plane is about to go over: which plane, and when it started. */
+  wave?: { hex: string; at: number };
+  /** When each plane was first seen (performance.now()), so newcomers fade in. Planes already
+   *  there when the screen opened count as long seen. */
+  firstSeen: Map<string, number>;
 }
 
 let refresher: Refresher | undefined;
@@ -154,8 +165,15 @@ function projected(a: Aircraft, home: SkyHome, seconds: number): [number, number
   return [e + Math.sin(t) * d, n + Math.cos(t) * d];
 }
 
-/** How many planes get a label and a row in the list: fewer on a phone, where space is short. */
-const listed = () => (window.matchMedia('(max-height: 520px), (max-width: 520px)').matches ? 3 : FEATURED);
+const isSmall = () => window.matchMedia('(max-height: 520px), (max-width: 520px)').matches;
+/** Portrait: the list sits under the radar, so its height decides the radar's size. */
+const isPortrait = () => window.matchMedia('(orientation: portrait)').matches;
+/** How many planes get a label and a row in the list: fewer on a phone, where space is short;
+ *  three rows of two under the radar in portrait; and in landscape as many as fit beside it
+ *  with the look-up, wind and today lines. */
+const listed = () => (isSmall() ? 3 : isPortrait() ? 6 : FEATURED);
+/** Routes are looked up for this many of the nearest planes (the most any layout lists). */
+const ROUTES = 6;
 
 function featured(data: AircraftResponse): Set<string> {
   const airborne = data.aircraft.filter(a => a.altFt !== null);
@@ -163,6 +181,9 @@ function featured(data: AircraftResponse): Set<string> {
   const special = airborne.filter(a => a.emergency || classify(a)?.kind === 'rare');
   return new Set([...special, ...airborne.slice(0, listed())].map(a => a.hex));
 }
+
+/** The look-up card's plane is ringed in the card's sky blue. */
+const LOOK_RING = '#7DD3FC';
 
 /** Rare aircraft get an amber ring; military and special operators a fainter, dashed one. */
 const RING: Partial<Record<string, string>> = { rare: '#FBBF24', military: 'rgba(226, 232, 240, 0.7)', special: 'rgba(226, 232, 240, 0.7)' };
@@ -271,7 +292,7 @@ const PLACE_FONT: Record<PlaceName['kind'], string> = {
  */
 function drawPlaces(ctx: CanvasRenderingContext2D, state: State, cx: number, cy: number, r: number, scale: number, radiusNm: number, reserved: Label[]): Label[] {
   if (!state.places.length) return [];
-  const max = listed() === FEATURED ? 12 : 5;
+  const max = isSmall() ? 5 : 12;
   const dist = (p: PlaceName) => Math.hypot(...offsetNm(state.home, p.lat, p.lon));
   const villages = state.places.filter(p => p.kind === 'village' && dist(p) < radiusNm * 0.25).sort((a, b) => dist(a) - dist(b)).slice(0, 3);
   const candidates = [...state.places.filter(p => p.kind !== 'village'), ...villages];
@@ -498,6 +519,7 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
     }
     ctx.restore();
     const routeBoxes = drawRoutes(ctx, nearestFirst, data, pos, cx, cy, r, scale);
+    drawLookPath(ctx, state, pos, cx, cy, r, scale);
 
     // Aircraft.
     for (const a of ordered) {
@@ -514,6 +536,21 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
         ctx.beginPath(); ctx.arc(x, y, isF ? 14 : 10, 0, Math.PI * 2); ctx.stroke();
         ctx.restore();
       }
+      if (a.hex === state.lookHex) drawLookRing(ctx, state, x, y, isF ? 19 : 14);
+      // A plane that has just come into range fades in, with a faint ring opening round it.
+      const arrival = arrivalAge(state, a.hex);
+      if (arrival < ARRIVAL_MS) {
+        const t = arrival / ARRIVAL_MS;
+        if (motionLevel() === 'full') {
+          ctx.save();
+          ctx.strokeStyle = altitudeColor(a.altFt, 0.55 * (1 - t));
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(x, y, 8 + easeOut(t) * 18, 0, Math.PI * 2); ctx.stroke();
+          ctx.restore();
+        }
+        ctx.save();
+        ctx.globalAlpha *= easeOut(Math.min(1, t * 1.6));
+      }
       if (isF) {
         ctx.save();
         ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
@@ -524,6 +561,9 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
       } else {
         // Background traffic: the same silhouette, small.
         drawIcon(ctx, a, x, y, 0.62, altitudeColor(a.altFt, onMap ? 1 : 0.75), onMap ? 'rgba(2, 6, 23, 0.85)' : null);
+      }
+      if (arrival < ARRIVAL_MS) {
+        ctx.restore();
       }
     }
 
@@ -566,6 +606,91 @@ function draw(canvas: HTMLCanvasElement, config: HubConfig, state: State) {
 
   ctx.globalAlpha = 1;
   drawHome(ctx, cx, cy, r, performance.now() - state.pingAt);
+  drawLookWave(ctx, state, cx, cy, r);
+}
+
+// ---- Motion for the look-up plane and newcomers (see motion.ts for what each level allows) ----
+
+const ARRIVAL_MS = 1400;
+const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+const arrivalAge = (state: State, hex: string) => performance.now() - (state.firstSeen.get(hex) ?? -1e9);
+
+/** Seconds until the look-up plane is closest to home, counting on from when it was measured. */
+function secondsToPass(state: State): number | null {
+  if (!state.look) return null;
+  return state.look.pass.inSec - (Date.now() - state.look.dataAt) / 1000;
+}
+
+/** Where the look-up plane will be closest to home, on the radar. */
+function closestPoint(state: State, cx: number, cy: number, scale: number): [number, number] | null {
+  if (!state.look) return null;
+  const { bearingDeg, distKm } = state.look.pass;
+  const b = (bearingDeg * Math.PI) / 180;
+  const nm = distKm / NM_KM;
+  return [cx + Math.sin(b) * nm * scale, cy - Math.cos(b) * nm * scale];
+}
+
+/**
+ * A dashed line from the look-up plane to where it will pass closest to home, with a small mark
+ * there. With full motion the dashes flow towards that point, so the way it's going reads at once.
+ */
+function drawLookPath(ctx: CanvasRenderingContext2D, state: State, pos: Map<string, readonly [number, number]>, cx: number, cy: number, r: number, scale: number) {
+  const left = secondsToPass(state);
+  const from = state.lookHex ? pos.get(state.lookHex) : undefined;
+  const to = closestPoint(state, cx, cy, scale);
+  if (left === null || left < 5 || !from || !to) return;
+  if (Math.hypot(to[0] - from[0], to[1] - from[1]) < 18 || Math.hypot(from[0] - cx, from[1] - cy) > r) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(125, 211, 252, 0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 6]);
+  if (motionLevel() === 'full') ctx.lineDashOffset = -(performance.now() / 70) % 11;
+  ctx.beginPath(); ctx.moveTo(from[0], from[1]); ctx.lineTo(to[0], to[1]); ctx.stroke();
+  ctx.setLineDash([]);
+  // The closest point: a small open ring (over home it would only hide the home mark).
+  if (Math.hypot(to[0] - cx, to[1] - cy) > 12) {
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+    ctx.strokeStyle = LOOK_RING;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(to[0], to[1], 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** The look-up plane's ring: steady, or with full motion breathing slowly, then quicker as it nears. */
+function drawLookRing(ctx: CanvasRenderingContext2D, state: State, x: number, y: number, radius: number) {
+  const left = Math.max(0, secondsToPass(state) ?? 600);
+  let grow = 0, alpha = 1;
+  if (motionLevel() === 'full') {
+    // One breath every 3.2 s with ten minutes to go, down to every 1.2 s in the last minute.
+    const period = 1200 + Math.min(1, left / 600) * 2000;
+    const phase = (Math.sin((performance.now() / period) * Math.PI * 2) + 1) / 2;
+    grow = phase * 4;
+    alpha = 0.55 + phase * 0.45;
+  }
+  ctx.save();
+  ctx.strokeStyle = LOOK_RING;
+  ctx.globalAlpha *= alpha;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, radius + grow, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
+/** One soft wave from home towards the sky when the look-up plane is about to go over. Full motion only. */
+function drawLookWave(ctx: CanvasRenderingContext2D, state: State, cx: number, cy: number, r: number) {
+  const left = secondsToPass(state);
+  const hex = state.lookHex;
+  if (hex && left !== null && left < 40 && left > -20 && (state.look?.pass.distKm ?? 99) <= 4 && state.wave?.hex !== hex) {
+    state.wave = { hex, at: performance.now() };
+  }
+  if (!state.wave || motionLevel() !== 'full') return;
+  const t = (performance.now() - state.wave.at) / 2200;
+  if (t >= 1) return;
+  ctx.save();
+  ctx.strokeStyle = `rgba(125, 211, 252, ${0.45 * (1 - t)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, cy, 10 + easeOut(t) * r * 0.35, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
 }
 
 /** Keeps the map under the radar in step with its size, place, range and style. */
@@ -600,7 +725,7 @@ function airlineLogo(iata: string): HTMLImageElement | null {
   if (logoKnown.get(iata)) img.classList.add('on');
   img.addEventListener('load', () => { logoKnown.set(iata, true); img.classList.add('on'); });
   img.addEventListener('error', () => { logoKnown.set(iata, false); img.remove(); });
-  img.src = `/api/logo/${encodeURIComponent(iata)}`;
+  void setApiImage(img, `/api/logo/${encodeURIComponent(iata)}`);
   return img;
 }
 
@@ -611,6 +736,60 @@ function climbMark(a: Aircraft): HTMLElement | null {
   const mark = h('span', `radar-climb ${vs > 0 ? 'up' : 'down'}`, vs > 0 ? '↑' : '↓');
   mark.setAttribute('aria-label', vs > 0 ? 'climbing' : 'descending');
   return mark;
+}
+
+/** A list row with a plane row's three lines, so it is exactly as tall; `text` on the first line. */
+function shapedRow(text: string, cls: string): HTMLElement {
+  const li = h('li', cls);
+  const main = h('div', 'radar-main');
+  const top = h('div', 'radar-top');
+  top.append(h('span', 'radar-name', text || '\u00a0'));
+  const second = h('div', 'radar-second');
+  second.append(h('span', 'radar-route', '\u00a0'));
+  main.append(top, second, h('span', 'radar-meta', '\u00a0'));
+  li.append(h('span', 'radar-dot'), main);
+  return li;
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+/** A small drawn arrow, turned to a compass bearing (0 points up, which is north on the radar). */
+function arrow(cls: string, deg: number): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', cls);
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.setProperty('--deg', `${Math.round(deg)}deg`);
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', 'M12 3 L18.5 19 L12 15.2 L5.5 19 Z');
+  svg.append(path);
+  return svg;
+}
+
+/** "Right above you": a ring round a dot, for a plane passing straight overhead. */
+function overheadMark(cls: string): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', `${cls} overhead`);
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const ring = document.createElementNS(SVG_NS, 'circle');
+  ring.setAttribute('cx', '12'); ring.setAttribute('cy', '12'); ring.setAttribute('r', '8.5');
+  const dot = document.createElementNS(SVG_NS, 'circle');
+  dot.setAttribute('cx', '12'); dot.setAttribute('cy', '12'); dot.setAttribute('r', '3.5');
+  svg.append(ring, dot);
+  return svg;
+}
+
+/** The altitude key, drawn once into the radar's corner. */
+function altitudeKey(): HTMLElement {
+  const legend = h('div', 'radar-legend');
+  legend.setAttribute('aria-hidden', 'true');
+  legend.append(h('span', 'legend-title', 'Altitude'));
+  const bar = h('div', 'legend-bar');
+  bar.style.background = `linear-gradient(90deg, ${ALT_STOPS.map(([ft]) => `${altitudeColor(ft)} ${(ft / 38000) * 100}%`).join(', ')})`;
+  const ticks = h('div', 'legend-ticks');
+  ticks.append(h('span', undefined, '0'), h('span', undefined, '12k'), h('span', undefined, '25k'), h('span', undefined, '38k ft'));
+  legend.append(bar, ticks);
+  return legend;
 }
 
 function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
@@ -627,9 +806,39 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
   const clock = new Intl.DateTimeFormat('en-GB', { timeZone: config.timezone, hour: '2-digit', minute: '2-digit' });
   const list = h('ol', 'radar-list');
 
+  // Look up: the next plane to pass over (or closest to) home, where to look, and an arrow that
+  // points there (north is up, as on the radar). The same plane is ringed on the radar.
+  const pass = data ? nextOverhead(data.aircraft) : null;
+  state.lookHex = pass?.aircraft.hex;
+  state.look = pass && data ? { pass, dataAt: data.fetchedAt } : undefined;
+  const look = h('div', `radar-look${pass ? '' : ' quiet'}`);
+  if (pass) {
+    const parts = lookUpParts(pass);
+    look.dataset.hex = pass.aircraft.hex;
+    const text = h('div', 'look-text');
+    const title = h('p', 'look-title');
+    title.append(h('b', undefined, name(pass.aircraft)), h('span', 'look-when', parts.when));
+    const where = parts.where.charAt(0).toLowerCase() + parts.where.slice(1);
+    text.append(title, h('p', 'look-where', `${parts.pass} · ${where}`));
+    look.append(parts.overhead ? overheadMark('look-arrow') : arrow('look-arrow', pass.bearingDeg), text);
+  } else {
+    look.append(h('p', 'look-where', 'Nothing heading over in the next 15 minutes'));
+  }
+
+  // In portrait the list is always the same height (so the radar above it never changes size):
+  // a fixed number of rows, kept even when fewer planes are about, and the "+N more" line
+  // always there. Landscape keeps the list beside the radar, where its height doesn't matter.
+  const fixed = isPortrait();
+  const slots = listed();
   if (data) {
     const feature = featured(data);
-    const rows = airborne.filter(a => feature.has(a.hex));
+    let rows = airborne.filter(a => feature.has(a.hex));
+    if (fixed && rows.length > slots) {
+      // More emergencies and rare aircraft than rows: those first, then the nearest, in distance order.
+      const special = (a: Aircraft) => a.emergency || classify(a)?.kind === 'rare';
+      const keep = new Set([...rows.filter(special), ...rows].slice(0, slots).map(a => a.hex));
+      rows = rows.filter(a => keep.has(a.hex));
+    }
     for (const a of rows) {
       const route: RouteSummary | undefined = data.routes?.[a.hex];
       const notable = classify(a);
@@ -641,16 +850,23 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
       const main = h('div', 'radar-main');
       const top = h('div', 'radar-top');
       const who = h('span', 'radar-name');
-      const logo = route?.airlineIata ? airlineLogo(route.airlineIata) : null;
+      const iata = route?.airlineIata ?? data.airlines?.[a.hex]?.iata;
+      const logo = iata ? airlineLogo(iata) : null;
       if (logo) who.append(logo);
       who.append(h('b', undefined, name(a)));
       const alt = h('span', 'radar-alt', fmtAlt(a));
       const climb = climbMark(a);
       if (climb) alt.append(climb);
       top.append(who, alt);
-      main.append(top, h('span', 'radar-route', a.emergency ? `Squawk ${a.squawk ?? 'emergency'}`
+      // The second line: where it's going (or what it is), and on the right, the height the
+      // autopilot is taking it to while it climbs or descends.
+      const second = h('div', 'radar-second');
+      second.append(h('span', 'radar-route', a.emergency ? `Squawk ${a.squawk ?? 'emergency'}`
         : notable?.kind === 'rare' ? notable.title
           : route ? `${route.fromCity} → ${route.toCity}` : [typeName(a.desc) ?? a.type, regRepeats(a) ? null : a.registration].filter(Boolean).join(' · ') || '—'));
+      const target = targetShort(a);
+      if (target) second.append(h('span', 'radar-target', target));
+      main.append(top, second);
       // When it should land, roughly, from how far it has to go and how fast it's going.
       // (Positions remembered from before routes carried the distance left have no figure.)
       const togo = route && Number.isFinite(route.remainingKm) ? minutesToGo(route.remainingKm, a) : null;
@@ -668,22 +884,100 @@ function renderPanel(panel: HTMLElement, config: HubConfig, state: State) {
     if (rows.length && more > 0) list.append(h('li', 'radar-more', `+${more} more on the radar`));
   }
   if (state.error) list.append(h('li', 'radar-empty', state.error));
+  if (fixed) {
+    // A message ("Clear skies") takes a row of the same shape; spare rows are invisible copies.
+    for (const msg of list.querySelectorAll('.radar-empty')) msg.replaceWith(shapedRow(msg.textContent ?? '', 'radar-row radar-note'));
+    const used = list.querySelectorAll('.radar-row').length;
+    const more = list.querySelector('.radar-more');
+    for (let i = used; i < slots; i++) {
+      const blank = shapedRow('', 'radar-row radar-blank');
+      blank.setAttribute('aria-hidden', 'true');
+      list.insertBefore(blank, more);
+    }
+    if (!more) {
+      const spacer = h('li', 'radar-more', ' ');
+      spacer.setAttribute('aria-hidden', 'true');
+      list.append(spacer);
+    }
+  }
 
-  const legend = h('div', 'radar-legend');
-  legend.append(h('span', 'legend-title', 'Altitude'));
-  const bar = h('div', 'legend-bar');
-  bar.style.background = `linear-gradient(90deg, ${ALT_STOPS.map(([ft]) => `${altitudeColor(ft)} ${(ft / 38000) * 100}%`).join(', ')})`;
-  const ticks = h('div', 'legend-ticks');
-  ticks.append(h('span', undefined, 'Ground'), h('span', undefined, '12k'), h('span', undefined, '25k'), h('span', undefined, '38k ft'));
-  legend.append(bar, ticks);
+  // The wind high up, from the planes' own reports, and what the display has seen today.
+  const facts = h('footer', 'radar-facts');
+  const wind = data ? windAloft(data.aircraft) : null;
+  const windLine = h('p', 'radar-wind');
+  if (wind) windLine.append(arrow('wind-arrow', wind.fromDeg + 180));
+  windLine.append(h('span', undefined, wind ? windText(wind) : 'Wind high up: waiting for a plane to report it'));
+  const today = skyToday(config.timezone);
+  const [t1] = today ? tallyLines(today) : ['Counting today\u2019s planes'];
+  const count = h('p', 'radar-today');
+  count.append(h('b', undefined, 'Today'), h('span', undefined, t1));
+  // The records, each with the plane that set it (which the narrow landscape panel leaves out).
+  const records = h('p', 'radar-records');
+  const recs = today ? tallyRecords(today) : [];
+  recs.forEach(([what, who], i) => {
+    if (i) records.append(' · ');
+    records.append(what, h('span', 'rec-who', ` (${who})`));
+  });
+  if (!recs.length) records.append('\u00a0');
+  facts.append(windLine, count, records);
 
-  panel.replaceChildren(head, list, legend);
+  const before = measureRows(panel);
+  const turns = arrowAngles(panel);
+  panel.replaceChildren(head, look, list, facts);
+  glideRows(panel, before);
+  turnArrows(panel, turns);
+}
+
+/** Where each plane's row was, and the arrows' angles, before the panel is redrawn. */
+function measureRows(panel: HTMLElement): Map<string, DOMRect> {
+  const at = new Map<string, DOMRect>();
+  for (const row of panel.querySelectorAll<HTMLElement>('.radar-row[data-hex]')) at.set(row.dataset.hex!, row.getBoundingClientRect());
+  return at;
+}
+function arrowAngles(panel: HTMLElement): Map<string, number> {
+  const at = new Map<string, number>();
+  for (const svg of panel.querySelectorAll<SVGSVGElement>('.look-arrow:not(.overhead), .wind-arrow')) {
+    at.set(svg.classList[0], parseFloat(svg.style.getPropertyValue('--deg')) || 0);
+  }
+  return at;
+}
+
+const GLIDE = { duration: 420, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' };
+
+/**
+ * Rows follow their plane: a row that moved slides from where it was (full motion), and a plane
+ * new to the list fades in (full and gentle). Nothing moves on the panel's first drawing.
+ */
+function glideRows(panel: HTMLElement, before: Map<string, DOMRect>) {
+  const level = motionLevel();
+  if (level === 'still' || !before.size || !panel.isConnected) return;
+  for (const row of panel.querySelectorAll<HTMLElement>('.radar-row[data-hex]')) {
+    const was = before.get(row.dataset.hex!);
+    if (!was) { row.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 360, easing: 'ease-out' }); continue; }
+    if (level !== 'full') continue;
+    const now = row.getBoundingClientRect();
+    const dx = was.left - now.left, dy = was.top - now.top;
+    if (Math.abs(dx) + Math.abs(dy) < 2) continue;
+    row.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], GLIDE);
+  }
+}
+
+/** The look-up and wind arrows turn the short way round to their new direction (full motion). */
+function turnArrows(panel: HTMLElement, before: Map<string, number>) {
+  if (motionLevel() !== 'full') return;
+  for (const svg of panel.querySelectorAll<SVGSVGElement>('.look-arrow:not(.overhead), .wind-arrow')) {
+    const was = before.get(svg.classList[0]);
+    if (was === undefined) continue;
+    const to = parseFloat(svg.style.getPropertyValue('--deg')) || 0;
+    const turn = ((to - was + 540) % 360) - 180;
+    if (Math.abs(turn) < 1) continue;
+    svg.animate([{ transform: `rotate(${to - turn}deg)` }, { transform: `rotate(${to}deg)` }], { duration: 600, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+  }
 }
 
 export const radarScreen: Screen = {
   id: 'radar',
   title: 'Radar',
-  durationSec: 60,
   mount(el: HTMLElement, config: HubConfig) {
     currentConfig = config;
     const stage = h('div', 'radar-stage');
@@ -691,11 +985,11 @@ export const radarScreen: Screen = {
     canvasEl = canvas;
     canvas.setAttribute('role', 'img');
     canvas.setAttribute('aria-label', 'Radar of aircraft around home');
-    stage.append(canvas);
+    stage.append(canvas, altitudeKey());
     const panel = h('aside', 'radar-panel');
     el.append(stage, panel);
 
-    const state: State = { home: config.home, data: null, receivedAt: 0, trails: new Map(), placement: new Map(), pingAt: -1e9, error: null, mapKey: '', places: [], airports: [], wantTrails: true };
+    const state: State = { home: config.home, data: null, receivedAt: 0, trails: new Map(), placement: new Map(), pingAt: -1e9, error: null, mapKey: '', places: [], airports: [], wantTrails: true, firstSeen: new Map() };
     current = state;
     const age = watchAge(el, config.timezone, () => state.data?.fetchedAt ?? null, () => renderPanel(panel, config, state));
     stopAge = age.stop;
@@ -704,7 +998,7 @@ export const radarScreen: Screen = {
 
     const poll = async (): Promise<Outcome> => {
       try {
-        const data = await getJson<AircraftResponse>(`/api/aircraft?routes=${FEATURED}${state.wantTrails ? '&trails=1' : ''}&${skyQuery(state.home)}`);
+        const data = await getJson<AircraftResponse>(`/api/aircraft?routes=${ROUTES}${state.wantTrails ? '&trails=1' : ''}&${skyQuery(state.home)}`);
         // Never swap newer positions for older ones (a stale answer can be older than what we show).
         if (state.data && data.fetchedAt <= state.data.fetchedAt) {
           renderPanel(panel, config, state);
@@ -722,10 +1016,15 @@ export const radarScreen: Screen = {
           state.trails.set(a.hex, t);
         }
         for (const hex of [...state.trails.keys()]) if (!seen.has(hex)) { state.trails.delete(hex); state.placement.delete(hex); }
+        // Newcomers fade in; on the first answer for a place everything is simply there.
+        const firstAnswer = state.firstSeen.size === 0;
+        const t0 = performance.now();
+        for (const hex of seen) if (!state.firstSeen.has(hex)) state.firstSeen.set(hex, firstAnswer ? -1e9 : t0);
+        for (const hex of [...state.firstSeen.keys()]) if (!seen.has(hex)) state.firstSeen.delete(hex);
         // The trails aren't kept with the remembered positions: they'd be old by the time they're shown.
         const { trails: _trails, ...keep } = data;
         Object.assign(state, { data: keep, receivedAt: Date.now(), error: null, pingAt: performance.now(), wantTrails: false });
-        if (!data.stale) remember('aircraft', state.home, keep);
+        if (!data.stale) { remember('aircraft', state.home, keep); countSky(data.aircraft, config.timezone); }
         renderPanel(panel, config, state);
         age.check();
         return data.stale ? 'failed' : data.aircraft.length ? 'found' : 'empty';
@@ -750,6 +1049,7 @@ export const radarScreen: Screen = {
         Object.assign(state, { home, data: recall<AircraftResponse>('aircraft', home), error: null, wantTrails: true, airports: [] });
         state.trails.clear();
         state.placement.clear();
+        state.firstSeen.clear();
         renderPanel(panel, config, state);
         airportsAround(home.lat, home.lon, config.radarRadiusNm)
           .then(airports => { if (state.home === home) state.airports = airports; })

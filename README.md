@@ -27,6 +27,8 @@ It's one Cloudflare Worker that serves the web app and a small API. The tablet j
 
 Controls: tap the left or right third of the screen to switch screens, and long-press to pin the current one. On the overhead board, tap the middle to change theme; on the radar, tap the middle to switch between your saved places. In `/setup` → Display you can choose the clock style and how much the screens move (Full, Gentle or Still).
 
+An **iPad app** that needs no Cloudflare at all is on the way: everything runs on the iPad. See [docs/IOS-RELEASE.md](docs/IOS-RELEASE.md).
+
 ## Set up your own
 
 **New to this? Follow the step-by-step guide: [docs/SETUP.md](docs/SETUP.md).** It covers everything from installing Node to setting up the iPad, Google, photos and troubleshooting.
@@ -54,7 +56,7 @@ npm run dev          # web app on :5173, proxies /api to the Worker
 
 ## Data sources and credits
 
-* Aircraft positions: [airplanes.live](https://airplanes.live), [adsb.lol](https://adsb.lol), [adsb.fi](https://adsb.fi), community-fed ADS-B. Please respect their fair-use guidance; the Worker caches for 5 s so many displays share one upstream request.
+* Aircraft positions: [airplanes.live](https://airplanes.live), [adsb.lol](https://adsb.lol), [adsb.fi](https://adsb.fi), community-fed ADS-B. Please respect their fair-use guidance; the Worker caches for 5 s so many displays share one upstream request. If they refuse your Worker's Cloudflare addresses, a free relay can fetch for it: [docs/RELAY.md](docs/RELAY.md).
 * Routes, airlines and aircraft details (owner, country, photo): [adsbdb](https://www.adsbdb.com), with photos from [airport-data.com](https://www.airport-data.com).
 * Weather, cloud, pollen, air quality, tides and place search: [Open-Meteo](https://open-meteo.com) (forecast, air quality from CAMS, marine model, geocoding). The tides are a global model: a guide, not for navigation.
 * Rain radar: [RainViewer](https://www.rainviewer.com), over [OpenStreetMap](https://www.openstreetmap.org/copyright) map tiles (© OpenStreetMap contributors).

@@ -98,7 +98,6 @@ function mountFlip(el: HTMLElement, config: HubConfig) {
 export const clockScreen: Screen = {
   id: 'clock',
   title: 'Clock',
-  durationSec: 45,
   quiet: true,
   ownClock: true,
   mount(el: HTMLElement, config: HubConfig) {

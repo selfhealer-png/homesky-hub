@@ -52,7 +52,6 @@ function render(el: HTMLElement, data: WeatherResponse | null, home: { name: str
 export const rainScreen: Screen = {
   id: 'rain',
   title: 'Rain map',
-  durationSec: 40,
   mount(el: HTMLElement, config: HubConfig) {
     el.append(h('p', 'wx-loading', 'Looking for rain…'));
     const load = async () => {

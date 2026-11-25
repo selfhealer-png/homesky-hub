@@ -1,11 +1,13 @@
 import './styles.css';
 import type { HubConfig } from '../shared/types';
-import { getJson, NotPairedError } from './api';
+import { getJson, IN_APP, NotPairedError, SETUP_PATH } from './api';
 import { pickRotation } from '../shared/rotation';
-import { flash, type Screen } from './screen';
+import { screenSeconds } from '../shared/settings';
+import { flash, holdFocus, type Screen } from './screen';
 import { setMotionLevel } from './motion';
 import { currentNight, startNight, updateNight } from './night';
 import { showWelcome } from './welcome';
+import { runOnboarding } from './onboarding';
 import { startAlerts } from './alerts';
 import { openPlane } from './planeCard';
 import { startKeepAwake } from './wakeLock';
@@ -60,8 +62,8 @@ function show(i: number) {
 
 function schedule() {
   clearTimeout(timer);
-  // The pace chosen in /setup, or else each screen's own.
-  if (!pinned) timer = window.setTimeout(() => show(index + 1), (config.rotateSec ?? screens[index].durationSec) * 1000);
+  // The time chosen for this screen in /setup, or else its own pace.
+  if (!pinned) timer = window.setTimeout(() => show(index + 1), screenSeconds(screens[index].id, config) * 1000);
 }
 
 /** A screen someone chose with a tap, not the rotation. */
@@ -168,11 +170,14 @@ function openMenu() {
   };
   // Escape, a tap outside, or 15 seconds untouched all close it.
   let idle = window.setTimeout(close, MENU_IDLE_MS);
+  let release: (() => void) | undefined;
   const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
   function close() {
     clearTimeout(idle);
     document.removeEventListener('keydown', onKey);
     scrim.remove();
+    release?.();
+    release = undefined;
   }
   document.addEventListener('keydown', onKey);
   scrim.addEventListener('pointerdown', () => { clearTimeout(idle); idle = window.setTimeout(close, MENU_IDLE_MS); });
@@ -182,16 +187,25 @@ function openMenu() {
     item(pinned ? 'Carry on rotating' : 'Stay on this screen', () => setPinned(!pinned), true),
     plane ? item('About this plane', () => openPlane(plane.hex, config, plane)) : '',
     // Straight to this screen's own settings page; Back there leads to the rest.
-    item('Settings', () => { location.href = `/setup#/screens/${screens[index].id}`; }),
+    item('Settings', () => { location.href = `${SETUP_PATH}#/screens/${screens[index].id}`; }),
     item('Close', () => {}),
   );
   scrim.append(menu);
   scrim.addEventListener('click', e => { if (e.target === scrim) close(); });
   document.body.append(scrim);
+  release = holdFocus(menu);
   (menu.querySelector('button') as HTMLButtonElement).focus();
 }
 
+let onboarded = false;
+
 async function start() {
+  // The app has nothing to sign in to, so a brand-new install goes straight to the first-run steps.
+  if (IN_APP && !onboarded) {
+    onboarded = true;
+    const fresh = await getJson<{ fresh: boolean }>('/api/welcome').then(d => d.fresh).catch(() => false);
+    if (fresh) return runOnboarding(notice, start);
+  }
   try {
     config = await getJson<HubConfig>('/api/config');
   } catch (err) {
@@ -203,6 +217,13 @@ async function start() {
     offlineSince ??= new Date();
     notice.hidden = false;
     notice.textContent = `Can’t reach the hub since ${offlineSince.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. Trying again every 15 seconds.`;
+    // In the app the hub is inside the page, so this is a bug, not the network: show what broke.
+    if (IN_APP) {
+      const why = document.createElement('small');
+      why.className = 'notice-detail';
+      why.textContent = err instanceof Error ? err.message : String(err);
+      notice.append(document.createElement('br'), why);
+    }
     setTimeout(start, 15000);
     return;
   }
@@ -226,7 +247,7 @@ async function refreshConfig() {
   try {
     const fresh = await getJson<HubConfig>('/api/config');
     const clockChanged = fresh.clock !== config.clock;
-    const paceChanged = fresh.rotateSec !== config.rotateSec;
+    const paceChanged = fresh.rotateSec !== config.rotateSec || JSON.stringify(fresh.screenSec) !== JSON.stringify(config.screenSec);
     const rotationChanged = JSON.stringify([fresh.features, fresh.airports, fresh.screensOff, fresh.order, fresh.follow, fresh.tidePlace]) !== JSON.stringify([config.features, config.airports, config.screensOff, config.order, config.follow, config.tidePlace]);
     Object.assign(config, fresh);
     setMotionLevel(config.motion);

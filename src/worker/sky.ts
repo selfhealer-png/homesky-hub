@@ -74,6 +74,7 @@ export async function hubConfig(env: Env, request?: Request): Promise<HubConfig>
     screensOff: settings.display?.screensOff ?? [],
     order: screenOrder(settings.display?.order),
     rotateSec: settings.display?.rotateSec ?? null,
+    screenSec: settings.display?.screenSec ?? {},
     stripClock: settings.display?.stripClock ?? false,
     follow: sky?.follow ?? null,
     tidePlace: sky?.tidePlace ?? null,

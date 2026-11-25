@@ -29,6 +29,8 @@ export interface HubConfig {
   order: ScreenId[];
   /** Seconds on each screen, or null for each screen's own pace. */
   rotateSec: number | null;
+  /** Seconds on each screen set one by one, which win over rotateSec (see screenSeconds). */
+  screenSec: Partial<Record<ScreenId, number>>;
   /** Show the time in the bottom corner of screens without their own clock. */
   stripClock: boolean;
   features: { agenda: boolean; photos: boolean; trending: boolean };
@@ -66,6 +68,13 @@ export interface Aircraft {
   category?: string | null;
   /** Reported on the ground (altFt is then null too). */
   onGround?: boolean;
+  /** The altitude the autopilot is set to, in feet, when the aircraft sends it. */
+  navAltFt?: number | null;
+  /** The wind where the aircraft is, as it reports it: direction it blows from (degrees true) and knots. */
+  windFromDeg?: number | null;
+  windKt?: number | null;
+  /** Year built, from the feed's aircraft database. */
+  year?: number | null;
 }
 
 export interface AircraftResponse {
@@ -78,7 +87,12 @@ export interface AircraftResponse {
   routes?: Record<string, RouteSummary>;
   /** Where each aircraft has been lately, keyed by hex, oldest first, when requested with ?trails=1. */
   trails?: Record<string, TrailPoint[]>;
+  /** The airline for featured aircraft whose route isn't known, from the callsign, keyed by hex. */
+  airlines?: Record<string, AirlineBrand>;
 }
+
+/** An airline as the hub shows it: sub-brands (BA CityFlyer, BA Shuttle) under the main name and logo. */
+export interface AirlineBrand { name: string; iata: string | null }
 
 /** [lat, lon, epoch seconds] */
 export type TrailPoint = [number, number, number];

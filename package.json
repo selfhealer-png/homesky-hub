@@ -8,13 +8,19 @@
   "scripts": {
     "dev": "vite",
     "dev:worker": "wrangler dev",
+    "dev:app": "vite --mode app",
     "build": "node scripts/build-places.mjs && node scripts/build-airports.mjs && vite build",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worker.json",
+    "build:app": "node scripts/build-places.mjs && node scripts/build-airports.mjs && vite build --mode app",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worker.json && tsc --noEmit -p tsconfig.app.json",
     "deploy": "npm run build && wrangler deploy",
     "setup": "node scripts/setup.mjs",
-    "test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --outdir=.test-build --log-level=warning && node --test .test-build/*.js"
+    "test": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --outdir=.test-build --log-level=warning && node --test .test-build/*.js",
+    "ios:sync": "npm run build:app && cap sync ios",
+    "ios:icons": "node scripts/make-icons.mjs && capacitor-assets generate --ios --iconBackgroundColor \"#0B0F1A\" --splashBackgroundColor \"#0B0F1A\" --splashBackgroundColorDark \"#0B0F1A\""
   },
   "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^8.6.0",
     "@cloudflare/workers-types": "^5.20261019.1",
     "esbuild": "^0.25.0",
     "typescript": "^5.6.3",
@@ -22,6 +28,16 @@
     "wrangler": "^4.0.0"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "^8.0.1",
+    "@capacitor-community/keep-awake": "^8.0.1",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/geolocation": "^8.2.4",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.4",
     "ical.js": "^2.2.1",
     "satellite.js": "^6.0.2"
   }

@@ -2,11 +2,10 @@ import type { ScreenId } from '../shared/settings';
 import type { Aircraft, HubConfig } from '../shared/types';
 
 // Every screen implements this. To add one, create a module in screens/ and list it in main.ts.
+// How long each screen stays up is DEFAULT_SCREEN_SEC (shared/settings), changed in /setup.
 export interface Screen {
   id: ScreenId;
   title: string;
-  /** Seconds to stay on this screen before the rotator moves on. */
-  durationSec: number;
   mount(el: HTMLElement, config: HubConfig): void;
   unmount(): void;
   /** Optional: a tap on the middle third of the screen (left and right thirds switch screens).
@@ -40,6 +39,20 @@ export function flash(text: string) {
   flashEl.classList.add('on');
   clearTimeout(flashTimer);
   flashTimer = window.setTimeout(() => flashEl?.classList.remove('on'), 2200);
+}
+
+/** Makes an open dialog modal for keyboards and screen readers: everything else on the page goes
+ *  inert, so Tab and the reading cursor stay inside it. Returns the undo, which also puts focus
+ *  back where it was before the dialog opened. */
+export function holdFocus(dialog: HTMLElement): () => void {
+  const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  dialog.setAttribute('aria-modal', 'true');
+  const behind = [...document.body.children].filter((c): c is HTMLElement => c instanceof HTMLElement && !c.contains(dialog) && !c.inert);
+  behind.forEach(c => { c.inert = true; });
+  return () => {
+    behind.forEach(c => { c.inert = false; });
+    if (before?.isConnected) before.focus({ preventScroll: true });
+  };
 }
 
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {

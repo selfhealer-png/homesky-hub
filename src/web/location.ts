@@ -1,4 +1,5 @@
 import type { HubConfig } from '../shared/types';
+import { devicePosition as whereIsThisDevice } from './native';
 
 // Where this display's sky and weather screens are centred. The setup page picks the default:
 // a saved place, or "each display uses its own location" (also what a new hub does). If the
@@ -23,14 +24,7 @@ function locateDevice(): Promise<SkyHome | null> {
   // Re-ask every 15 minutes at most; a tablet on a shelf doesn't move much.
   if (devicePosition && Date.now() - deviceAt < 15 * 60_000) return devicePosition;
   deviceAt = Date.now();
-  devicePosition = new Promise(resolve => {
-    if (!('geolocation' in navigator)) return resolve(null);
-    navigator.geolocation.getCurrentPosition(
-      p => resolve({ lat: p.coords.latitude, lon: p.coords.longitude, name: 'This display' }),
-      () => resolve(null),
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 15 * 60_000 },
-    );
-  });
+  devicePosition = whereIsThisDevice(10_000).then(p => (p ? { ...p, name: 'This display' } : null));
   return devicePosition;
 }
 

@@ -1,6 +1,6 @@
 import type { HubConfig } from '../../shared/types';
 import type { PhotoInfo, PhotoStyle } from '../../shared/settings';
-import { getJson } from '../api';
+import { getJson, setApiImage } from '../api';
 import { h, type Screen } from '../screen';
 
 // The photo frame. Four styles, chosen in /setup:
@@ -99,7 +99,7 @@ async function load(p: PhotoInfo): Promise<HTMLImageElement> {
   const img = new Image();
   img.decoding = 'async';
   img.alt = '';
-  img.src = `/api/photos/${p.id}`;
+  await setApiImage(img, `/api/photos/${p.id}`);
   await img.decode();
   return img;
 }
@@ -163,7 +163,6 @@ function wallLayer(style: WallStyle, slide: PhotoInfo[], imgs: HTMLImageElement[
 export const photosScreen: Screen = {
   id: 'photos',
   title: 'Photos',
-  durationSec: 90,
   isAvailable: config => config.features.photos,
   ownClock: true,
   mount(el: HTMLElement, config: HubConfig) {

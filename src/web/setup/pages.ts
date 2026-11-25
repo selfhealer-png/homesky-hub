@@ -1,15 +1,16 @@
 import { CLOCK_LABELS, clockPreview } from '../clockPreview';
 import {
-  CLOCK_STYLES, DEFAULT_DISPLAY, DEFAULT_NIGHT, DEFAULT_RADAR_MAP, MOTION_LEVELS, NIGHT_MODES, ROTATE_CHOICES, WARMTH_LEVELS,
-  type MotionLevel, type NightMode, type ScreenId,
+  CLOCK_STYLES, DEFAULT_DISPLAY, DEFAULT_NIGHT, DEFAULT_RADAR_MAP, DEFAULT_SCREEN_SEC, MOTION_LEVELS, NIGHT_MODES, SCREEN_SEC_STEPS, WARMTH_LEVELS,
+  screenSeconds, type MotionLevel, type NightMode, type ScreenId, type Settings,
 } from '../../shared/settings';
 import type { Warmth } from '../../shared/wear';
 import { calendarChoices, calendarCount } from './accounts';
 import { PHOTO_LABELS, photoCount, photoSections } from './photos';
 import { airportCards, airportCodes, alertsCard, followCard, locationRow, MAP_LABELS, mapCard, rangeCard, tideCards, tidePlaceName } from './sky';
-import { displaySettings, isScreenOn, km, placeName, saveDisplay, setScreenOn, skySettings, state } from './store';
+import { displaySettings, isScreenOn, km, placeName, SAVED, saveDisplay, setScreenOn, skySettings, state } from './store';
 import { screenOrder } from '../../shared/rotation';
-import { api, busy, card, choiceList, copyRow, h, iosSwitch, pageHead, quietly, row, segmented, svg, tile } from './ui';
+import { IN_APP } from '../api';
+import { api, busy, card, choiceList, copyRow, h, iosSwitch, pageHead, quietly, row, segmented, svg, tile, toast } from './ui';
 
 // Every screen the hub can show, with its row on the Settings list and its own page, and the
 // hub-wide pages (Night, Motion, This hub).
@@ -257,26 +258,68 @@ export function orderPage() {
 // ── screen timing ───────────────────────────────────────────────────────────
 
 const pace = (sec: number) => sec < 60 ? `${sec} seconds` : sec === 60 ? 'minute' : `${sec / 60} minutes`;
+/** For the slider's own label: "45 sec", "1½ min", "3 min". */
+const shortPace = (sec: number) => sec < 60 ? `${sec} sec` : `${String(Math.floor(sec / 60))}${sec % 60 ? '½' : ''} min`;
+/** For screen readers: "45 seconds", "1 and a half minutes". */
+const spokenPace = (sec: number) => sec < 60 ? `${sec} seconds` : sec === 90 ? '1 and a half minutes' : sec === 60 ? '1 minute' : `${sec / 60} minutes`;
 
 export function timingSummary() {
-  const sec = displaySettings().rotateSec;
-  return sec ? `Every ${pace(sec)}` : 'Each screen’s own pace';
+  const d = displaySettings();
+  if (Object.keys(d.screenSec ?? {}).length) return 'Set for each screen';
+  return d.rotateSec ? `Every ${pace(d.rotateSec)}` : 'Each screen’s own pace';
 }
+
+/** Saves a little after the last slider move, so dragging or holding an arrow key saves once. */
+let timingSave: number | undefined;
 
 export function timingPage() {
   const d = displaySettings();
-  const options: Array<[string, string, string]> = [
-    ['auto', 'Each screen’s own pace', 'Busier screens stay longer: Photos 1½ minutes, Home and the flight screens 1 minute, Weather and the clock 45 seconds, the rest about 40.'],
-    ...ROTATE_CHOICES.map(sec => [String(sec), `Every ${pace(sec)}`, ''] as [string, string, string]),
-  ];
+  // What each screen gets now. A change bakes in every screen's time and drops the old one pace
+  // for all (rotateSec), keeping only the times that differ from a screen's own pace.
+  const current = Object.fromEntries(SCREENS.map(s => [s.id, screenSeconds(s.id, d)])) as Record<ScreenId, number>;
+  const save = () => {
+    const screenSec = Object.fromEntries(SCREENS.filter(s => current[s.id] !== DEFAULT_SCREEN_SEC[s.id]).map(s => [s.id, current[s.id]]));
+    clearTimeout(timingSave);
+    // Saved without redrawing the page, so a slider being dragged next isn't pulled from under the finger.
+    timingSave = window.setTimeout(() => quietly(api<Settings>('/api/admin/display', { ...displaySettings(), rotateSec: null, screenSec })
+      .then(saved => { state.settings = saved; toast(SAVED); })), 600);
+  };
+  const rows = currentOrder().map(id => {
+    const s = byId(id);
+    const value = h('output', { class: 'timing-value', for: `sec-${id}` }, shortPace(current[id]));
+    const slider = h('input', {
+      type: 'range', id: `sec-${id}`, class: 'timing-slider', min: '0', max: String(SCREEN_SEC_STEPS.length - 1), step: '1',
+      value: String(nearestStep(current[id])), 'aria-label': `Time on ${s.name}`, 'aria-valuetext': spokenPace(current[id]),
+    });
+    const paint = () => {
+      const sec = SCREEN_SEC_STEPS[Number(slider.value)];
+      value.textContent = shortPace(sec);
+      slider.setAttribute('aria-valuetext', spokenPace(sec));
+      slider.style.setProperty('--p', `${(Number(slider.value) / (SCREEN_SEC_STEPS.length - 1)) * 100}%`);
+      return sec;
+    };
+    paint();
+    slider.addEventListener('input', () => { current[id] = paint(); });
+    slider.addEventListener('change', () => { current[id] = paint(); save(); });
+    return h('div', { class: `row timing${isScreenOn(id) ? '' : ' off'}` },
+      tile(s.icon, s.color),
+      h('div', { class: 'timing-main' },
+        h('div', { class: 'timing-top' }, h('label', { for: `sec-${id}` }, s.name), isScreenOn(id) ? null : h('small', {}, 'Off'), value),
+        slider));
+  });
+  const custom = Object.keys(d.screenSec ?? {}).length > 0 || !!d.rotateSec;
+  const reset = h('button', { type: 'button', class: 'ghost' }, 'Back to each screen’s own pace');
+  reset.addEventListener('click', () => busy(reset, () => saveDisplay({ ...d, rotateSec: null, screenSec: {} }, 'Back to each screen’s own pace. The display picks this up within five minutes.')));
   return [
     pageHead('Screen timing', 'How long the display stays on each screen before moving to the next.'),
-    card(null,
-      choiceList('rotate', 'Change screens', options, d.rotateSec ? String(d.rotateSec) : 'auto',
-        v => quietly(saveDisplay({ ...d, rotateSec: v === 'auto' ? null : Number(v) }))),
-      h('p', { class: 'hint' }, 'A tap on the left or right of the display still moves on straight away, and a screen you’ve pinned stays put.')),
+    h('div', { class: 'rows' }, ...rows),
+    h('p', { class: 'hint timing-hint' }, 'A tap on the left or right of the display still moves on straight away, and a screen you’ve pinned stays put.'),
+    ...(custom ? [h('div', { class: 'buttons' }, reset)] : []),
   ];
 }
+
+/** The slider stop for a time saved before the stops existed (or between two of them). */
+const nearestStep = (sec: number) => SCREEN_SEC_STEPS.reduce((best, s, i) => Math.abs(s - sec) < Math.abs(SCREEN_SEC_STEPS[best] - sec) ? i : best, 0);
 
 // ── the time on every screen ────────────────────────────────────────────────
 
@@ -342,6 +385,14 @@ export function aboutPage() {
   const s = state.status;
   const item = (ok: boolean, title: string, detail: Node | string) =>
     h('li', { class: ok ? 'ok' : 'todo' }, h('span', { class: 'mark' }, svg(ok ? '<path d="m6 12.5 4 4 8-9"/>' : '<path d="M12 6.5v6.5M12 17.5h.01"/>', 14)), h('div', {}, h('b', {}, title), h('div', { class: 'detail' }, detail)));
+  // In the app everything lives on this device: nothing to bind, pair or sign out of.
+  if (IN_APP) return [pageHead('This hub'), card(null,
+    h('ul', { class: 'checklist' },
+      item(true, 'Settings storage', 'Kept on this device.'),
+      item(true, 'Photo storage', 'Kept on this device, ready for the photo frame.'),
+    )), card('Data sources', h('ul', { class: 'credits' },
+      ...APP_CREDITS.map(([what, who]) => h('li', {}, h('b', {}, what), ' ', who)))),
+    card('Privacy', h('p', { class: 'hint' }, 'Nothing is collected. Settings, calendars, photos and sign-ins stay on this iPad; it asks the services above directly, sending only a location rounded to about 1 km.'))];
   return [pageHead('This hub'), card(null,
     h('ul', { class: 'checklist' },
       item(s.kv, 'Settings storage', s.kv ? 'KV namespace connected.' : 'No KV namespace bound. Run npm run setup.'),
@@ -351,6 +402,20 @@ export function aboutPage() {
       item(s.photos, 'Photo storage', s.photos ? 'R2 bucket connected, ready for the photo frame.' : 'No R2 bucket yet. Optional: the photo frame needs it.'),
     )), signOut()];
 }
+
+/** Shown in the app, which has no README beside it. Keep in step with README › Data sources. */
+const APP_CREDITS: Array<[string, string]> = [
+  ['Aircraft:', 'adsb.lol (ODbL), community-fed ADS-B.'],
+  ['Routes and aircraft details:', 'adsbdb, with photos from airport-data.com.'],
+  ['Weather, air quality, tides and place search:', 'Open-Meteo (CC BY 4.0). Tides are a guide, not for navigation.'],
+  ['Rain radar:', 'RainViewer.'],
+  ['Maps:', '© OpenStreetMap contributors; satellite: Sentinel-2 cloudless by EOX (Copernicus data).'],
+  ['Aurora:', 'NOAA Space Weather Prediction Center.'],
+  ['Space Station:', 'CelesTrak orbits, satellite.js; crew from the people-in-space list; NASA Blue Marble.'],
+  ['Airports and towns:', 'OurAirports (public domain), GeoNames (CC BY 4.0).'],
+  ['Article of the day and aircraft types:', 'Wikipedia (CC BY-SA).'],
+  ['Calendar parsing:', 'ical.js (MPL-2.0). Font: Gabarito (SIL OFL).'],
+];
 
 function signOut() {
   const b = h('button', { type: 'button', class: 'row-button danger' }, 'Sign out');

@@ -1,3 +1,5 @@
+import { hideStatusBar, keepScreenOn } from './native';
+
 // Keeps the screen on while the hub is showing.
 // The Screen Wake Lock API does this properly, but Home Screen apps on iPad only
 // honour it from iPadOS 18.4. Older devices get a tiny silent looping video
@@ -40,6 +42,12 @@ async function keepAwake() {
 }
 
 export function startKeepAwake() {
+  // The iOS app holds the system idle timer instead: reliable, and no video needed.
+  void hideStatusBar();
+  void keepScreenOn().then(native => { if (!native) startWebKeepAwake(); });
+}
+
+function startWebKeepAwake() {
   void keepAwake();
   // The lock is dropped whenever the app is hidden, so take it again on return.
   document.addEventListener('visibilitychange', () => { void keepAwake(); });

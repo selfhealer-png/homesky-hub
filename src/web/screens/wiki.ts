@@ -42,7 +42,6 @@ function render(el: HTMLElement, a: WikiResponse, pictures: boolean) {
 export const wikiScreen: Screen = {
   id: 'wiki',
   title: 'Wikipedia',
-  durationSec: 40,
   mount(el: HTMLElement, config: HubConfig) {
     alive = true;
     const pictures = config.wikiPictures;

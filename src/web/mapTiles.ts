@@ -14,8 +14,19 @@ export interface TileSource {
   text?: boolean;
 }
 
+// The iOS app, once it's in many hands, must not lean on OpenStreetMap's own servers (their tile
+// policy is for light use). Its build can name a provider instead: VITE_MAP_TILE_URL is a URL
+// template with {z}/{x}/{y} (and the key in it), e.g. a MapTiler or Stadia raster style, with
+// VITE_MAP_TILE_CREDIT as its on-screen credit. Without one, OSM's tiles are used as before.
+const OWN_TILES = import.meta.env.VITE_MAP_TILE_URL as string | undefined;
+
 export const TILE_SOURCES: Record<Exclude<RadarMap, 'plain'>, TileSource> = {
-  map: {
+  map: OWN_TILES ? {
+    url: (z, x, y) => OWN_TILES.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y)),
+    maxZoom: 18,
+    credit: (import.meta.env.VITE_MAP_TILE_CREDIT as string | undefined) ?? '© OpenStreetMap contributors',
+    text: true,
+  } : {
     url: (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
     maxZoom: 18,
     credit: '© OpenStreetMap',

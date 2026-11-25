@@ -173,7 +173,6 @@ function render(el: HTMLElement, config: HubConfig, d: IssResponse, home: SkyHom
 export const issScreen: Screen = {
   id: 'iss',
   title: 'Space Station',
-  durationSec: 45,
   mount(el: HTMLElement, config: HubConfig) {
     el.append(h('p', 'wx-loading', 'Finding the Space Station…'));
     const load = async () => {

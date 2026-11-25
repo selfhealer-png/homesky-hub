@@ -1,0 +1,93 @@
+# Compiles the iOS app for the Simulator, unsigned, and builds an unsigned .ipa for a real iPad.
+# Needs no Apple account or secrets, so it checks the native code (Swift plugins, Info.plist,
+# Swift packages) from Windows: push, then read the result here and download the .ipa from the
+# run's Artifacts. macOS runners are free for public repositories.
+name: iOS compile check
+
+on:
+  push:
+    paths: ['ios/**', 'src/**', 'capacitor.config.ts', 'vite.config.ts', 'tsconfig*.json', 'package*.json', '.github/workflows/ios-compile.yml']
+  workflow_dispatch:
+
+jobs:
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:app
+      - run: npx cap sync ios
+      - name: Build for the iOS Simulator
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build-sim \
+            CODE_SIGNING_ALLOWED=NO build | tee xcodebuild.log | grep -E "error:|warning: .*deprecated|\*\* BUILD" || true
+          grep -q "\*\* BUILD SUCCEEDED \*\*" xcodebuild.log
+      # Opens the app on an iPad simulator (same WebKit and capacitor:// page as a real iPad) and
+      # keeps a screenshot and the app's console, to see a fresh install's first screen from Windows.
+      - name: Run it in an iPad simulator
+        continue-on-error: true
+        run: |
+          UDID=$(xcrun simctl list devices available | grep -m1 -E "^ +iPad" | grep -oE "[0-9A-F-]{36}")
+          echo "Simulator: $(xcrun simctl list devices available | grep $UDID)"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          sleep 20   # let SpringBoard settle: a launch straight after boot can be dropped
+          xcrun simctl install "$UDID" build-sim/Build/Products/Debug-iphonesimulator/App.app
+          START=$(date "+%Y-%m-%d %H:%M:%S")
+          xcrun simctl launch --console-pty "$UDID" app.homesky.hub > simulator-console.log 2>&1 &
+          sleep 12
+          xcrun simctl io "$UDID" screenshot simulator-12s.png
+          sleep 20
+          xcrun simctl io "$UDID" screenshot simulator-first-screen.png
+          echo "Running: $(xcrun simctl spawn "$UDID" launchctl list | grep -c homesky || true)"
+          xcrun simctl terminate "$UDID" app.homesky.hub || true
+          xcrun simctl spawn "$UDID" log show --start "$START" --style compact \
+            --predicate 'process == "App" OR (process == "SpringBoard" AND eventMessage CONTAINS "homesky") OR eventMessage CONTAINS "app.homesky.hub"' \
+            > simulator-system.log 2>&1 || true
+          mkdir -p crashes
+          cp ~/Library/Logs/DiagnosticReports/App* crashes/ 2>/dev/null || true
+          ls crashes
+          grep -E "⚡️|\[app\]|error|Error" simulator-console.log | head -60 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulator-first-screen
+          path: |
+            simulator-*.png
+            simulator-*.log
+            crashes/
+          if-no-files-found: ignore
+      # An unsigned .ipa for a real iPad, to sideload with a free Apple ID (AltStore or Sideloadly
+      # sign it on the way in). See docs/IOS-RELEASE.md, "Without a paid account".
+      - name: Build an unsigned .ipa for a real iPad
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tee xcodebuild-device.log | grep -E "error:|\*\* BUILD" || true
+          grep -q "\*\* BUILD SUCCEEDED \*\*" xcodebuild-device.log
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          # AltStore registers an App ID under the app's name, and Apple allows only letters,
+          # numbers and spaces there: "Home&Sky Hub" fails with "The name for this app is invalid".
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName HomeSky Hub" Payload/App.app/Info.plist
+          zip -qry HomeSkyHub-unsigned.ipa Payload
+          ls -l HomeSkyHub-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HomeSkyHub-unsigned-ipa
+          path: HomeSkyHub-unsigned.ipa
+          retention-days: 30
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: xcodebuild*.log

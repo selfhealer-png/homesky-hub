@@ -131,7 +131,6 @@ function renderAgenda(list: HTMLElement, strip: HTMLElement, data: AgendaRespons
 export const homeScreen: Screen = {
   id: 'home',
   title: 'Home',
-  durationSec: 60,
   quiet: true,
   ownClock: true,
   mount(el: HTMLElement, config: HubConfig) {

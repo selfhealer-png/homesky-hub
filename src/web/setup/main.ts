@@ -99,7 +99,10 @@ function page(route: string): Node[] {
 
 function render() {
   if (!state) return;
+  // A save redraws the page; a control with an id (a timing slider) keeps the keyboard focus.
+  const focused = app.contains(document.activeElement) ? document.activeElement?.id : undefined;
   app.replaceChildren(...page(location.hash));
+  if (focused) document.getElementById(focused)?.focus({ preventScroll: true });
   sectionCards(app);
   const root = !location.hash || location.hash === '#/';
   setNav(app.querySelector('h2')?.textContent ?? '', root ? null : '#/');

@@ -1,9 +1,9 @@
 import { minutesToGo } from '../shared/arrivals';
 import { approaching, classify, compassWord, typeName, whereToLook, type Notable } from '../shared/notable';
 import type { Aircraft, HubConfig, PlaneDetail } from '../shared/types';
-import { getJson } from './api';
+import { getJson, setApiImage } from './api';
 import { skyHome, skyQuery } from './location';
-import { h } from './screen';
+import { h, holdFocus } from './screen';
 
 // The plane card: everything known about one aircraft, over whatever screen is showing. Opened
 // by tapping a plane (on the radar, or from the menu on the sky screens) or an alert. It starts
@@ -78,6 +78,7 @@ export function openPlane(hex: string, config: HubConfig, known?: Aircraft | nul
   card.append(close, body);
   scrim.append(card);
   document.body.append(scrim);
+  const release = holdFocus(card);
 
   let detail: PlaneDetail | null = null;
   let timer: number | undefined;
@@ -88,6 +89,7 @@ export function openPlane(hex: string, config: HubConfig, known?: Aircraft | nul
     clearTimeout(timer);
     document.removeEventListener('keydown', onKey);
     scrim.remove();
+    release();
     if (closeOpen === shut) closeOpen = undefined;
   }
   closeOpen = shut;
@@ -132,7 +134,7 @@ function render(config: HubConfig, hex: string, d: PlaneDetail | null, known: Ai
   if (r?.airline?.iata) {
     const logo = h('img', 'plane-logo');
     logo.alt = '';
-    logo.src = `/api/logo/${encodeURIComponent(r.airline.iata)}`;
+    void setApiImage(logo, `/api/logo/${encodeURIComponent(r.airline.iata)}`);
     logo.addEventListener('error', () => logo.remove());
     head.append(logo);
   }

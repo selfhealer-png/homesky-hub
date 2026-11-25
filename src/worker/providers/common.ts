@@ -44,5 +44,5 @@ export async function fetchUserUrl(raw: string, init: RequestInit = {}, maxBytes
     if (size > maxBytes) { await reader.cancel(); throw new ProviderError('That calendar is too large to read.'); }
     chunks.push(value);
   }
-  return new Response(new Blob(chunks), { headers: res.headers });
+  return new Response(new Blob(chunks as Uint8Array<ArrayBuffer>[]), { headers: res.headers });
 }

@@ -1,6 +1,6 @@
 # Home&Sky Hub for iOS: requirements and plan
 
-Status: **draft for discussion**. Nothing here is built yet.
+Status: **built through P6**, waiting on accounts and a first device build. What's done, what's left and the step-by-step for TestFlight and the App Store: [IOS-RELEASE.md](IOS-RELEASE.md).
 
 ## 1. Why
 
@@ -122,3 +122,57 @@ Several sources are free for **non-commercial** use, and the code already notes 
 2. **Free or paid?** Paid (or a Premium tier) turns several data sources in §6 into paid or replaced ones.
 3. **Setup on the iPad itself, or from a phone?** On the iPad is simplest. A phone companion only matters if the display is mounted out of reach.
 4. **Android later?** Capacitor builds Android from the same code; Google sign-in there uses an Android client in the same project.
+
+## 10. Work plan: building it from Windows, with no Mac
+
+The rule that shapes everything: **a native build is slow to get (CI → TestFlight → install, 20–45 min) and hard to debug from Windows, so do as much as possible in the browser first, and keep the native layer to off-the-shelf plugins.** Write Swift only if no plugin fits.
+
+### The shortcut for i1: run the Worker inside the page
+
+Every Worker route is a handler from `Request` to `Response` (`src/worker/index.ts`), and the Worker code uses only web-standard APIs (`fetch`, `crypto.subtle`, `Request`/`Response`) plus three Cloudflare bindings. So the app doesn't need ported handlers. It can **call the Worker's own `fetch(request, env)` in-process**, with stand-ins for the bindings:
+
+| Binding / secret | Stand-in in the app |
+|---|---|
+| `HUB_KV` (settings, cache, track; `get`/`put`/`delete`/`list`, `expirationTtl`) | A small KV class over IndexedDB (browser) or Capacitor Preferences / SQLite (app) |
+| `PHOTOS` (R2) | A small bucket class over IndexedDB (browser) or Capacitor Filesystem (app) |
+| `SKY` (Durable Object `SkyFetcher`) | A stub whose `fetch()` runs the same fetcher code directly (one device, so nothing to share) |
+| `DISPLAY_TOKEN`, `ADMIN_PASSWORD` | Generated at first launch and kept in the Keychain, so `settings.ts` encryption keeps working unchanged |
+| `HOME_LAT`, `TIMEZONE` and the other vars | From on-device settings and Core Location |
+
+Then three call sites switch to the in-process Worker when running as the app: `getJson()` in `src/web/api.ts`, the setup helper in `src/web/setup/ui.ts`, and `src/web/welcome.ts`. Outbound requests from the Worker code go through Capacitor's native HTTP (`CapacitorHttp` patches `fetch`, so there's no CORS). In a desktop browser, a Vite dev proxy does the same job.
+
+The pay-off is that **all of i1 can be built and tested on Windows**, in Chrome and in Safari on the iPad over Wi-Fi, before any native build exists. The self-hosted Worker keeps working from the same code.
+
+### Phases
+
+| # | Phase | Where it's done | Rough effort | Done when |
+|---|---|---|---|---|
+| **P0** | Accounts and paperwork: Apple Developer Program enrolment (web or the Apple Developer app on the iPad), App Store Connect app record and bundle ID, App Store Connect API key for CI, Google Cloud iOS OAuth client, domain with homepage and privacy policy | Browser | 1–2 days, plus Apple's enrolment check | All accounts exist; API key stored as a CI secret |
+| **P1** | **In-page Worker** (above): KV/R2/DO stand-ins, `env` built from local settings, the three call sites switched, dev proxy, an `app` build mode | Windows | ~1 week | Every screen and `/setup` works in the browser with `npm run dev:app` and **no Worker running**; unit tests for the stand-ins |
+| **P2** | Capacitor shell: `@capacitor/core`, `cli`, `ios`; `npx cap add ios` (Swift Package Manager, so no CocoaPods), committed `ios/` folder; Info.plist edited by hand (location purpose string, landscape only, full screen, status bar hidden); icons and splash from `@capacitor/assets` | Windows (files), CI (build) | 2–3 days | `ios/` committed; `npx cap sync` runs clean on Windows |
+| **P3** | CI and signing: a pipeline that runs `npm run build` → `cap sync ios` → archive → sign → upload to TestFlight. **Codemagic** is the easiest with no Mac (it can create and manage the certificate and profile itself from the App Store Connect API key). GitHub Actions macOS runners + fastlane is the alternative | CI | 2–4 days, mostly first-time fiddling | A commit to a branch puts a build in TestFlight; it opens on the iPad with the demo agenda |
+| **P4** | Device features through plugins: keep-awake (idle timer), Core Location (rounded to ~1 km as now), Keychain secure storage, Filesystem for photos. Pairing, admin login and `stay-awake.mp4` skipped in app mode; `/setup` opened as an in-app Settings screen | Windows + TestFlight | 3–5 days | Runs overnight on the iPad without dimming, asks for location once, settings survive a restart |
+| **P5a** | Photos as a live source with a capped cache (the display is always on, so it can stream rather than store everything). **First: Apple Photos** through PhotoKit: choose an album in Settings, including an iCloud **Shared Album** (Photo Stream was retired in 2023; Shared Albums replace it), and the frame shows it live as iCloud syncs, with no copying, no accounts and no review. Needs full library access (limited access only covers individually picked photos, so it wouldn't stay live), `NSPhotoLibraryUsageDescription`, iCloud downloads allowed for optimised-storage libraries, and probably a small Swift plugin (album list, assets by album, an image at display size); testable only in a TestFlight build. Then **Dropbox** folder (simplest; production approval is free past 500 users) and **Google Drive** folder chosen in Google's picker (`drive.file`; a whole-folder `drive.readonly` grant is a *restricted* scope needing a paid assessment, so check the picker route grants the folder's contents first). Downloaded at display size into a cache of a few hundred MB, least recently shown evicted first. **Google Photos can't be live**: since March 2025 apps only see items picked in the Picker, and picked items' URLs expire within about an hour, so it stays pick-and-copy (into the same capped cache) | Windows + TestFlight | ~1 week | A photo added to the chosen folder appears on the display without a new pick; cache stays under its cap |
+| **P5** | Google on device: PKCE sign-in in `ASWebAuthenticationSession` through an OAuth plugin, returning by the app's URL scheme; replace the web-client code exchange in `admin.ts`/`providers/google.ts` with the device's own token and refresh; Picker session opened from the app, photos saved to Filesystem instead of R2 | Windows + TestFlight | ~1 week | Calendar, Tasks and Photos work for up to 100 test users |
+| **P6** | Compliance (start the Google part early: its review takes days to weeks): data-source changes from §6 (map tiles off the OSM servers, drop airplanes.live/adsb.fi, User-Agents), attribution screen, App Privacy labels, demo mode for the reviewer, Google verification video and submission | Windows | ~1 week of work, plus waiting | Google verification submitted; no non-commercial-only source the app can't justify |
+| **P7** | Release: TestFlight with a few households, store screenshots at the required iPad size (from the iPad, or a browser at that size), listing, review notes explaining what's native (§5 *4.2*) | Browser | 2–3 days, plus review | App approved |
+
+P1 and the P0 paperwork can run side by side. P2–P3 can start as soon as P1 shows the screens, and they don't need P1 to be finished.
+
+### Debugging the native build from Windows
+
+- An in-app log panel (eruda or a small overlay) behind a debug setting, plus a "send logs to the dev server" option during testing.
+- Debug builds set `WKWebView.isInspectable = true` (Capacitor's `ios.webContentsDebuggingEnabled`), so a Windows WebKit inspector (inspect.dev, paid; or ios-webkit-debug-proxy) can attach over USB.
+- TestFlight crash reports in App Store Connect.
+- If a native bug won't yield: rent a cloud Mac by the hour for a session with Xcode. If that keeps happening, a second-hand Apple-silicon Mac mini is the cheapest permanent fix.
+
+### Risks
+
+| Risk | Mitigation |
+|---|---|
+| Rejected under 4.2 as a web wrapper | Native keep-awake, location, Google sign-in, offline photos, no website to visit; say so in the review notes, and include demo mode |
+| Google verification drags on | Submit as soon as the privacy policy and demo video exist; the 100-test-user cap is enough for TestFlight |
+| Slow CI loop | P1 in the browser first; batch native changes; keep Swift out |
+| iPad mini 5 left behind by new iPadOS versions | Set the deployment target to the oldest iPadOS Capacitor supports, and check before fixing it |
+| OSM tile policy at scale | Switch tile provider in `mapTiles.ts` before release (P6) |
+| Free CI minutes run out | Each build takes roughly 10–20 min; check the current free allowance of the chosen service. A public GitHub repo gets free macOS runners |
