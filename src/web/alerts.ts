@@ -1,6 +1,7 @@
 import { approaching, classify, compassWord, shouldAlert, typeName, whereToLook, type Notable } from '../shared/notable';
 import type { Aircraft, AircraftResponse, HubConfig } from '../shared/types';
 import { getJson } from './api';
+import { countSky } from './skyToday';
 import { skyHome, skyQuery } from './location';
 import { currentNight } from './night';
 import { NOTABLE_LABEL, openPlane } from './planeCard';
@@ -61,6 +62,7 @@ async function check() {
     return;
   }
   if (data.stale) return;
+  countSky(data.aircraft, config.timezone);
   const pick = data.aircraft
     .filter(a => a.altFt !== null && !seen.has(a.hex))
     .map(a => [a, classify(a)] as const)
