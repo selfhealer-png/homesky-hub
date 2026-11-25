@@ -5,8 +5,8 @@ export interface Env {
   RADAR_RADIUS_NM?: string;
   TIMEZONE?: string;
   LOCAL_ADSB_URL?: string;
-  /** Comma-separated names of the public ADS-B sources to use (default: all). The iOS app keeps to
-   *  adsb.lol, whose ODbL licence covers a distributed app; the others' terms are personal use. */
+  /** Comma-separated names of the public ADS-B sources to use, tried in that order (default: all).
+   *  The iOS app keeps to adsb.lol, whose ODbL licence covers a distributed app; the others' terms are personal use. */
   AIRCRAFT_SOURCES?: string;
   /** Optional relay for the public ADS-B feeds (relay/adsb-relay.mjs, docs/RELAY.md): a server with
    *  an address of its own, for when the feeds refuse Cloudflare's shared addresses. */
@@ -57,8 +57,10 @@ export function fetchFeed(env: Env, url: string, init: RequestInit & { headers?:
   return fetch(`${relay}/${u.hostname}${u.pathname}${u.search}`, { ...init, headers });
 }
 
-/** The public sources this deployment may ask, in order (see AIRCRAFT_SOURCES). */
+/** The public sources this deployment may ask, in the order AIRCRAFT_SOURCES lists them
+ *  (default: all, in the built-in order). Unknown names are ignored. */
 export function allowedSources<T extends { name: string }>(env: Env, all: T[]): T[] {
   const allow = env.AIRCRAFT_SOURCES?.split(',').map(s => s.trim()).filter(Boolean);
-  return allow?.length ? all.filter(s => allow.includes(s.name)) : all;
+  if (!allow?.length) return all;
+  return [...new Set(allow)].map(name => all.find(s => s.name === name)).filter((s): s is T => !!s);
 }

@@ -1,7 +1,7 @@
-import type { Aircraft, AircraftResponse, RouteSummary, TrailPoint } from '../shared/types';
+import type { Aircraft, AircraftResponse, AirlineBrand, RouteSummary, TrailPoint } from '../shared/types';
 import { cached } from './cache';
 import { allowedSources, fetchFeed, json, USER_AGENT, type Env } from './env';
-import { lookupRoute, withProgress } from './routes';
+import { airlineFor, lookupRoute, withProgress } from './routes';
 import { skyContext, type SkyContext } from './sky';
 
 // Free, community-fed ADS-B sources, tried in order. A local receiver, if configured, goes first.
@@ -90,6 +90,10 @@ export function normalize(raw: ReadsbAircraft, lat0: number, lon0: number): Airc
     interesting: !!(flags & 2) && !(flags & PRIVATE_FLAGS),
     category: raw.category ?? null,
     onGround: raw.alt_baro === 'ground',
+    navAltFt: typeof raw.nav_altitude_mcp === 'number' ? raw.nav_altitude_mcp : null,
+    windFromDeg: typeof raw.wd === 'number' ? raw.wd : null,
+    windKt: typeof raw.ws === 'number' ? raw.ws : null,
+    year: Number(raw.year) > 1900 ? Number(raw.year) : null,
   };
 }
 
@@ -222,18 +226,25 @@ export async function handleAircraft(env: Env, url: URL, request: Request): Prom
     const airborne = data.aircraft.filter(a => a.altFt !== null);
     const featured = [...airborne.filter(a => a.emergency), ...airborne.slice(0, n)].filter((a, i, all) => all.indexOf(a) === i);
     const routes: Record<string, RouteSummary> = {};
+    const airlines: Record<string, AirlineBrand> = {};
     await Promise.all(featured.map(async a => {
       const stored = a.callsign ? await lookupRoute(env, a.callsign) : null;
       const r = stored && withProgress(stored, a);
+      // The route's airline (already from the callsign if adsbdb left it off), or, with no route
+      // at all, the airline the callsign's three-letter code belongs to.
+      const brand = stored?.airline ? { name: stored.airline.name, iata: stored.airline.iata || null }
+        : a.callsign ? await airlineFor(env, a.callsign, null) : null;
       if (r) {
         routes[a.hex] = {
           from: r.origin.iata || r.origin.icao, to: r.destination.iata || r.destination.icao, fromCity: r.origin.city, toCity: r.destination.city,
-          airline: r.airline?.name ?? null, airlineIata: r.airline?.iata || null,
+          airline: brand?.name ?? null, airlineIata: brand?.iata ?? null,
           toLat: r.destination.lat, toLon: r.destination.lon, remainingKm: Math.round(r.remainingKm),
         };
+      } else if (brand) {
+        airlines[a.hex] = brand;
       }
     }));
-    return json({ ...data, routes } satisfies AircraftResponse);
+    return json({ ...data, routes, airlines } satisfies AircraftResponse);
   } catch (err) {
     return json({ error: (err as Error).message, details: (err as AircraftUnavailable).details }, { status: 502 });
   }
